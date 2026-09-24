@@ -11,6 +11,7 @@ from app.core.db import make_engine
 from app.core.health import health_router
 from app.core.logging import configure_logging
 from app.core.product import get_product
+from app.core.responses import UTF8JSONResponse
 from app.core.version import backend_version
 
 
@@ -31,6 +32,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await app.state.engine.dispose()
 
-    app = FastAPI(title=f"{get_product().name} Gateway", version=backend_version(), lifespan=lifespan)
+    app = FastAPI(
+        title=f"{get_product().name} Gateway",
+        version=backend_version(),
+        lifespan=lifespan,
+        default_response_class=UTF8JSONResponse,
+    )
     app.include_router(health_router("/health", "gateway", _engine))
     return app

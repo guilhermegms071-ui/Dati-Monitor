@@ -3,14 +3,15 @@
 import asyncio
 import logging
 import signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
-from app.core.db import DbStatus, check_database, make_engine
+from app.core.db import DbStatus, check_database, make_engine, make_sessionmaker
 from app.core.logging import configure_logging
+from app.services.partitions import default_partition_rows, ensure_partitions
 
 logger = logging.getLogger("app.worker")
 
@@ -20,6 +21,14 @@ class DbWatch:
     """Tracks database reachability so transitions are logged once, and failures always."""
 
     last_ok: bool | None = None
+
+
+@dataclass
+class WorkerContext:
+    settings: Settings
+    engine: AsyncEngine
+    sessionmaker: async_sessionmaker[AsyncSession]
+    db_watch: DbWatch = field(default_factory=DbWatch)
 
 
 async def db_check_job(engine: AsyncEngine, watch: DbWatch) -> DbStatus:
@@ -32,25 +41,47 @@ async def db_check_job(engine: AsyncEngine, watch: DbWatch) -> DbStatus:
     return result
 
 
-def build_scheduler(engine: AsyncEngine, settings: Settings, watch: DbWatch) -> AsyncIOScheduler:
-    scheduler = AsyncIOScheduler(timezone="UTC")
+async def partitions_job(ctx: WorkerContext) -> list[str]:
+    """Keeps monthly partitions 1 month back and 3 ahead; warns if rows landed in a default partition."""
+    try:
+        async with ctx.sessionmaker() as session:
+            created = await ensure_partitions(session)
+            leftovers = await default_partition_rows(session)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha na manutenção de partições")
+        raise
+    for table, count in leftovers.items():
+        if count:
+            logger.warning(
+                "worker: %d linha(s) em %s_default (data fora da janela de partições)", count, table
+            )
+    return created
+
+
+def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
+    scheduler = AsyncIOScheduler(timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True})
     scheduler.add_job(
         db_check_job,
         "interval",
-        seconds=settings.db_check_interval_seconds,
-        args=[engine, watch],
+        seconds=ctx.settings.db_check_interval_seconds,
+        args=[ctx.engine, ctx.db_watch],
         id="db_check",
-        max_instances=1,
-        coalesce=True,
     )
+    scheduler.add_job(partitions_job, "cron", hour=3, minute=15, args=[ctx], id="partitions")
     return scheduler
 
 
 async def run(settings: Settings, stop: asyncio.Event) -> None:
-    engine = make_engine(settings.database_url)
-    watch = DbWatch()
-    scheduler = build_scheduler(engine, settings, watch)
-    await db_check_job(engine, watch)
+    engine = make_engine(settings.database_url, pool_size=5)
+    ctx = WorkerContext(settings=settings, engine=engine, sessionmaker=make_sessionmaker(engine))
+    scheduler = build_scheduler(ctx)
+    await db_check_job(engine, ctx.db_watch)
+    if ctx.db_watch.last_ok:
+        try:
+            await partitions_job(ctx)
+        except Exception:  # noqa: BLE001 - já registrado; o job agendado tentará de novo
+            logger.error("worker: manutenção inicial de partições falhou; nova tentativa no horário agendado")
     scheduler.start()
     logger.info("worker iniciado")
     try:

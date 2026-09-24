@@ -13,7 +13,12 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `agent/internal/product/` | Constantes geradas de `product.json` (`go generate ./...`) e nomes derivados (serviços, pasta de dados). |
 | `agent/internal/cli/` | Despacho de subcomandos comum aos 3 binários. |
 | `agent/internal/buildinfo/` | Versão/commit injetados via `-ldflags` pelo `scripts\build-agent.ps1`. |
-| `backend/app/core/` | Config (`pydantic-settings`, lê `.env` da raiz), banco (engine async), logging JSON, health. |
+| `backend/app/core/` | Config (`pydantic-settings`, lê `.env` da raiz), banco, segurança (argon2/JWT), cripto AES-GCM, `Principal` + escopos, permissões, erros, e-mail, rate limit. |
+| `backend/app/models/` | Todas as tabelas (SQLAlchemy 2 tipado). `PARTITIONED_TABLES`/`APPEND_ONLY_TABLES` em `__init__`. |
+| `backend/app/schemas/` | Pydantic de entrada/saída da API. |
+| `backend/app/services/` | Regras de negócio. **Toda função recebe o `Principal` e aplica `reseller_scope`/`customer_scope`**; escritas chamam `audit.record`. |
+| `backend/app/api/v1/` | Roteadores finos: validam, chamam o serviço e fazem `session.commit()`. `api/deps.py` = autenticação central. |
+| `backend/app/cli.py` | `python -m app.cli migrate / bootstrap / seed-dev / ensure-partitions`. |
 | `backend/app/api/` | Processo da API REST (porta 8000). `create_app()` é fábrica (`uvicorn --factory`). |
 | `backend/app/gateway/` | Processo do gateway WebSocket dos agentes (porta 8001). |
 | `backend/app/worker/` | Jobs agendados (APScheduler). `python -m app.worker.main`. |
@@ -33,7 +38,9 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 
 ```powershell
 scripts\setup-db.ps1        # cria papel "dati" e bancos dati_dev/dati_test (idempotente)
-scripts\dev.ps1             # sobe API, gateway, worker, portal, smtp_catcher e snmpsim; Ctrl+C encerra
+scripts\init-env.ps1 -PostgresPassword X   # cria .env com segredos aleatórios (instalação nova)
+scripts\dev.ps1             # migra, faz seed e sobe API, gateway, worker, portal, smtp_catcher e snmpsim; Ctrl+C encerra
+scripts\stop-dev.ps1        # encerra o dev.ps1 (se a janela foi fechada sem Ctrl+C)
 scripts\test.ps1            # Go (-race, cobertura >= 80% internal/), pytest (>= 80%), Vitest
 scripts\test.ps1 -E2E       # + Playwright
 scripts\lint.ps1            # golangci-lint, ruff, mypy --strict, eslint, prettier, tsc
@@ -64,6 +71,15 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   use `Continue` localmente e cheque `$LASTEXITCODE` (veja `setup-db.ps1`).
 - Testes que sobem subprocessos: mande a saída para arquivo, nunca `PIPE` não lido (trava no Windows).
 - Mudou `product.json`? Rode `go generate ./...` em `agent/` e faça commit do `product_gen.go`.
+- Mudou modelo? `cd backend; ..\.venv\Scripts\alembic revision --autogenerate -m "..."`, revise o arquivo
+  (FKs circulares, SQL próprio) e rode `alembic check` (um teste falha se modelo e migração divergirem).
+- Rotas nunca consultam dados de tenant sem passar pelo serviço (que aplica o escopo). Erros via
+  `app.core.errors` (`not_found`, `forbidden`, `conflict`, `bad_request`) com mensagem em português.
+- Novas listas: paginação por cursor (`services/pagination.py`) e exportação (`services/export.py`).
+- Testes de API usam as fixtures `client`, `factory` e `login()` de `tests/conftest.py`; o banco
+  `dati_test` é recriado por sessão e esvaziado a cada teste (`clean_db`).
+- Primeiro start: a senha temporária do `admin@local` aparece no console do dev.ps1/API.
+- Edições complexas por script: grave o script em arquivo (heredocs longos no bash quebram neste ambiente).
 
 ## Ambiente desta máquina
 

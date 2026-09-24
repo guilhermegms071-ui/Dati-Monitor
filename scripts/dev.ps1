@@ -50,14 +50,27 @@ foreach ($sim in $sims) {
         Args = @("--data-dir=$($sim.FullName)", "--cache-dir=$(Join-Path $RepoRoot "var\snmpsim-cache\$($sim.Name)")", "--agent-udpv4-endpoint=127.0.0.1:$port") })
 }
 
+$leftover = Stop-DevProcesses
+if ($leftover -gt 0) {
+    Write-Host "AVISO $leftover processo(s) de uma execução anterior do dev.ps1 ainda estavam rodando e foram encerrados." -ForegroundColor Yellow
+    Start-Sleep -Seconds 1
+}
+
 foreach ($s in $services) {
     if ($s.ContainsKey('Port')) { Assert-PortFree $s.Port }
     if ($s.ContainsKey('ExtraPort')) { Assert-PortFree $s.ExtraPort }
     if ($s.ContainsKey('UdpPort')) { Assert-PortFree $s.UdpPort 'UDP' }
 }
 
+Push-Location (Join-Path $RepoRoot 'backend')
+try {
+    Invoke-Checked 'Banco: migrações (alembic upgrade head)' { & $VenvPython -m app.cli migrate }
+    Invoke-Checked 'Banco: dados de desenvolvimento (seed idempotente)' { & $VenvPython -m app.cli seed-dev }
+} finally { Pop-Location }
+
 $running = @()
 function Stop-All {
+    $ErrorActionPreference = 'Continue'  # taskkill pode reclamar de filhos que já saíram
     foreach ($r in $running) {
         if (-not $r.Process.HasExited) { & taskkill.exe /T /F /PID $r.Process.Id 2>&1 | Out-Null }
     }
@@ -75,6 +88,8 @@ try {
         $running += @{ Name = $s.Name; Color = $s.Color; Process = $p; Files = @($out, $err); Pos = @{ $out = 0L; $err = 0L } }
         Write-Host ("[{0,-8}] iniciado (PID {1})" -f $s.Name, $p.Id) -ForegroundColor $s.Color
     }
+
+    Save-DevProcesses ($running | ForEach-Object { $_.Process })
 
     Write-Step 'Aguardando a API responder em http://127.0.0.1:8000/api/health'
     $deadline = (Get-Date).AddSeconds(60); $ready = $false
@@ -118,5 +133,6 @@ try {
 } finally {
     Write-Step 'Encerrando todos os processos'
     Stop-All
+    Remove-Item $DevPidFile -Force -ErrorAction Ignore  # pode já ter sido removido pelo stop-dev.ps1
     Write-Ok 'Ambiente encerrado'
 }

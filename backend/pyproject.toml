@@ -16,6 +16,14 @@ dependencies = [
   "pydantic>=2.10",
   "pydantic-settings>=2.6",
   "apscheduler>=3.11,<4",
+  "argon2-cffi>=23.1",
+  "pyjwt>=2.10",
+  "pyotp>=2.9",
+  "cryptography>=44",
+  "openpyxl>=3.1",
+  "aiosmtplib>=3.0",
+  "pyyaml>=6.0",
+  "jsonschema>=4.23",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +37,9 @@ dev = [
   "aiosmtpd>=1.4.6",
   "snmpsim>=1.1",
   "pysmi>=1.5",
+  "types-pyyaml>=6.0",
+  "types-jsonschema>=4.23",
+  "types-openpyxl>=3.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -40,11 +51,13 @@ target-version = "py312"
 extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ASYNC", "S", "PT", "RET", "PL"]
-ignore = ["PLR0913"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ASYNC", "S", "PT", "RET", "PL", "BLE", "T20"]
+ignore = ["PLR0913", "PLR0911"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004", "S105", "S106"]
+"tests/**" = ["S101", "PLR2004", "S105", "S106", "PLR0917", "E501"]
+# Endpoints FastAPI recebem as dependências como parâmetros.
+"app/api/**" = ["PLR0917"]
 "../scripts/**" = ["S104"]
 
 [tool.mypy]
@@ -68,4 +81,5 @@ filterwarnings = ["ignore::DeprecationWarning:pysnmp.*"]
 
 [tool.coverage.run]
 source = ["app"]
+concurrency = ["greenlet", "thread"]
 branch = true

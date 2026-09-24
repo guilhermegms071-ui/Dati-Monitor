@@ -5,8 +5,13 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | Fase | Situação |
 |---|---|
 | 0 — Fundação | ✅ concluída (24/09/2026) |
-| 1 — Backend núcleo | ⏳ próxima |
-| 2 a 11 | pendentes |
+| 1 — Backend núcleo | ✅ concluída (24/09/2026) |
+| 2 — Agente núcleo | ⏳ próxima |
+| 3 a 11 | pendentes |
+
+> Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
+> (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
+> (Fase 10: faixa de IP e folhas de contadores; instalação de serviços Windows: terminal de administrador).
 
 ---
 
@@ -71,6 +76,78 @@ scripts\dev.ps1     # depois abra http://localhost:5173 (deve mostrar "API: cone
 - Tudo das Fases 1–11. O CI está escrito, mas **ainda não rodou**: o repositório não tem remoto no
   GitHub. Quando for publicado, o primeiro push executa os jobs Linux e Windows.
 
+## Fase 1 — Backend núcleo ✅
+
+### Plano executado
+Esquema completo da seção 3 em uma migração; partições mensais; autenticação do portal; papéis e
+escopo em dependência central; CRUD de revendas/empresas/clientes/locais/usuários; auditoria; seed.
+
+### O que foi feito
+- **Modelos (SQLAlchemy 2, tipados)** para todas as tabelas da seção 3 (`app/models/*`), mais as de
+  apoio: `refresh_tokens`, `password_reset_tokens`, `reading_idempotency`, `reading_reviews`,
+  `reading_discards`, `cluster_events`, `erp_tokens`. `eager_defaults` no modelo base (valores do
+  servidor voltam via RETURNING — sem I/O implícito no async).
+- **Migração inicial** (`alembic/versions/*_esquema_inicial.py`): 57 tabelas; `readings`,
+  `supply_readings` e `agent_heartbeats` particionadas por mês (limites em UTC explícito) com partição
+  `default` de segurança; função `dm_ensure_month_partition` (cria a partição e **move** para ela as
+  linhas que tinham caído na default — nenhuma leitura se perde); triggers que bloqueiam
+  UPDATE/DELETE/TRUNCATE em `readings` e `audit_log` (inclusive em cada partição nova).
+  `alembic check` limpo; downgrade testado.
+- **Autenticação**: argon2id; JWT de acesso (15 min) com "versão da senha" embutida (trocar a senha
+  derruba na hora todos os tokens anteriores); refresh de 7 dias rotativo em cookie httpOnly
+  (`SameSite=Strict`, `Path=/api/v1/auth`) com CSRF double-submit (`dm_csrf` + `X-CSRF-Token`); reuso de
+  refresh revoga a família (com tolerância de 10 s para duas abas); bloqueio após 10 falhas (15 min);
+  rate limit em memória no login; TOTP (segredo cifrado AES-GCM, janela ±1, proteção contra reuso do
+  código); TOTP obrigatório para `reseller_admin` quando a revenda configura
+  `security.require_totp_for_admins`; troca obrigatória de senha no primeiro acesso (token "limitado");
+  "esqueci a senha" por e-mail (sem revelar se o e-mail existe).
+- **Autorização**: `Principal` + `reseller_scope`/`customer_scope` (`app/core/principal.py`) aplicados em
+  toda consulta de serviço; papéis `superadmin`, `reseller_admin`, `operator`, `technician`,
+  `customer_viewer` com permissões por ação (`app/core/permissions.py`, espelhadas nas tabelas
+  `roles`/`role_permissions` no bootstrap). Hierarquia: ninguém atribui papel acima do seu; ninguém se
+  desativa, rebaixa ou exclui.
+- **API** (`/api/v1`): auth (login, refresh, logout, me, preferências, troca/redefinição de senha, TOTP),
+  revendas, empresas, clientes (com exportação CSV/XLSX), locais, usuários (com exportação, reset de senha
+  temporária ou por e-mail, reset de TOTP, desbloqueio), papéis, auditoria (com exportação). Paginação por
+  cursor com ordenação no servidor; erros JSON com código estável e mensagem em português;
+  `charset=utf-8` em toda resposta; cabeçalhos de segurança (HSTS em produção).
+- **Auditoria**: toda escrita grava `audit_log` na mesma transação, com antes/depois (só os campos
+  alterados, nunca segredos) e IP.
+- **Bootstrap/seed**: no primeiro start cria a revenda e o superadmin `admin@local` com senha temporária
+  exibida no console (troca obrigatória); `python -m app.cli seed-dev` cria 1 empresa, 2 clientes, 2 locais.
+- **CLI** `python -m app.cli migrate | bootstrap | seed-dev | ensure-partitions`.
+- **Worker**: job diário de partições (mês anterior + 3 à frente; avisa se houver linhas na default).
+- **Scripts**: `dev.ps1` roda migração + seed antes de subir e registra os PIDs (`var\dev-pids.json`):
+  se a janela for fechada sem Ctrl+C, a próxima execução encerra as sobras sozinha; novo `stop-dev.ps1`;
+  novo `init-env.ps1` (gera `.env` com segredos aleatórios); `Invoke-Checked` julga pelo código de saída
+  e sempre mostra o stderr.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| pytest (PostgreSQL real; esquema recriado com upgrade → downgrade → upgrade) | 69 testes; cobertura 92% (api ≥ 89%, services ≥ 83%) |
+| Isolamento multi-revenda | leitura/edição/exclusão/criação cruzada → 404/403; listas, auditoria e exportações filtradas; usuário com escopo de cliente só vê o próprio cliente |
+| Go / Vitest / Playwright | inalterados, passando |
+| Lint | golangci-lint, ruff, mypy --strict (app + tests), eslint, prettier, tsc: sem problemas |
+
+### Fluxo manual executado (24/09/2026) e resultado
+1. `scripts\dev.ps1` → migração + seed; o console mostrou "PRIMEIRO ACESSO … admin@local / senha temporária". ✅
+2. Login com a senha temporária → `limited=password_change_required`; `/customers` com esse token → 403. ✅
+3. Troca de senha → sessão completa; clientes do seed listados (CLI-0001, CLI-0002). ✅
+4. Cliente "Clínica Manual" criado (CNPJ formatado → gravado só com dígitos; acento conferido no banco em UTF-8). ✅
+5. Local criado; a auditoria mostrou create/site, create/customer, auth.change_password, auth.login. ✅
+6. Refresh via cookie + cabeçalho CSRF → novo token. ✅ Exportação XLSX → 200, arquivo `clientes-AAAAMMDD-HHMM.xlsx`. ✅
+7. `dev.ps1` fechado à força (sem Ctrl+C) → a execução seguinte avisou "6 processo(s) de uma execução
+   anterior … foram encerrados" e subiu; `stop-dev.ps1` encerrou tudo e liberou as portas. ✅
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E
+scripts\dev.ps1        # anote a senha temporária do admin@local exibida no console (1º start)
+# http://127.0.0.1:8000/docs → POST /api/v1/auth/login, depois /auth/change-password, /customers ...
+scripts\stop-dev.ps1   # para encerrar sem Ctrl+C
+```
+
 ---
 
 ## Decisões
@@ -87,3 +164,15 @@ scripts\dev.ps1     # depois abra http://localhost:5173 (deve mostrar "API: cone
 | D8 | Impressora simulada `05-generica` criada já na Fase 0, só com OIDs padrão; `sysObjectID` = `1.3.6.1.4.1.8072.3.2.10` (agente Net-SNMP) | Validar o snmpsim no Windows desde já sem inventar OID de fabricante; as outras 7 entram na Fase 2 |
 | D9 | Dockerfiles/compose escritos mas **não testados** | Máquina sem virtualização; nenhum fluxo depende de Docker agora (regra 6) |
 | D10 | Logs do snmpsim mostram "ERROR Variation module redis/sql load FAILED" | São módulos opcionais que não usamos; o simulador funciona normalmente. Tratar na Fase 2 se atrapalhar |
+| D11 | Executar as fases em sequência, sem plan mode a cada fase | Pedido explícito do usuário ("faça todas as fases direto"); o plano de cada fase fica no PROGRESS.md |
+| D12 | Todas as tabelas da seção 3 criadas já na Fase 1 (uma migração) | As fases seguintes só acrescentam comportamento; evita migrações encadeadas de criação |
+| D13 | Tabelas somente-inserção (`readings`, `supply_readings`, `agent_heartbeats`, `audit_log`, `device_events`) têm só `created_at` | São imutáveis por definição; `updated_at` seria sempre igual |
+| D14 | Unicidade de `idempotency_key` numa tabela à parte (`reading_idempotency`) | O PostgreSQL não aceita UNIQUE em tabela particionada sem a chave de partição |
+| D15 | Classificação de regressão de contador em `reading_reviews` (não em `readings`) | `readings` é imutável (R6); a exclusão do relatório consulta a classificação |
+| D16 | Partição `default` + função que move as linhas ao criar a partição do mês | Leitura com data fora da janela (relógio errado, fila antiga) nunca é rejeitada nem perdida |
+| D17 | Bloqueio de alteração por trigger, com "modo manutenção" (`SET LOCAL dati.maintenance`) usado só pela manutenção de partições e pelos testes | Protege contra erro de aplicação; não é barreira contra um DBA (documentado) |
+| D18 | Papéis/permissões definidos no código e espelhados nas tabelas no bootstrap | Uma fonte da verdade; a tabela serve para consulta e relatórios |
+| D19 | O token de acesso carrega a "versão da senha" (µs de `password_changed_at`) | Comparar só o `iat` (segundos) deixaria válido um token emitido no mesmo segundo da troca |
+| D20 | TOTP obrigatório para `reseller_admin` via configuração da revenda `security.require_totp_for_admins` | PROMPT: "obrigatório se configurado"; sem a configuração, é opcional |
+| D21 | "Esqueci a senha" responde 202 sempre; falha de SMTP vira ERRO no log (não na resposta) | Responder erro revelaria que o e-mail existe; o reset feito pelo admin mostra o erro na tela |
+| D22 | Sem biblioteca de validação de e-mail (regex simples + minúsculas) | O admin inicial é `admin@local` (exigido pelo PROMPT), que validadores estritos recusam |

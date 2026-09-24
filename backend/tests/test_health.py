@@ -6,9 +6,13 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.api.main import create_app as create_api
+from app.api.main import create_app
 from app.core.config import Settings
 from app.gateway.main import create_app as create_gateway
+
+
+def create_api(settings: Settings) -> FastAPI:
+    return create_app(settings, run_bootstrap=False)
 
 
 @asynccontextmanager
@@ -29,6 +33,7 @@ async def test_health_ok_with_real_database(
     async with client_for(factory(test_settings)) as client:
         resp = await client.get(path)
     assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/json; charset=utf-8"
     body = resp.json()
     assert body["status"] == "ok"
     assert body["service"] == service

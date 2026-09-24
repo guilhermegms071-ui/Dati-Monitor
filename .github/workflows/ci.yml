@@ -27,6 +27,9 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://dati:dati-ci@127.0.0.1:5432/dati_test
       TEST_DATABASE_URL: postgresql+asyncpg://dati:dati-ci@127.0.0.1:5432/dati_test
       APP_ENV: test
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef0123456789abcdef
+      MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      COOKIE_SECURE: "false"
     steps:
       - uses: actions/checkout@v5
 
@@ -87,6 +90,7 @@ jobs:
       - name: Frontend — Playwright E2E
         working-directory: frontend
         run: |
+          (cd ../backend && ../.venv/bin/python -m app.cli migrate)
           npx playwright install --with-deps chromium
           npx playwright test
 

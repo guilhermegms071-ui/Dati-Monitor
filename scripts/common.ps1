@@ -60,8 +60,44 @@ function Get-GoExe {
 }
 
 function Invoke-Checked([string]$Description, [scriptblock]$Block) {
+    # Sucesso/falha vem do código de saída do programa. O stderr (onde Alembic, pytest etc. escrevem
+    # logs) continua aparecendo, mas no PS 5.1 com saída redirecionada viraria exceção fatal e silenciosa.
     Write-Step $Description
-    & $Block
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "$Description falhou (código $LASTEXITCODE)" }
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 0
+    & $Block 2>&1 | ForEach-Object { Write-Host $(if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.ToString() } else { "$_" }) }
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($code -ne 0) { Stop-WithError "$Description falhou (código $code)" }
     Write-Ok $Description
+}
+
+$script:DevPidFile = Join-Path $RepoRoot 'var\dev-pids.json'
+
+function Save-DevProcesses([object[]]$Processes) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DevPidFile) | Out-Null
+    $data = @($Processes | ForEach-Object { @{ pid = $_.Id; start = $_.StartTime.ToUniversalTime().Ticks; name = $_.ProcessName } })
+    [IO.File]::WriteAllText($DevPidFile, (ConvertTo-Json -InputObject $data -Compress))
+}
+
+function Stop-DevProcesses {
+    # Encerra (com a árvore de filhos) os processos registrados por uma execução anterior do dev.ps1.
+    # Confere a hora de início para nunca matar outro programa que tenha reaproveitado o PID.
+    if (-not (Test-Path $DevPidFile)) { return 0 }
+    # taskkill escreve no stderr quando um filho já saiu; no PS 5.1 isso viraria exceção com 'Stop'.
+    $ErrorActionPreference = 'Continue'
+    $stopped = 0
+    # PS 5.1: ConvertFrom-Json devolve o array inteiro como um único item no pipeline; atribuir a uma
+    # variável antes do foreach faz a enumeração correta.
+    $entries = Get-Content $DevPidFile -Raw | ConvertFrom-Json
+    foreach ($entry in $entries) {
+        $proc = Get-Process -Id $entry.pid -ErrorAction SilentlyContinue
+        if ($proc -and $proc.StartTime.ToUniversalTime().Ticks -eq [int64]$entry.start) {
+            & taskkill.exe /T /F /PID $entry.pid 2>&1 | Out-Null
+            $stopped++
+        }
+    }
+    # O dev.ps1 que perdeu os filhos também apaga o arquivo ao sair; ausência é o estado desejado.
+    Remove-Item $DevPidFile -Force -ErrorAction Ignore
+    return $stopped
 }
