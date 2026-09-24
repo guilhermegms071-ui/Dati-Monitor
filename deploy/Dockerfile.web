@@ -1,0 +1,14 @@
+# Portal (build do Vite) servido pelo Caddy, que também faz o TLS e o roteamento para API/gateway.
+# Preparada para a hospedagem futura; NÃO é usada no desenvolvimento (sem Docker nesta fase).
+# Build a partir da raiz do repositório: docker build -f deploy/Dockerfile.web .
+FROM node:24-slim AS build
+WORKDIR /src
+COPY product.json product.json
+COPY frontend/package.json frontend/package-lock.json frontend/
+RUN cd frontend && npm ci
+COPY frontend frontend
+RUN cd frontend && npm run build
+
+FROM caddy:2
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/frontend/dist /srv/portal

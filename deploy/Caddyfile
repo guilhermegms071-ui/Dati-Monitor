@@ -1,0 +1,26 @@
+# Proxy TLS da hospedagem futura. DM_DOMAIN vem do ambiente (ex.: monitor.daticopy.com.br).
+{$DM_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /ws/agent* {
+		reverse_proxy gateway:8001
+	}
+	handle /devweb/* {
+		reverse_proxy gateway:8001
+	}
+	handle {
+		root * /srv/portal
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,60 @@
+# Composição para a hospedagem futura (VPS/Render/servidor próprio).
+# NÃO usada no desenvolvimento: nesta fase tudo roda nativo no Windows (scripts\dev.ps1).
+# Uso futuro, a partir da raiz do repositório:
+#   docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
+name: dati-monitor
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_APP_USER:?defina DB_APP_USER}
+      POSTGRES_PASSWORD: ${DB_APP_PASSWORD:?defina DB_APP_PASSWORD}
+      POSTGRES_DB: dati
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d dati"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: { context: .., dockerfile: deploy/Dockerfile.backend }
+    restart: unless-stopped
+    environment: &backend-env
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${DB_APP_USER}:${DB_APP_PASSWORD}@postgres:5432/dati
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  gateway:
+    build: { context: .., dockerfile: deploy/Dockerfile.backend }
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "app.gateway.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers"]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  worker:
+    build: { context: .., dockerfile: deploy/Dockerfile.backend }
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker.main"]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    build: { context: .., dockerfile: deploy/Dockerfile.web }
+    restart: unless-stopped
+    environment:
+      DM_DOMAIN: ${DM_DOMAIN:?defina DM_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - caddy_data:/data
+    depends_on: [api, gateway]
+
+volumes:
+  pgdata:
+  caddy_data:

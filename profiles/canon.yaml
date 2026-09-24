@@ -1,0 +1,83 @@
+# Perfil de leitura — CANON (imageRUNNER / imageRUNNER ADVANCE / iR C / i-SENSYS)
+# Fontes: GLPI Agent (lib/GLPI/Agent/SNMP/MibSupport/Canon.pm), template Zabbix Canon C5540,
+#         FusionInventory issue #379, GLPI Agent issue #574.
+# Regra Canon: o número que aparece na tela "Verificar contador" do painel (ex.: "108: Total (Preto/Branco 1)")
+#              é o índice final do OID na tabela A  ->  1.3.6.1.4.1.1602.1.11.1.3.1.4.<ID>
+# Modelos de plataforma i-SENSYS/LBP (ex.: iR 1643i, iR C1335) podem expor a tabela B (com nomes) em vez da A.
+# O coletor tenta a tabela A; se não existir, usa a tabela B.
+
+id: canon
+version: 1
+match:
+  sys_object_id_prefix: "1.3.6.1.4.1.1602"
+
+identity:
+  serial:
+    - { oid: "1.3.6.1.2.1.43.5.1.1.17.1" }            # padrão Printer-MIB
+    - { oid: "1.3.6.1.4.1.1602.1.2.1.8.1.3.1.1" }      # canServInfoSerialNumberDeviceNumber
+    - { oid: "1.3.6.1.4.1.1602.1.2.1.4.0" }            # usado no template Zabbix C5540
+  model:
+    - { oid: "1.3.6.1.4.1.1602.1.1.1.1.0" }            # canPdInfoProductName
+    - { oid: "1.3.6.1.4.1.2699.1.2.1.2.1.1.2.1" }      # ppmPrinterName
+    - { oid: "1.3.6.1.2.1.25.3.2.1.3.1" }              # hrDeviceDescr
+  firmware:
+    - { oid: "1.3.6.1.4.1.1602.1.1.1.4.0" }            # canPdInfoProductVersion
+
+counter_sources:
+  # ---------- Tabela A: indexada pelo ID do contador Canon ----------
+  - name: canon_id_table
+    detect_oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4"        # walk; se retornar linhas, usa esta fonte
+    counters:
+      total:        { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.101" }   # 101 Total 1
+      total_2:      { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.102" }   # 102 Total 2 (A3 conta 2)
+      mono:
+        first_of:
+          - { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.108" }          # 108 Total (P&B 1)
+          - { sum: ["1.3.6.1.4.1.1602.1.11.1.3.1.4.112",           # 112 Total (P&B/Grande)
+                    "1.3.6.1.4.1.1602.1.11.1.3.1.4.113"] }         # 113 Total (P&B/Pequeno)
+      mono_2:       { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.109" }   # 109 Total (P&B 2)
+      mono_large:   { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.112" }
+      mono_small:   { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.113" }
+      color:
+        sum: ["1.3.6.1.4.1.1602.1.11.1.3.1.4.122",                 # 122 Total (Cor + Monocor/Grande)
+              "1.3.6.1.4.1.1602.1.11.1.3.1.4.123"]                 # 123 Total (Cor + Monocor/Pequeno)
+      color_2:      { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.124" }   # 124 Total (Cor + Monocor 2)
+      color_large:  { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.122" }
+      color_small:  { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.123" }
+      print_total:  { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.301" }   # 301 Impressão (Total 1)
+      scan:         { oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.501" }   # 501 Digitalização (Total 1)
+    store_all_rows_in_extra: true      # guarda TODOS os IDs lidos em readings.extra
+
+  # ---------- Tabela B: nomes + valores (plataforma i-SENSYS / LBP) ----------
+  - name: canon_named_table
+    detect_oid: "1.3.6.1.4.1.1602.1.11.2.1.1.3"
+    named_table:
+      names_oid:  "1.3.6.1.4.1.1602.1.11.2.1.1.2"      # nome do contador (pode vir em hex -> converter p/ texto)
+      values_oid: "1.3.6.1.4.1.1602.1.11.2.1.1.3"      # valor, mesmo índice do nome
+    counters:
+      total:       { name_regex: "^Total 1$" }
+      mono:
+        first_of:
+          - { name_regex: "^Total \\((Black|Black & White) 1\\)$" }
+          - { sum_names: ["^Total \\(Black/Large\\)$", "^Total \\(Black/Small\\)$"] }
+      color:
+        sum_names: ["^Total \\(Full Color \\+ Single Color/Large\\)$",
+                    "^Total \\(Full Color \\+ Single Color/Small\\)$"]
+      print_total: { name_regex: "^Print \\(Total 1\\)$" }
+      copy_total:  { name_regex: "^Copy \\(Total 1\\)$" }
+      scan:        { name_regex: "^Scan \\(Total 1\\)$" }
+    store_all_rows_in_extra: true
+
+  # ---------- Fallback: só o total padrão ----------
+  - name: standard
+    counters:
+      total: { oid: "1.3.6.1.2.1.43.10.2.1.4.1.1" }
+
+rules:
+  mono_only_models_regex: "(?i)iR ?\\d{4}(?!.*C)|iR-ADV \\d{4}i?$"   # sem cor: color = 0
+  validate_sum_tolerance_percent: 2                                    # alerta se mono+color divergir do total
+
+status:
+  energy_saving_text_regex: "(?i)sleep|economia|energy|saving|repouso|suspens"
+supplies:
+  use_standard: true

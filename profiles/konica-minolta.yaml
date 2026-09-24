@@ -1,0 +1,51 @@
+# Perfil de leitura — KONICA MINOLTA bizhub (e Sindoh OEM)
+# Fontes: GLPI Agent (lib/GLPI/Agent/SNMP/MibSupport/Konica.pm);
+#         Lansweeper Community "Konica Minolta print counters" (testado em bizhub C458, C284e, C452,
+#         C454e, C280, C554e, C300i); template Zabbix iSmartyPRO (suprimentos).
+# Conferência com a tela do Datacount (bizhub C287, serial A797019500624):
+#   Total 217031 = PB 100150 + CL 116881  -> PB = cópia PB + impressão PB ; CL = cópia cor + impressão cor
+
+id: konica-minolta
+version: 1
+match:
+  sys_object_id_prefix: "1.3.6.1.4.1.18334"
+
+identity:
+  serial:
+    - { oid: "1.3.6.1.2.1.43.5.1.1.17.1" }
+  model:
+    - { oid: "1.3.6.1.4.1.18334.1.1.1.1.6.2.1.0" }
+    - { oid: "1.3.6.1.2.1.25.3.2.1.3.1" }
+  firmware:
+    - { oid: "1.3.6.1.4.1.18334.1.1.1.5.5.1.1.3" }
+
+counter_sources:
+  - name: konica_counters
+    detect_oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.1.1.0"
+    counters:
+      total:       { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.1.1.0" }
+      duplex:      { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.1.3.0" }
+      copy_mono:   { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5.1.1" }
+      print_mono:  { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5.1.2" }
+      copy_color:  { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5.2.1" }
+      print_color: { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5.2.2" }
+      mono:        { expr: "copy_mono + print_mono" }
+      color:       { expr: "copy_color + print_color" }
+      scan:
+        first_of:
+          - { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.3.1.5.1" }
+          - { oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.1.5.0" }
+    walk_subtree_to_extra: "1.3.6.1.4.1.18334.1.1.1.5.7.2"   # guarda a subárvore inteira em readings.extra
+
+  - name: standard
+    counters:
+      total: { oid: "1.3.6.1.2.1.43.10.2.1.4.1.1" }
+
+rules:
+  mono_only_models_regex: "(?i)bizhub \\d{3}(i|e)?$"      # ex.: bizhub 287, 367: color = 0
+  validate_sum_tolerance_percent: 2
+
+status:
+  energy_saving_text_regex: "(?i)sleep|economia|energy|saving|repouso|power save"
+supplies:
+  use_standard: true      # toner, cilindro, revelador, fusor, correia pela tabela padrão 43.11.1.1

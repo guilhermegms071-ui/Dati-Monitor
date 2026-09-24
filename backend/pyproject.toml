@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dati-monitor-backend"
+version = "0.1.0"
+description = "Backend do Dati Monitor: API, gateway WebSocket e worker"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.6",
+  "apscheduler>=3.11,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "httpx>=0.28",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "aiosmtpd>=1.4.6",
+  "snmpsim>=1.1",
+  "pysmi>=1.5",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ASYNC", "S", "PT", "RET", "PL"]
+ignore = ["PLR0913"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "S105", "S106"]
+"../scripts/**" = ["S104"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# APScheduler 3.x e pysnmp não publicam tipos (py.typed).
+module = ["apscheduler.*", "pysnmp.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+# Avisos internos do pysnmp (usado só pelos testes do simulador), não do nosso código.
+filterwarnings = ["ignore::DeprecationWarning:pysnmp.*"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
