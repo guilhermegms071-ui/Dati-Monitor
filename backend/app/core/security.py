@@ -100,6 +100,61 @@ class InvalidTokenError(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class AgentClaims:
+    agent_id: uuid.UUID
+    reseller_id: uuid.UUID
+    site_id: uuid.UUID
+    expires_at: datetime
+
+
+def create_agent_token(
+    *, secret: str, agent_id: uuid.UUID, reseller_id: uuid.UUID, site_id: uuid.UUID, minutes: int = 15
+) -> tuple[str, datetime]:
+    issued = datetime.now(UTC).replace(microsecond=0)
+    expires = issued + timedelta(minutes=minutes)
+    payload = {
+        "typ": "agent",
+        "sub": str(agent_id),
+        "rid": str(reseller_id),
+        "sid": str(site_id),
+        "iat": int(issued.timestamp()),
+        "exp": int(expires.timestamp()),
+    }
+    return jwt.encode(payload, secret, algorithm=JWT_ALGORITHM), expires
+
+
+def decode_agent_token(token: str, *, secret: str) -> AgentClaims:
+    try:
+        data = jwt.decode(
+            token, secret, algorithms=[JWT_ALGORITHM], options={"require": ["exp", "sub", "typ"]}
+        )
+    except jwt.ExpiredSignatureError as exc:
+        raise InvalidTokenError("token expirado") from exc
+    except jwt.PyJWTError as exc:
+        raise InvalidTokenError("token inválido") from exc
+    if data.get("typ") != "agent":
+        raise InvalidTokenError("tipo de token inválido")
+    try:
+        return AgentClaims(
+            agent_id=uuid.UUID(data["sub"]),
+            reseller_id=uuid.UUID(data["rid"]),
+            site_id=uuid.UUID(data["sid"]),
+            expires_at=datetime.fromtimestamp(data["exp"], UTC),
+        )
+    except (KeyError, ValueError, TypeError) as exc:
+        raise InvalidTokenError("token com dados inválidos") from exc
+
+
+def derive_agent_key(secret: bytes) -> bytes:
+    """K = SHA-256("dm-agent-auth\\n" + secret): the only derivative of the secret kept by the server."""
+    return hashlib.sha256(b"dm-agent-auth\n" + secret).digest()
+
+
+def agent_signature(key: bytes, agent_id: str, ts: int, nonce: str) -> str:
+    return hmac.new(key, f"{agent_id}\n{ts}\n{nonce}".encode(), hashlib.sha256).hexdigest()
+
+
 def decode_access_token(token: str, *, secret: str) -> AccessClaims:
     try:
         data = jwt.decode(

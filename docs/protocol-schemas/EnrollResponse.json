@@ -1,0 +1,31 @@
+{
+  "properties": {
+    "agent_id": {
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "secret": {
+      "description": "32 bytes em base64; o servidor guarda só a chave derivada",
+      "title": "Secret",
+      "type": "string"
+    },
+    "server_time": {
+      "format": "date-time",
+      "title": "Server Time",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "agent_id",
+    "secret",
+    "server_time"
+  ],
+  "title": "EnrollResponse",
+  "type": "object"
+}

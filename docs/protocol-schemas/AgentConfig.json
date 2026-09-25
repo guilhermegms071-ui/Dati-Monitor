@@ -1,0 +1,309 @@
+{
+  "$defs": {
+    "CredentialConfig": {
+      "properties": {
+        "community": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Community"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "v3_auth_password": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V3 Auth Password"
+        },
+        "v3_auth_protocol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V3 Auth Protocol"
+        },
+        "v3_priv_password": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V3 Priv Password"
+        },
+        "v3_priv_protocol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V3 Priv Protocol"
+        },
+        "v3_username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V3 Username"
+        },
+        "version": {
+          "enum": [
+            "v1",
+            "v2c",
+            "v3"
+          ],
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "CredentialConfig",
+      "type": "object"
+    },
+    "DiscoveryConfig": {
+      "properties": {
+        "concurrency": {
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "rate_pps": {
+          "title": "Rate Pps",
+          "type": "integer"
+        },
+        "retries": {
+          "title": "Retries",
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "title": "Timeout Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "concurrency",
+        "rate_pps",
+        "timeout_ms",
+        "retries"
+      ],
+      "title": "DiscoveryConfig",
+      "type": "object"
+    },
+    "Intervals": {
+      "properties": {
+        "attributes_minutes": {
+          "title": "Attributes Minutes",
+          "type": "integer"
+        },
+        "counters_minutes": {
+          "title": "Counters Minutes",
+          "type": "integer"
+        },
+        "discovery_minutes": {
+          "title": "Discovery Minutes",
+          "type": "integer"
+        },
+        "status_minutes": {
+          "title": "Status Minutes",
+          "type": "integer"
+        },
+        "supplies_minutes": {
+          "title": "Supplies Minutes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "discovery_minutes",
+        "counters_minutes",
+        "supplies_minutes",
+        "status_minutes",
+        "attributes_minutes"
+      ],
+      "title": "Intervals",
+      "type": "object"
+    },
+    "IpRangeConfig": {
+      "properties": {
+        "cidr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cidr"
+        },
+        "end_ip": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Ip"
+        },
+        "exclusions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclusions",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "ports": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Ports",
+          "type": "array"
+        },
+        "start_ip": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Ip"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IpRangeConfig",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "cluster_role": {
+      "enum": [
+        "master",
+        "standby"
+      ],
+      "title": "Cluster Role",
+      "type": "string"
+    },
+    "config_version": {
+      "title": "Config Version",
+      "type": "integer"
+    },
+    "credentials": {
+      "items": {
+        "$ref": "#/$defs/CredentialConfig"
+      },
+      "title": "Credentials",
+      "type": "array"
+    },
+    "discovery": {
+      "$ref": "#/$defs/DiscoveryConfig"
+    },
+    "intervals": {
+      "$ref": "#/$defs/Intervals"
+    },
+    "keep_awake": {
+      "default": false,
+      "title": "Keep Awake",
+      "type": "boolean"
+    },
+    "paused": {
+      "title": "Paused",
+      "type": "boolean"
+    },
+    "profiles": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Profiles",
+      "type": "array"
+    },
+    "proxy_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Proxy Url"
+    },
+    "ranges": {
+      "items": {
+        "$ref": "#/$defs/IpRangeConfig"
+      },
+      "title": "Ranges",
+      "type": "array"
+    },
+    "site_id": {
+      "title": "Site Id",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "config_version",
+    "site_id",
+    "cluster_role",
+    "paused",
+    "intervals",
+    "discovery",
+    "ranges",
+    "credentials",
+    "profiles"
+  ],
+  "title": "AgentConfig",
+  "type": "object"
+}

@@ -1,0 +1,41 @@
+{
+  "properties": {
+    "agent_id": {
+      "maxLength": 64,
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "nonce": {
+      "maxLength": 64,
+      "minLength": 16,
+      "pattern": "^[0-9a-f]+$",
+      "title": "Nonce",
+      "type": "string"
+    },
+    "signature": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]+$",
+      "title": "Signature",
+      "type": "string"
+    },
+    "ts": {
+      "title": "Ts",
+      "type": "integer"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "agent_id",
+    "ts",
+    "nonce",
+    "signature"
+  ],
+  "title": "TokenRequest",
+  "type": "object"
+}

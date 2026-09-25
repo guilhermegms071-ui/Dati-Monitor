@@ -1,0 +1,24 @@
+# Perfil genérico — só OIDs padrão (Printer-MIB / Host-Resources-MIB, PROMPT seção 6.2).
+# Sempre existe e é usado quando nenhum perfil de fabricante combina com o equipamento.
+id: generic
+version: 1
+description: Perfil padrão para qualquer impressora com Printer-MIB (RFC 3805)
+
+identity:
+  serial:
+    - { oid: "1.3.6.1.2.1.43.5.1.1.17.1" }   # prtGeneralSerialNumber
+  model:
+    - { oid: "1.3.6.1.2.1.25.3.2.1.3.1" }    # hrDeviceDescr
+
+counter_sources:
+  - name: standard
+    counters:
+      total: { oid: "1.3.6.1.2.1.43.10.2.1.4.1.1" }   # prtMarkerLifeCount
+
+rules:
+  validate_sum_tolerance_percent: 2
+
+status:
+  energy_saving_text_regex: "(?i)sleep|economia|energy|saving|repouso|power save"
+supplies:
+  use_standard: true

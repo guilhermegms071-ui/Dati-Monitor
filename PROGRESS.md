@@ -6,8 +6,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 |---|---|
 | 0 — Fundação | ✅ concluída (24/09/2026) |
 | 1 — Backend núcleo | ✅ concluída (24/09/2026) |
-| 2 — Agente núcleo | ⏳ próxima |
-| 3 a 11 | pendentes |
+| 2 — Agente núcleo | ✅ concluída (25/09/2026) — falta só instalar o serviço Windows num terminal de administrador (ver abaixo) |
+| 3 — Tempo real e comandos | ⏳ próxima |
+| 4 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -148,6 +149,130 @@ scripts\dev.ps1        # anote a senha temporária do admin@local exibida no con
 scripts\stop-dev.ps1   # para encerrar sem Ctrl+C
 ```
 
+## Fase 2 — Agente núcleo ✅
+
+### Plano executado
+Protocolo agente↔servidor v1 (documentado e testado dos dois lados); agente Go com cadastro, credencial
+protegida, configuração em cache, descoberta, motor de perfis, leituras independentes, fila SQLite e envio
+idempotente; ingestão no backend com as validações da seção 6.5; as 8 impressoras simuladas da seção 13.
+
+### O que foi feito
+- **Protocolo v1** (`docs/protocol.md` + `docs/protocol-schemas/*.json`, gerados de
+  `app/schemas/agent.py` por `scripts/gen_protocol_docs.py`; um teste falha se a documentação ficar
+  desatualizada): `enroll`, `token` (HMAC com proteção de relógio e de nonce), `heartbeat`, `config`,
+  `ranges/suggest`, `readings` (lotes gzip de até 500 itens, 16 MB).
+- **Backend**:
+  - Cadastro de coletores no portal (código de 8 caracteres, 7 dias, uso único; comando e instruções
+    em português), revogação e exclusão.
+  - Faixas de IP com várias portas SNMP por faixa (`ports`), aprovação de faixas sugeridas pelo agente.
+  - Credenciais SNMP v1/v2c/v3 cifradas (AES-GCM, AAD por local); a API nunca devolve o segredo, só
+    uma dica (`p…c`).
+  - Heartbeat com lease de MASTER por local; `config_version` incrementada a cada mudança de faixa,
+    credencial ou local.
+  - **Ingestão** (`services/ingest.py`) idempotente por `agent_id:seq`:
+    - identificação por serial (`discovered`, `ip_changed`, `moved_site`, `replaced`, `reactivated`);
+    - validações 6.5: regressão de contador vira alerta e fica fora do relatório; salto acima de
+      50 mil páginas/dia; soma PB+cor fora da tolerância;
+    - anti-duplicidade em meio intervalo; `read_at` no futuro é limitado ao horário do servidor;
+    - suprimentos, status e eventos.
+  - Leituras de equipamentos para o portal (`/api/v1/devices`, leituras, suprimentos, eventos).
+- **Agente** (`agent/internal/*`):
+  - `snmp` (gosnmp; v1/v2c/v3 SHA/SHA256 + AES/AES256, GET em blocos, BulkWalk).
+  - `profile`: motor de perfis com `oid`, `sum`, `first_of`, `expr`, `named_table`,
+    `counter_sources` com `detect_oid`, `store_all_rows_in_extra`, `walk_subtree_to_extra`, regras
+    mono-only e tolerância de soma; os perfis Canon/Konica fornecidos são usados **sem alteração**.
+  - `printer` (identidade, status normalizado 6.3 com bits de erro MSB-first, suprimentos com %).
+  - `discovery` (CIDR/intervalo/exclusões/portas, concorrência + limite de pacotes/s, credencial
+    conhecida primeiro).
+  - `collector`: só o MASTER varre e lê; atributos, contadores, suprimentos e status em intervalos
+    independentes; 3 tentativas com 2 min entre elas; `read_failed` 1×/dia; status só quando muda +
+    confirmação a cada 1 h; troca de serial no mesmo IP relê a identidade.
+  - `store` (SQLite WAL, `synchronous=FULL`): fila com retenção que descarta suprimentos antes de
+    contadores, dead-letter para rejeitados.
+  - `uploader` (lotes de 500, backoff 1 s → 60 s).
+  - `api` (HTTPS obrigatório fora de localhost; proxy manual → variáveis de ambiente → WinHTTP;
+    correção de relógio; renovação de token no 401).
+  - `health` (`127.0.0.1:47701`, 503 quando um laço para).
+  - `svc` (serviço Windows com início automático atrasado e recuperação 5 s/5 s/30 s; unit systemd
+    `Type=notify` + `WatchdogSec=60`).
+  - `secret` (DPAPI escopo máquina), `osinfo` (recusa Windows 7/8/2012 com mensagem clara;
+    impede suspensão quando configurado), logs JSON rotativos em UTC.
+- **CLIs**:
+  - `dm-agent enroll | run | service | install | uninstall | start | stop | restart | status`;
+  - `dm-tool walk` (gera `.snmprec` idêntico ao do simulador).
+- **Simulador** (`profiles/recordings/sim/generate.py`, OIDs exatamente os dos perfis fornecidos):
+  - `01` Canon cor (tabela por ID), `02` Canon PB (tabela nomeada em hex);
+  - `03` Konica cor (217031 = 100150 + 116881), `04` Konica PB;
+  - `05` genérica, `06` economia de energia (proxy UDP "sonolento" que só responde na 2ª tentativa);
+  - `07` atolamento + porta aberta + toner −3;
+  - `08` regressão (`regressed.snmprec.txt` trocado no meio do teste).
+  - `dev.ps1` sobe o proxy para as pastas com `sleepy.json`.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | 21 pacotes ok; cobertura de `internal/` **85,3%**; integração contra o snmpsim real (perfis, status/erros, economia de energia, SNMPv3 SHA256/AES256, descoberta em portas diferentes, regressão, walk ida e volta) |
+| pytest (PostgreSQL real) | 111 testes; cobertura 92% (protocolo do agente, ingestão e validações 6.5, credenciais cifradas, isolamento, gravações do simulador, proxy sonolento, documentação do protocolo) |
+| Vitest / Playwright | 7 / 1, passando |
+| Lint | golangci-lint 0 issues (Windows **e** `GOOS=linux`); ruff; mypy --strict; eslint/prettier/tsc |
+
+### Fluxo manual executado (25/09/2026) e resultado
+1. `scripts\dev.ps1` → API, gateway, worker, portal, SMTP, 8 snmpsim (1161–1168; a 1166 atrás do proxy
+   sonolento). ✅
+2. Pela API: coletor criado no local "Filial" → código `ZG3NH6DP` + comando + instruções em português;
+   faixa `127.0.0.1/32` com portas 1161–1168 → `approved`. ✅
+3. `dm-agent enroll --server http://127.0.0.1:8000 --code … --data-dir var\agent1` → cadastrado; a
+   pasta tem `config.json` e `credential` (DPAPI). Reusar o código → "Código de cadastro inválido, já
+   usado ou expirado" (saída 1). ✅
+4. `dm-agent run` → MASTER, configuração v2 aplicada. O local (criado na Fase 1) não tinha credencial
+   SNMP → log ERROR "nenhuma credencial SNMP configurada para o local" (falha visível, não silenciosa). ✅
+5. Credencial `public` adicionada pelo portal → config v3 aplicada, **mas a varredura só voltaria em 6 h**.
+   **Defeito encontrado e corrigido**: credencial nova agora dispara varredura imediata (teste
+   `TestNewCredentialOrRangeTriggersRescan`). Agente recompilado e reiniciado → 8 impressoras
+   encontradas em 2 s. Log com horário em UTC (outra correção: estava em −03:00). ✅
+6. `/api/v1/devices` no portal:
+
+   | Porta | Serial | Modelo | Perfil / fonte | Status | Total | PB | Cor |
+   |---|---|---|---|---|---|---|---|
+   | 1161 | SIMCAN0001 | iR-ADV C5540 | canon / `canon_id_table` | ready | 150000 | 90000 | 60000 |
+   | 1162 | SIMCAN0002 | iR 1643i | canon / `canon_named_table` | ready | 45678 | 45678 | 0 |
+   | 1163 | A797019500624 | bizhub C287 | konica-minolta / `konica_counters` | ready | **217031** | **100150** | **116881** |
+   | 1164 | SIMKM0004 | bizhub 367 | konica-minolta / `konica_counters` | ready | 88000 | 88000 | 0 |
+   | 1165 | SIMGEN0005 | Generic 5000 | generic / `standard` | ready | 48213 | — | — |
+   | 1166 | SIMSLEEP06 | Generic 6000 | generic / `standard` | **energy_saving** (não offline) | 12000 | — | — |
+   | 1167 | SIMERR07 | Generic 7000 | generic / `standard` | error (bits 48) | 77000 | — | — |
+   | 1168 | SIMREG08 | Generic 8000 | generic / `standard` | ready | 500000 | — | — |
+
+   Coletor `online`, versão `0.2.0-dev`, config aplicada = config do servidor; eventos `discovered`;
+   suprimentos da Konica C287 com os níveis do arquivo (25/55/66/5 %). ✅
+7. Segunda credencial adicionada → config v4 aplicada e varredura concluída 2 s depois (`novas=0`, sem
+   duplicar). ✅
+8. `GET http://127.0.0.1:47711/health` do agente → `ok`, três laços saudáveis, fila 0, sem erros. ✅
+9. `dm-tool walk --ip 127.0.0.1 --port 1163` → 62 OIDs, **idêntico** à gravação `03-konica-cor`. ✅
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E                      # Go (race + integração snmpsim), pytest, vitest, Playwright
+scripts\dev.ps1
+# Portal/API: login → POST /api/v1/agents {site_id, name} → anote o código;
+#             POST /api/v1/sites/{id}/ip-ranges {"cidr":"127.0.0.1/32","ports":[1161,...,1168]};
+#             POST /api/v1/sites/{id}/snmp-credentials {"version":"v2c","community":"public"} (locais antigos)
+cd agent; go build -o ..\var\bin\dm-agent.exe .\cmd\dm-agent; cd ..
+var\bin\dm-agent.exe enroll --server http://127.0.0.1:8000 --code CODIGO --data-dir var\agent1 --health-addr 127.0.0.1:47711
+var\bin\dm-agent.exe run --data-dir var\agent1
+# GET /api/v1/devices?site_id=... ; http://127.0.0.1:47711/health
+```
+
+### O que falta / pendências
+- **Instalação como serviço Windows não foi executada**: exige terminal de administrador. Comandos
+  (em PowerShell "Executar como administrador"):
+  `var\bin\dm-agent.exe install --data-dir C:\ProgramData\DatiMonitor` → `sc.exe qfailure DatiMonitorAgent`
+  (deve mostrar reinício em 5 s/5 s/30 s) → `dm-agent.exe start` → `dm-agent.exe status` →
+  `dm-agent.exe uninstall`. O código está pronto e o job Windows do CI fará isso na Fase 11.
+- O `systemd` (unit `Type=notify`) está escrito e o `sdnotify` tem teste em Linux, mas ainda não foi
+  executado num Linux real (o CI Linux roda os testes; a instalação entra na Fase 8).
+- WebSocket, comandos e watchdog: Fases 3 e 5.
+
 ---
 
 ## Decisões
@@ -176,3 +301,14 @@ scripts\stop-dev.ps1   # para encerrar sem Ctrl+C
 | D20 | TOTP obrigatório para `reseller_admin` via configuração da revenda `security.require_totp_for_admins` | PROMPT: "obrigatório se configurado"; sem a configuração, é opcional |
 | D21 | "Esqueci a senha" responde 202 sempre; falha de SMTP vira ERRO no log (não na resposta) | Responder erro revelaria que o e-mail existe; o reset feito pelo admin mostra o erro na tela |
 | D22 | Sem biblioteca de validação de e-mail (regex simples + minúsculas) | O admin inicial é `admin@local` (exigido pelo PROMPT), que validadores estritos recusam |
+| D23 | O servidor guarda só `K = SHA-256("dm-agent-auth\n" + S)` (cifrada com a chave mestre); o agente guarda `S` (DPAPI) e assina com `K` | Vazamento do banco não entrega o segredo do agente; teste confere que agente e servidor derivam a mesma chave e assinatura |
+| D24 | `ip_ranges.ports` (várias portas SNMP por faixa) e `devices.snmp_port` | O simulador tem 8 impressoras no mesmo IP; também cobre NAT/portas não padrão em cliente |
+| D25 | Local novo recebe a credencial `v2c public` (posição 1); locais anteriores à Fase 2 não | É o padrão de fábrica das impressoras; sem credencial o agente registra ERRO visível e o portal permite incluir |
+| D26 | Impressora sem serial SNMP ganha identidade `MAC-<mac>`; sem serial e sem MAC não é registrada (erro no log) | Identidade estável é pré-requisito para histórico e anti-duplicidade |
+| D27 | Se o perfil não resolve `total`, usa-se `prtMarkerLifeCount` (fonte `standard`) | Nenhuma impressora fica sem contador; a fonte fica registrada na leitura |
+| D28 | `v3_context` existe só no agente (simulador); o portal não expõe | Impressoras reais usam contexto vazio; o snmpsim exige o contexto `public` |
+| D29 | Regex dos perfis com `regexp2` (compatível com .NET/PCRE) e tempo limite de 200 ms | Os perfis fornecidos usam lookahead, que o RE2 do Go não suporta; o limite evita travamento por regex |
+| D30 | AES256 = extensão de chave Blumenthal (a do Net-SNMP) | É a usada pela maioria das impressoras e pelo snmpsim (`AES256BLMT`) |
+| D31 | Economia de energia simulada por um proxy UDP (`scripts/sleepy_udp_proxy.py`) na frente do snmpsim | O snmpsim não tem "responder só na 2ª tentativa"; o proxy descarta pacotes enquanto "acorda" |
+| D32 | Mudança de faixa **ou de credencial** dispara varredura imediata | Encontrado no fluxo manual: com só a faixa, uma credencial nova esperava o intervalo de descoberta (6 h) |
+| D33 | Logs do agente em UTC | Regra "tudo armazenado em UTC"; alinha com os logs do servidor independente do fuso do PC |

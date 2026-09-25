@@ -54,25 +54,27 @@ jobs:
         with:
           version: v2.14.0
           working-directory: agent
-      - name: Go — testes com -race e cobertura >= 80% em internal/
-        working-directory: agent
-        run: |
-          go test -race -count=1 -coverprofile=cover.out -coverpkg=./internal/... ./...
-          pct=$(go tool cover -func=cover.out | awk '/^total:/ {gsub("%","",$3); print $3}')
-          echo "Cobertura internal/: ${pct}%"
-          awk -v p="$pct" 'BEGIN { exit (p < 80) }'
-
-      - name: Python — venv e dependências fixadas
+          args: --build-tags integration
+      - name: Python — venv (também usado pelos testes Go de integração com o snmpsim)
         run: |
           python -m venv .venv
           .venv/bin/pip install -r backend/requirements-dev.lock
           .venv/bin/pip install --no-deps -e backend
+      - name: Go — testes com -race (unitários + snmpsim) e cobertura >= 80% em internal/
+        working-directory: agent
+        run: |
+          go test -race -count=1 -tags integration -coverprofile=cover.out -coverpkg=./internal/... ./...
+          pct=$(go tool cover -func=cover.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          echo "Cobertura internal/: ${pct}%"
+          awk -v p="$pct" 'BEGIN { exit (p < 80) }'
+
       - name: Python — ruff e mypy --strict
         working-directory: backend
         run: |
-          ../.venv/bin/ruff check app tests alembic ../scripts/smtp_catcher.py
-          ../.venv/bin/ruff format --check app tests alembic ../scripts/smtp_catcher.py
-          ../.venv/bin/mypy --strict app tests ../scripts/smtp_catcher.py
+          PY_SCRIPTS="../scripts/smtp_catcher.py ../scripts/sleepy_udp_proxy.py ../scripts/gen_protocol_docs.py ../profiles/recordings/sim/generate.py"
+          ../.venv/bin/ruff check app tests alembic $PY_SCRIPTS
+          ../.venv/bin/ruff format --check app tests alembic $PY_SCRIPTS
+          ../.venv/bin/mypy --strict app tests $PY_SCRIPTS
       - name: Python — pytest (PostgreSQL real) com cobertura >= 80%
         working-directory: backend
         run: ../.venv/bin/python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=80

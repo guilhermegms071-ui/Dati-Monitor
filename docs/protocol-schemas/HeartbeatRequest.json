@@ -1,0 +1,150 @@
+{
+  "properties": {
+    "applied_config_version": {
+      "default": 0,
+      "title": "Applied Config Version",
+      "type": "integer"
+    },
+    "arch": {
+      "default": "",
+      "maxLength": 32,
+      "title": "Arch",
+      "type": "string"
+    },
+    "cluster_role": {
+      "default": "standby",
+      "maxLength": 16,
+      "title": "Cluster Role",
+      "type": "string"
+    },
+    "cpu_percent": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Cpu Percent",
+      "type": "number"
+    },
+    "devices_known": {
+      "default": 0,
+      "title": "Devices Known",
+      "type": "integer"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Errors",
+      "type": "array"
+    },
+    "host_mac": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Host Mac"
+    },
+    "hostname": {
+      "default": "",
+      "maxLength": 255,
+      "title": "Hostname",
+      "type": "string"
+    },
+    "last_read_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Read At"
+    },
+    "last_scan_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Scan At"
+    },
+    "local_ips": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Local Ips",
+      "type": "array"
+    },
+    "memory_bytes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Memory Bytes",
+      "type": "integer"
+    },
+    "os": {
+      "default": "",
+      "maxLength": 255,
+      "title": "Os",
+      "type": "string"
+    },
+    "paused": {
+      "default": false,
+      "title": "Paused",
+      "type": "boolean"
+    },
+    "queue_dropped": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Queue Dropped",
+      "type": "integer"
+    },
+    "queue_pending": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Queue Pending",
+      "type": "integer"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    },
+    "uptime_seconds": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Uptime Seconds",
+      "type": "integer"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "version": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ts"
+  ],
+  "title": "HeartbeatRequest",
+  "type": "object"
+}

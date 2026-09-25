@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import configure_logging
 from app.services.bootstrap import announce_bootstrap, ensure_bootstrap, seed_dev
+from app.services.catalog import sync_brands, sync_profiles
 from app.services.partitions import ensure_partitions
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -51,7 +52,9 @@ async def _seed_dev() -> None:
     try:
         async with make_sessionmaker(engine)() as session:
             boot = await ensure_bootstrap(session, settings)
-            result = await seed_dev(session)
+            await sync_brands(session)
+            await sync_profiles(session)
+            result = await seed_dev(session, settings)
             await session.commit()
         announce_bootstrap(boot)
         print("Seed de desenvolvimento:", "criado" if result.created else "já existia")  # noqa: T201

@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "ItemResult": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "duplicate",
+            "discarded",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "status"
+      ],
+      "title": "ItemResult",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "results": {
+      "items": {
+        "$ref": "#/$defs/ItemResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "ReadingsResponse",
+  "type": "object"
+}

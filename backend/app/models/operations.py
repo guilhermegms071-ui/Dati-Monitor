@@ -18,7 +18,15 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import JSONB_EMPTY_OBJECT, Base, CreatedMixin, IdMixin, TimestampMixin, one_of
+from app.models.base import (
+    JSONB_EMPTY_OBJECT,
+    Base,
+    ClockCreatedMixin,
+    CreatedMixin,
+    IdMixin,
+    TimestampMixin,
+    one_of,
+)
 
 COMMAND_STATES = ("pending", "sent", "acked", "running", "succeeded", "failed", "expired", "cancelled")
 COMMAND_TARGETS = ("agent", "watchdog")
@@ -89,7 +97,7 @@ class MibWalk(Base, IdMixin, CreatedMixin):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
-class AuditLog(Base, IdMixin, CreatedMixin):
+class AuditLog(Base, IdMixin, ClockCreatedMixin):
     """Toda ação de escrita do portal. Somente inserção (trigger)."""
 
     __tablename__ = "audit_log"

@@ -1,0 +1,543 @@
+{
+  "$defs": {
+    "Alert": {
+      "properties": {
+        "code": {
+          "default": 0,
+          "title": "Code",
+          "type": "integer"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 500,
+          "title": "Description",
+          "type": "string"
+        },
+        "severity": {
+          "default": 0,
+          "title": "Severity",
+          "type": "integer"
+        }
+      },
+      "title": "Alert",
+      "type": "object"
+    },
+    "DeviceRef": {
+      "properties": {
+        "firmware": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware"
+        },
+        "hostname": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hostname"
+        },
+        "ip": {
+          "default": "",
+          "maxLength": 64,
+          "title": "Ip",
+          "type": "string"
+        },
+        "mac": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mac"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "port": {
+          "default": 161,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "profile_key": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile Key"
+        },
+        "serial": {
+          "default": "",
+          "maxLength": 128,
+          "title": "Serial",
+          "type": "string"
+        },
+        "sys_descr": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sys Descr"
+        },
+        "sys_object_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sys Object Id"
+        }
+      },
+      "title": "DeviceRef",
+      "type": "object"
+    },
+    "EventPayload": {
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "type": {
+          "const": "read_failed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "EventPayload",
+      "type": "object"
+    },
+    "Item": {
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/DeviceRef"
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "reading",
+            "supplies",
+            "status",
+            "event"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "read_at": {
+          "format": "date-time",
+          "title": "Read At",
+          "type": "string"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReadingPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatusPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "supplies": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Supply"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supplies"
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "read_at",
+        "device"
+      ],
+      "title": "Item",
+      "type": "object"
+    },
+    "ReadingPayload": {
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "counter_source": {
+          "default": "",
+          "maxLength": 64,
+          "title": "Counter Source",
+          "type": "string"
+        },
+        "counters": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Counters",
+          "type": "object"
+        },
+        "error_bits": {
+          "default": 0,
+          "title": "Error Bits",
+          "type": "integer"
+        },
+        "extra": {
+          "additionalProperties": true,
+          "title": "Extra",
+          "type": "object"
+        },
+        "mono_only": {
+          "default": false,
+          "title": "Mono Only",
+          "type": "boolean"
+        },
+        "profile_key": {
+          "default": "",
+          "maxLength": 100,
+          "title": "Profile Key",
+          "type": "string"
+        },
+        "profile_version": {
+          "default": 0,
+          "title": "Profile Version",
+          "type": "integer"
+        },
+        "source": {
+          "default": "snmp",
+          "enum": [
+            "snmp",
+            "http",
+            "usb",
+            "manual"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "sum_tolerance_percent": {
+          "default": 2,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Sum Tolerance Percent",
+          "type": "number"
+        },
+        "unresolved": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unresolved",
+          "type": "array"
+        }
+      },
+      "required": [
+        "counters"
+      ],
+      "title": "ReadingPayload",
+      "type": "object"
+    },
+    "StatusPayload": {
+      "properties": {
+        "alerts": {
+          "items": {
+            "$ref": "#/$defs/Alert"
+          },
+          "title": "Alerts",
+          "type": "array"
+        },
+        "device_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Device Status"
+        },
+        "error_bits": {
+          "default": 0,
+          "title": "Error Bits",
+          "type": "integer"
+        },
+        "panel_text": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Panel Text"
+        },
+        "printer_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Printer Status"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "printing",
+            "warmup",
+            "energy_saving",
+            "warning",
+            "error",
+            "offline"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "StatusPayload",
+      "type": "object"
+    },
+    "Supply": {
+      "properties": {
+        "class": {
+          "default": "other",
+          "enum": [
+            "consumed",
+            "receptacle",
+            "other"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 255,
+          "title": "Description",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 100,
+          "title": "Key",
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "level_state": {
+          "enum": [
+            "ok",
+            "unknown",
+            "some_remaining"
+          ],
+          "title": "Level State",
+          "type": "string"
+        },
+        "max_capacity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Capacity"
+        },
+        "percent": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Percent"
+        },
+        "type": {
+          "default": "unknown",
+          "maxLength": 32,
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "key",
+        "level_state"
+      ],
+      "title": "Supply",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/Item"
+      },
+      "maxItems": 500,
+      "title": "Items",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "ReadingsRequest",
+  "type": "object"
+}

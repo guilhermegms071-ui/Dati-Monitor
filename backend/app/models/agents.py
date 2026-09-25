@@ -126,6 +126,8 @@ class IpRange(Base, IdMixin, TimestampMixin):
     start_ip: Mapped[str | None] = mapped_column(String(64))
     end_ip: Mapped[str | None] = mapped_column(String(64))
     exclusions: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_ARRAY, default=list)
+    # Portas SNMP a sondar (padrão 161; o simulador de desenvolvimento usa 1161 a 1168 no mesmo IP).
+    ports: Mapped[list[Any]] = mapped_column(server_default=text("'[161]'::jsonb"), default=lambda: [161])
     active: Mapped[bool] = mapped_column(server_default=text("true"), default=True)
     status: Mapped[str] = mapped_column(String(16), server_default=text("'approved'"), default="approved")
     suggested_by_agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"))

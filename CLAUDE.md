@@ -13,6 +13,12 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `agent/internal/product/` | Constantes geradas de `product.json` (`go generate ./...`) e nomes derivados (serviços, pasta de dados). |
 | `agent/internal/cli/` | Despacho de subcomandos comum aos 3 binários. |
 | `agent/internal/buildinfo/` | Versão/commit injetados via `-ldflags` pelo `scripts\build-agent.ps1`. |
+| `agent/internal/{snmp,profile,printer}` | Cliente SNMP + `.snmprec`/`MemSource`; motor de perfis; identidade/status/suprimentos. |
+| `agent/internal/{discovery,collector}` | Varredura das faixas; agendamento das leituras (só o MASTER). |
+| `agent/internal/{store,uploader,api,protocol}` | Fila SQLite; envio em lote; cliente HTTPS do agente; mensagens v1 (espelho de `app/schemas/agent.py`). |
+| `agent/internal/{agent,health,svc,secret,config,osinfo,logx}` | Montagem do processo, `/health`, serviço Windows/systemd, DPAPI, `config.json`, SO, logs. |
+| `agent/internal/simtest/` | Testes de integração (`-tags integration`) contra o snmpsim real do venv. |
+| `backend/app/api/agent/` | Rotas `/api/agent/*` (protocolo do agente). Ingestão em `services/ingest.py`. |
 | `backend/app/core/` | Config (`pydantic-settings`, lê `.env` da raiz), banco, segurança (argon2/JWT), cripto AES-GCM, `Principal` + escopos, permissões, erros, e-mail, rate limit. |
 | `backend/app/models/` | Todas as tabelas (SQLAlchemy 2 tipado). `PARTITIONED_TABLES`/`APPEND_ONLY_TABLES` em `__init__`. |
 | `backend/app/schemas/` | Pydantic de entrada/saída da API. |
@@ -26,7 +32,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
 | `frontend/` | Portal React 18 + TS + Vite + Tailwind. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
 | `profiles/` | Perfis de leitura YAML. `canon.yaml` e `konica-minolta.yaml` são fornecidos: **não alterar OIDs**. |
-| `profiles/recordings/sim/NN-nome/public.snmprec` | Impressoras simuladas (snmpsim), porta UDP `1160+NN`. |
+| `profiles/recordings/sim/NN-nome/public.snmprec` | Impressoras simuladas (snmpsim), porta UDP `1160+NN`. **Geradas** por `generate.py` (edite o gerador, não o arquivo). Pasta com `sleepy.json` = economia de energia (proxy UDP na porta `1160+NN`, snmpsim em `11100+NN`). |
 | `profiles/recordings/real/` | Walks de impressoras reais (Fase 10). |
 | `scripts/` | PowerShell do dia a dia + `smtp_catcher.py`. |
 | `deploy/` | Dockerfiles, compose e Caddyfile da hospedagem futura (**não usados agora**). |
@@ -80,6 +86,11 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   `dati_test` é recriado por sessão e esvaziado a cada teste (`clean_db`).
 - Primeiro start: a senha temporária do `admin@local` aparece no console do dev.ps1/API.
 - Edições complexas por script: grave o script em arquivo (heredocs longos no bash quebram neste ambiente).
+- Protocolo do agente: mudou `app/schemas/agent.py`? Atualize `agent/internal/protocol` e rode
+  `.venv\Scripts\python scripts\gen_protocol_docs.py` (um teste compara `docs/protocol.md`).
+- Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de
+  verdade levam `//go:build integration` e usam `internal/simtest`. Rodar `-race` exige o GCC no PATH
+  (o `test.ps1` acha o WinLibs sozinho).
 
 ## Ambiente desta máquina
 

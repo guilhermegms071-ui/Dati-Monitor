@@ -11,7 +11,7 @@ from app.models.base import (
     JSONB_EMPTY_ARRAY,
     JSONB_EMPTY_OBJECT,
     Base,
-    CreatedMixin,
+    ClockCreatedMixin,
     IdMixin,
     SoftDeleteMixin,
     TimestampMixin,
@@ -84,6 +84,7 @@ class Device(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     serial: Mapped[str] = mapped_column(String(128))
     mac: Mapped[str | None] = mapped_column(String(32))
     ip: Mapped[str | None] = mapped_column(String(64))
+    snmp_port: Mapped[int] = mapped_column(Integer, server_default=text("161"), default=161)
     hostname: Mapped[str | None] = mapped_column(String(255))
     brand: Mapped[str | None] = mapped_column(String(100))
     model: Mapped[str | None] = mapped_column(String(200))
@@ -117,7 +118,7 @@ class Device(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     last_agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"))  # "DCA"
 
 
-class DeviceEvent(Base, IdMixin, CreatedMixin):
+class DeviceEvent(Base, IdMixin, ClockCreatedMixin):
     """Linha do tempo do equipamento (somente inserção)."""
 
     __tablename__ = "device_events"

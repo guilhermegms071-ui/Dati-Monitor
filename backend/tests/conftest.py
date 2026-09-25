@@ -48,7 +48,7 @@ os.environ.setdefault("MASTER_KEY", base64.b64encode(b"k" * 32).decode())
 get_settings.cache_clear()
 
 # Tabelas de sistema preservadas entre testes (preenchidas pela migração/bootstrap).
-_KEEP_TABLES = {"alembic_version", "roles", "role_permissions"}
+_KEEP_TABLES = {"alembic_version", "roles", "role_permissions", "brands", "read_profiles"}
 
 
 def free_port(kind: int = socket.SOCK_STREAM) -> int:
@@ -91,10 +91,13 @@ def migrated_db() -> str:
 
     async def _roles() -> None:
         from app.services.bootstrap import sync_roles  # noqa: PLC0415
+        from app.services.catalog import sync_brands, sync_profiles  # noqa: PLC0415
 
         engine = make_engine(TEST_DATABASE_URL)
         async with make_sessionmaker(engine)() as session:
             await sync_roles(session)
+            await sync_brands(session)
+            await sync_profiles(session)
             await session.commit()
         await engine.dispose()
 
@@ -162,6 +165,12 @@ async def clean_db(engine: AsyncEngine, mail_catcher: Any) -> None:
         tables = [r[0] for r in rows if r[0] not in _KEEP_TABLES]
         await conn.execute(text("SET LOCAL dati.maintenance = 'on'"))
         await conn.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
+    # read_profiles referencia users: o CASCADE também a esvazia; ressincroniza os perfis de /profiles.
+    from app.services.catalog import sync_profiles  # noqa: PLC0415
+
+    async with make_sessionmaker(engine)() as session:
+        await sync_profiles(session)
+        await session.commit()
     mail_catcher.store.clear()
 
 

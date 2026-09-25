@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.validators import check_timezone, normalize_cnpj, normalize_email
+from app.schemas.collection import CollectionConfig
 from app.schemas.common import ORMModel
 
 
@@ -115,7 +116,7 @@ class SiteIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     address: str | None = Field(default=None, max_length=2000)
     timezone: str = "America/Sao_Paulo"
-    collection_config: dict[str, Any] = Field(default_factory=dict)
+    collection_config: CollectionConfig = Field(default_factory=CollectionConfig)
 
     validate_tz = field_validator("timezone")(check_timezone)
 
@@ -124,7 +125,7 @@ class SiteUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     address: str | None = Field(default=None, max_length=2000)
     timezone: str | None = None
-    collection_config: dict[str, Any] | None = None
+    collection_config: CollectionConfig | None = None
 
     @field_validator("timezone")
     @classmethod

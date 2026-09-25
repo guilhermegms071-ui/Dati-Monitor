@@ -8,6 +8,13 @@ linters:
     - gosec
     - revive
     - unconvert
+  exclusions:
+    rules:
+      # Testes abrem gravações/arquivos temporários por caminho montado no próprio teste (G304/G703)
+      # e montam respostas de token falsas (G117).
+      - path: _test\.go
+        linters: [gosec]
+        text: "G304|G703|G117"
 formatters:
   enable:
     - gofmt

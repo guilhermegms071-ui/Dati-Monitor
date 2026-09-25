@@ -8,6 +8,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings
 from app.core.errors import bad_request, conflict, forbidden, not_found
 from app.core.principal import Principal, customer_scope, reseller_scope
 from app.models import Agent, Company, Customer, Device, Reseller, Site, User
@@ -22,7 +23,9 @@ from app.schemas.tenancy import (
     SiteUpdate,
 )
 from app.services import audit
+from app.services.agents import bump_site_config
 from app.services.pagination import Direction, PageResult, SortOption, paginate
+from app.services.site_config import add_default_credential
 
 
 def _now() -> datetime:
@@ -476,12 +479,18 @@ async def get_site(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> S
     return obj
 
 
-async def create_site(session: AsyncSession, p: Principal, data: SiteIn) -> Site:
+async def create_site(session: AsyncSession, settings: Settings, p: Principal, data: SiteIn) -> Site:
     p.require("sites.write")
     customer = await get_customer(session, p, data.customer_id)
-    obj = Site(reseller_id=customer.reseller_id, **data.model_dump())
+    fields = data.model_dump(exclude={"collection_config"})
+    obj = Site(
+        reseller_id=customer.reseller_id,
+        collection_config=data.collection_config.model_dump(exclude_none=True),
+        **fields,
+    )
     session.add(obj)
     await session.flush()
+    await add_default_credential(session, settings, obj)
     await audit.record(
         session,
         p,
@@ -498,8 +507,13 @@ async def update_site(session: AsyncSession, p: Principal, site_id: uuid.UUID, d
     p.require("sites.write")
     obj = await get_site(session, p, site_id)
     before = audit.snapshot(obj)
-    _apply(obj, data.model_dump(exclude_unset=True))
+    changes = data.model_dump(exclude_unset=True)
+    if "collection_config" in changes and data.collection_config is not None:
+        changes["collection_config"] = data.collection_config.model_dump(exclude_none=True)
+    _apply(obj, changes)
     await session.flush()
+    if "collection_config" in changes:
+        await bump_site_config(session, obj.id)
     b, a = audit.diff(before, audit.snapshot(obj))
     await audit.record(
         session,

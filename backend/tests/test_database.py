@@ -149,8 +149,8 @@ async def test_bootstrap_creates_admin_once_and_seed_is_idempotent(
         assert admin.role_code == "superadmin"
         assert admin.must_change_password
         assert (await s.execute(select(Reseller.name))).scalar_one() == test_settings.bootstrap_reseller_name
-        r1 = await seed_dev(s)
-        r2 = await seed_dev(s)
+        r1 = await seed_dev(s, test_settings)
+        r2 = await seed_dev(s, test_settings)
         await s.commit()
     assert r1.created
     assert not r2.created

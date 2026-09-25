@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "ranges": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Ranges",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ranges"
+  ],
+  "title": "SuggestRangesRequest",
+  "type": "object"
+}

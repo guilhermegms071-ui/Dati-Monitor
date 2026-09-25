@@ -14,6 +14,7 @@ from app.core.config import Settings
 from app.core.permissions import ROLE_PERMISSIONS, ROLES, SUPERADMIN
 from app.core.security import hash_password
 from app.models import Company, Customer, Reseller, Role, RolePermission, Site, User
+from app.services.site_config import add_default_credential
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class SeedResult:
     reseller_id: str
 
 
-async def seed_dev(session: AsyncSession) -> SeedResult:
+async def seed_dev(session: AsyncSession, settings: Settings) -> SeedResult:
     """Development seed (PROMPT section 7): Daticopy reseller, 1 company, 2 customers, 2 sites. Idempotent."""
     reseller = (
         (
@@ -159,20 +160,22 @@ async def seed_dev(session: AsyncSession) -> SeedResult:
     ]
     session.add_all(customers)
     await session.flush()
-    session.add_all(
-        [
-            Site(
-                reseller_id=reseller.id,
-                customer_id=customers[0].id,
-                name="Matriz",
-                address="Centro, Rio de Janeiro",
-            ),
-            Site(
-                reseller_id=reseller.id,
-                customer_id=customers[1].id,
-                name="Filial",
-                address="Barra, Rio de Janeiro",
-            ),
-        ]
-    )
+    sites = [
+        Site(
+            reseller_id=reseller.id,
+            customer_id=customers[0].id,
+            name="Matriz",
+            address="Centro, Rio de Janeiro",
+        ),
+        Site(
+            reseller_id=reseller.id,
+            customer_id=customers[1].id,
+            name="Filial",
+            address="Barra, Rio de Janeiro",
+        ),
+    ]
+    session.add_all(sites)
+    await session.flush()
+    for site in sites:
+        await add_default_credential(session, settings, site)
     return SeedResult(created=True, reseller_id=str(reseller.id))

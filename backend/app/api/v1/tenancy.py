@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.api.deps import PrincipalDep, SessionDep
+from app.api.deps import PrincipalDep, SessionDep, SettingsDep
 from app.models import Customer
 from app.schemas.common import ERROR_RESPONSES, Page
 from app.schemas.tenancy import (
@@ -232,8 +232,8 @@ async def list_sites(
 
 
 @router.post("/sites", response_model=SiteOut, status_code=status.HTTP_201_CREATED, tags=["locais"])
-async def create_site(body: SiteIn, p: PrincipalDep, session: SessionDep) -> SiteOut:
-    obj = await svc.create_site(session, p, body)
+async def create_site(body: SiteIn, p: PrincipalDep, session: SessionDep, settings: SettingsDep) -> SiteOut:
+    obj = await svc.create_site(session, settings, p, body)
     await session.commit()
     return SiteOut.model_validate(obj)
 

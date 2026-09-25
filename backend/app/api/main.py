@@ -7,7 +7,9 @@ from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.api.agent import routes as agent_routes
 from app.api.v1 import auth as auth_routes
+from app.api.v1 import collection as collection_routes
 from app.api.v1 import tenancy as tenancy_routes
 from app.api.v1 import users as users_routes
 from app.core.config import Settings, get_settings
@@ -19,7 +21,9 @@ from app.core.product import get_product
 from app.core.ratelimit import RateLimiter
 from app.core.responses import UTF8JSONResponse
 from app.core.version import backend_version
+from app.services.agents import NonceCache
 from app.services.bootstrap import announce_bootstrap, ensure_bootstrap
+from app.services.catalog import sync_brands, sync_profiles
 
 
 def _engine(request: Request) -> AsyncEngine:
@@ -37,10 +41,14 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
         app.state.engine = make_engine(settings.database_url)
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
         app.state.login_limiter = RateLimiter(settings.login_rate_limit_per_minute, 60)
+        app.state.agent_limiter = RateLimiter(settings.agent_rate_limit_per_minute, 60)
+        app.state.agent_nonces = NonceCache()
         try:
             if run_bootstrap:
                 async with app.state.sessionmaker() as session:
                     result = await ensure_bootstrap(session, settings)
+                    await sync_brands(session)
+                    await sync_profiles(session)
                     await session.commit()
                 announce_bootstrap(result)
             yield
@@ -81,5 +89,7 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
     v1.include_router(auth_routes.router)
     v1.include_router(tenancy_routes.router)
     v1.include_router(users_routes.router)
+    v1.include_router(collection_routes.router)
     app.include_router(v1)
+    app.include_router(agent_routes.router)
     return app

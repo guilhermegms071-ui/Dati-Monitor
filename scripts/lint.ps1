@@ -23,15 +23,22 @@ try {
             if ($LASTEXITCODE -ne 0) { Write-Fail 'product_gen.go desatualizado: rode go generate e faça commit' }
         }
     }
-    Invoke-Checked 'Go: golangci-lint' { & $golangci run ./... }
+    Invoke-Checked 'Go: golangci-lint (Windows)' { & $golangci run --build-tags integration ./... }
+    # Os arquivos *_other.go / *_linux.go só compilam para Linux: o agente também roda em Linux/Raspberry.
+    $env:GOOS = 'linux'
+    try {
+        Invoke-Checked 'Go: golangci-lint (GOOS=linux)' { & $golangci run --build-tags integration ./... }
+    } finally { Remove-Item Env:GOOS -ErrorAction SilentlyContinue }
 } finally { Pop-Location }
 
 Push-Location (Join-Path $RepoRoot 'backend')
 try {
-    $pyTargets = @('app', 'tests', 'alembic', '..\scripts\smtp_catcher.py')
+    $scriptsPy = @('..\scripts\smtp_catcher.py', '..\scripts\sleepy_udp_proxy.py', '..\scripts\gen_protocol_docs.py',
+        '..\profiles\recordings\sim\generate.py')
+    $pyTargets = @('app', 'tests', 'alembic') + $scriptsPy
     Invoke-Checked 'Python: ruff check' { & "$venvScripts\ruff.exe" check @pyTargets }
     Invoke-Checked 'Python: ruff format --check' { & "$venvScripts\ruff.exe" format --check @pyTargets }
-    Invoke-Checked 'Python: mypy --strict' { & "$venvScripts\mypy.exe" --strict app tests ..\scripts\smtp_catcher.py }
+    Invoke-Checked 'Python: mypy --strict' { & "$venvScripts\mypy.exe" --strict app tests @scriptsPy }
 } finally { Pop-Location }
 
 Push-Location (Join-Path $RepoRoot 'frontend')

@@ -28,7 +28,10 @@ Push-Location (Join-Path $RepoRoot 'agent')
 try {
     $coverFile = Join-Path $varDir 'go-cover.out'
     $env:CGO_ENABLED = '1'
-    Invoke-Checked 'Go: go test -race' { & $go test -race -count=1 "-coverprofile=$coverFile" '-coverpkg=./internal/...' ./... }
+    # -tags integration inclui os testes contra o snmpsim real (usa o venv do projeto).
+    Invoke-Checked 'Go: go test -race (unitários + integração com snmpsim)' {
+        & $go test -race -count=1 -tags integration "-coverprofile=$coverFile" '-coverpkg=./internal/...' ./...
+    }
     $total = (& $go tool cover "-func=$coverFile" | Select-String '^total:').Line
     $pct = [double](($total -split '\s+')[-1] -replace '%', '')
     if ($pct -lt 80) { Stop-WithError "Cobertura Go em internal/ abaixo de 80%: $pct%" }

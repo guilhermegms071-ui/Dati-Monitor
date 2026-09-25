@@ -90,15 +90,17 @@ class Reading(Base):
 
 
 class ReadingIdempotency(Base, CreatedMixin):
-    """Unicidade global de `idempotency_key`.
-
-    Tabelas particionadas não aceitam UNIQUE sem a chave de partição.
+    """Unicidade global da `idempotency_key` de todo item enviado pelos agentes (leituras, suprimentos,
+    status, eventos). Tabelas particionadas não aceitam UNIQUE sem a chave de partição.
     """
 
     __tablename__ = "reading_idempotency"
 
     idempotency_key: Mapped[str] = mapped_column(String(200), primary_key=True)
-    reading_id: Mapped[uuid.UUID]
+    kind: Mapped[str] = mapped_column(String(16), server_default=text("'reading'"), default="reading")
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"))
+    result: Mapped[str] = mapped_column(String(16), server_default=text("'accepted'"), default="accepted")
+    reading_id: Mapped[uuid.UUID | None] = mapped_column(default=None)
     read_at: Mapped[datetime]
 
 

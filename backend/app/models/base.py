@@ -41,6 +41,12 @@ class CreatedMixin:
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class ClockCreatedMixin:
+    """created_at com clock_timestamp(): ordem estável mesmo entre linhas da mesma transação."""
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.clock_timestamp())
+
+
 class TimestampMixin(CreatedMixin):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

@@ -1,0 +1,39 @@
+{
+  "properties": {
+    "cluster_role": {
+      "enum": [
+        "master",
+        "standby"
+      ],
+      "title": "Cluster Role",
+      "type": "string"
+    },
+    "config_version": {
+      "title": "Config Version",
+      "type": "integer"
+    },
+    "paused": {
+      "title": "Paused",
+      "type": "boolean"
+    },
+    "server_time": {
+      "format": "date-time",
+      "title": "Server Time",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "server_time",
+    "config_version",
+    "cluster_role",
+    "paused"
+  ],
+  "title": "HeartbeatResponse",
+  "type": "object"
+}

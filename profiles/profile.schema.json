@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dati-monitor.local/schemas/profile.schema.json",
+  "title": "Perfil de leitura do Dati Monitor",
+  "description": "Formato dos arquivos YAML em /profiles (PROMPT seção 6.4). O backend e o agente validam com este mesmo schema.",
+  "type": "object",
+  "required": ["id", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string" },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sys_object_id_prefix": { "$ref": "#/$defs/oidOrPlaceholder" },
+        "model_regex": { "type": "string", "minLength": 1 }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serial": { "$ref": "#/$defs/oidList" },
+        "model": { "$ref": "#/$defs/oidList" },
+        "firmware": { "$ref": "#/$defs/oidList" }
+      }
+    },
+    "counters": { "$ref": "#/$defs/counterMap" },
+    "counter_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/counterSource" }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mono_only_models_regex": { "type": "string", "minLength": 1 },
+        "validate_sum_tolerance_percent": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "energy_saving_text_regex": { "type": "string", "minLength": 1 }
+      }
+    },
+    "supplies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "use_standard": { "type": "boolean" } }
+    },
+    "http": {
+      "description": "Leitor HTTP opcional (modelos que só mostram o contador na página web). Desativado por padrão.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "regex"],
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "path": { "type": "string", "pattern": "^/" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "https": { "type": "boolean" },
+        "regex": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Grupos nomeados viram contadores, ex.: (?<total>\\d+)"
+        }
+      }
+    }
+  },
+  "not": { "required": ["counters", "counter_sources"] },
+  "$defs": {
+    "oid": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)+$" },
+    "placeholder": { "const": "PREENCHER_PELO_WALK" },
+    "oidOrPlaceholder": { "anyOf": [{ "$ref": "#/$defs/oid" }, { "$ref": "#/$defs/placeholder" }] },
+    "oidRef": {
+      "type": "object",
+      "required": ["oid"],
+      "additionalProperties": false,
+      "properties": {
+        "oid": { "$ref": "#/$defs/oidOrPlaceholder" },
+        "note": { "type": "string" }
+      }
+    },
+    "oidList": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/oidRef" } },
+    "counterDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oid": { "$ref": "#/$defs/oidOrPlaceholder" },
+        "sum": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/oidOrPlaceholder" } },
+        "first_of": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/counterDef" } },
+        "expr": { "type": "string", "pattern": "^[a-z0-9_ ()+*-]+$" },
+        "name_regex": { "type": "string", "minLength": 1 },
+        "sum_names": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "note": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["oid"] },
+        { "required": ["sum"] },
+        { "required": ["first_of"] },
+        { "required": ["expr"] },
+        { "required": ["name_regex"] },
+        { "required": ["sum_names"] }
+      ]
+    },
+    "counterMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/counterDef" }
+    },
+    "counterSource": {
+      "type": "object",
+      "required": ["name", "counters"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+        "detect_oid": { "$ref": "#/$defs/oidOrPlaceholder" },
+        "named_table": {
+          "type": "object",
+          "required": ["names_oid", "values_oid"],
+          "additionalProperties": false,
+          "properties": {
+            "names_oid": { "$ref": "#/$defs/oidOrPlaceholder" },
+            "values_oid": { "$ref": "#/$defs/oidOrPlaceholder" }
+          }
+        },
+        "counters": { "$ref": "#/$defs/counterMap" },
+        "store_all_rows_in_extra": { "type": "boolean" },
+        "walk_subtree_to_extra": { "$ref": "#/$defs/oidOrPlaceholder" }
+      }
+    }
+  }
+}

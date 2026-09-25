@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     smtp_from: str = "Dati Monitor <nao-responda@localhost>"
 
     public_base_url: str = "http://localhost:5173"
+    # Endereço que os coletores usam para falar com o servidor (vai no comando de cadastro).
+    public_server_url: str = "http://127.0.0.1:8000"
+    agent_rate_limit_per_minute: int = Field(default=600, ge=10)
     bootstrap_reseller_name: str = "Daticopy"
     bootstrap_admin_email: str = "admin@local"
 

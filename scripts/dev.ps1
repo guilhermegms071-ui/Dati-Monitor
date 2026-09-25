@@ -45,9 +45,18 @@ $sims = Get-ChildItem $simRoot -Directory -ErrorAction SilentlyContinue | Where-
 if (-not $sims) { Write-Host 'AVISO nenhuma impressora simulada em profiles\recordings\sim; snmpsim não será iniciado.' -ForegroundColor Yellow }
 foreach ($sim in $sims) {
     $n = [int]($sim.Name.Substring(0, 2)); $port = 1160 + $n
-    $services.Add(@{ Name = "sim$($sim.Name.Substring(0, 2))"; Color = 'DarkGray'; UdpPort = $port; Cwd = '.'
+    $sleepyCfg = Join-Path $sim.FullName 'sleepy.json'
+    $simPort = if (Test-Path $sleepyCfg) { 11100 + $n } else { $port }
+    $services.Add(@{ Name = "sim$($sim.Name.Substring(0, 2))"; Color = 'DarkGray'; UdpPort = $simPort; Cwd = '.'
         File = Join-Path $venvScripts 'snmpsim-command-responder.exe'
-        Args = @("--data-dir=$($sim.FullName)", "--cache-dir=$(Join-Path $RepoRoot "var\snmpsim-cache\$($sim.Name)")", "--agent-udpv4-endpoint=127.0.0.1:$port") })
+        Args = @("--data-dir=$($sim.FullName)", "--cache-dir=$(Join-Path $RepoRoot "var\snmpsim-cache\$($sim.Name)")", "--agent-udpv4-endpoint=127.0.0.1:$simPort") })
+    if (Test-Path $sleepyCfg) {
+        # Impressora em economia de energia: o proxy engole a 1ª tentativa depois de ficar ociosa.
+        $cfg = Get-Content $sleepyCfg -Raw | ConvertFrom-Json
+        $services.Add(@{ Name = "sono$($sim.Name.Substring(0, 2))"; Color = 'DarkGray'; UdpPort = $port; Cwd = '.'; File = $VenvPython
+            Args = @('scripts\sleepy_udp_proxy.py', "--listen=127.0.0.1:$port", "--target=127.0.0.1:$simPort",
+                "--idle=$($cfg.idle_seconds)", "--wake=$($cfg.wake_seconds)") })
+    }
 }
 
 $leftover = Stop-DevProcesses
