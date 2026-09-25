@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Float,
     ForeignKey,
     Index,
@@ -77,6 +78,29 @@ class Agent(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     last_error: Mapped[str | None] = mapped_column(Text)
     # Sub-redes sugeridas pelo agente quando o Local não tem faixa aprovada (seção 4.5).
     suggested_ranges: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_ARRAY, default=list)
+    # Pausa decidida no portal (comandos pause/resume); o servidor é a autoridade e a devolve em todo
+    # heartbeat e na configuração, então sobrevive a reinícios do coletor.
+    paused: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
+
+
+class AgentPresence(Base):
+    """Conexão WebSocket viva de um coletor (uma linha por coletor conectado; seção 2: presença em
+    tabela). O gateway grava ao conectar, renova a cada mensagem e apaga ao desconectar; o worker remove
+    linhas órfãs de um gateway que caiu sem limpar."""
+
+    __tablename__ = "agent_presence"
+
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), primary_key=True)
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
+    gateway_id: Mapped[str] = mapped_column(String(64))
+    connected_at: Mapped[datetime]
+    last_seen_at: Mapped[datetime]
+    remote_addr: Mapped[str | None] = mapped_column(String(64))
+    latency_ms: Mapped[float | None] = mapped_column(Float)
+
+
+# Presença mais antiga que isto é de um gateway que caiu sem limpar (o gateway renova a cada 30 s).
+PRESENCE_STALE_SECONDS = 90
 
 
 class AgentEnrollmentCode(Base, IdMixin, TimestampMixin):

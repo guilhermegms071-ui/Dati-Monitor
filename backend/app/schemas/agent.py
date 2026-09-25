@@ -32,6 +32,7 @@ class EnrollResponse(Msg):
     agent_id: str
     secret: str = Field(description="32 bytes em base64; o servidor guarda só a chave derivada")
     server_time: datetime
+    ws_url: str = Field(description="Endereço do canal WebSocket (wss://…/ws/agent)")
 
 
 class TokenRequest(Msg):
@@ -67,6 +68,8 @@ class HeartbeatRequest(Msg):
     devices_known: int = 0
     paused: bool = False
     errors: list[str] = Field(default_factory=list, max_length=20)
+    latency_ms: float | None = Field(default=None, ge=0, description="Ida e volta do ping no WebSocket")
+    ws_connected: bool = False
 
 
 class HeartbeatResponse(Msg):
@@ -123,6 +126,7 @@ class AgentConfig(Msg):
     profiles: list[dict[str, Any]]
     proxy_url: str | None = None
     keep_awake: bool = False
+    ws_url: str = Field(description="Endereço do canal WebSocket (wss://…/ws/agent)")
 
 
 class SuggestRangesRequest(Msg):
@@ -218,6 +222,86 @@ class ReadingsResponse(Msg):
     results: list[ItemResult]
 
 
+# ----------------------------------------------------------------------------- comandos (seção 4.7)
+
+CommandState = Literal["pending", "sent", "acked", "running", "succeeded", "failed", "expired", "cancelled"]
+AgentReportedState = Literal["acked", "running", "succeeded", "failed"]
+
+
+class CommandMessage(Msg):
+    """Comando entregue ao coletor (pelo WebSocket ou por GET /api/agent/commands/pending)."""
+
+    id: str
+    type: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    expires_at: datetime
+
+
+class CommandUpdate(Msg):
+    """Andamento de um comando informado pelo coletor. Estados finais são definitivos: atualizações
+    repetidas (mesmo `id`) são aceitas e ignoradas — o coletor pode reenviar sem medo."""
+
+    id: str = Field(max_length=64)
+    state: AgentReportedState
+    progress: str | None = Field(default=None, max_length=2000)
+    result: dict[str, Any] | None = None
+    output: str | None = Field(default=None, description="Texto livre; o servidor guarda até 1 MB")
+    error: str | None = Field(default=None, max_length=4000)
+
+
+class CommandUpdateResponse(Msg):
+    id: str
+    state: CommandState
+
+
+class PendingCommandsResponse(Msg):
+    commands: list[CommandMessage]
+
+
+class UploadResponse(Msg):
+    id: str
+    size_bytes: int
+
+
+# ----------------------------------------------------------------------------- WebSocket /ws/agent
+
+WsType = Literal[
+    # coletor → servidor
+    "hello",
+    "heartbeat",
+    "command_update",
+    # servidor → coletor
+    "welcome",
+    "heartbeat_ack",
+    "command",
+    "cancel",
+    "command_update_ack",
+    "error",
+]
+
+
+class WsMessage(Msg):
+    """Envelope de toda mensagem do WebSocket. `data` segue o modelo do tipo:
+    hello → Hello; heartbeat → HeartbeatRequest; command_update → CommandUpdate;
+    welcome → Welcome; heartbeat_ack → HeartbeatResponse; command → CommandMessage;
+    cancel → {"id"}; command_update_ack → CommandUpdateResponse; error → {"code","message"}."""
+
+    type: WsType
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
+class Hello(Msg):
+    version: str = Field(default="", max_length=64)
+    capabilities: list[str] = Field(default_factory=list, max_length=64)
+
+
+class Welcome(Msg):
+    agent_id: str
+    server_time: datetime
+    heartbeat_seconds: int = 30
+
+
 PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "EnrollRequest": EnrollRequest,
     "EnrollResponse": EnrollResponse,
@@ -229,4 +313,12 @@ PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "SuggestRangesRequest": SuggestRangesRequest,
     "ReadingsRequest": ReadingsRequest,
     "ReadingsResponse": ReadingsResponse,
+    "CommandMessage": CommandMessage,
+    "CommandUpdate": CommandUpdate,
+    "CommandUpdateResponse": CommandUpdateResponse,
+    "PendingCommandsResponse": PendingCommandsResponse,
+    "UploadResponse": UploadResponse,
+    "WsMessage": WsMessage,
+    "Hello": Hello,
+    "Welcome": Welcome,
 }

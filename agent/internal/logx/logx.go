@@ -3,11 +3,15 @@
 package logx
 
 import (
+	"archive/zip"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -63,4 +67,71 @@ func parseLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+// ZipRecent writes to w a zip with the log files of dir modified in the last period (current file
+// and rotated ones), newest first, stopping before maxBytes of compressed output. Returns how many
+// files went in.
+func ZipRecent(dir string, since time.Time, maxBytes int64, w io.Writer) (int, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, fmt.Errorf("ler pasta de logs %s: %w", dir, err)
+	}
+	type file struct {
+		name string
+		mod  time.Time
+	}
+	var files []file
+	for _, e := range entries {
+		if e.IsDir() || !strings.Contains(e.Name(), ".log") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.ModTime().Before(since) {
+			continue
+		}
+		files = append(files, file{e.Name(), info.ModTime()})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].mod.After(files[j].mod) })
+	cw := &countingWriter{w: w}
+	zw := zip.NewWriter(cw)
+	n := 0
+	for _, f := range files {
+		if cw.n >= maxBytes {
+			break
+		}
+		if err := addFile(zw, filepath.Join(dir, f.name), f.name, f.mod); err != nil {
+			return n, err
+		}
+		n++
+	}
+	if err := zw.Close(); err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
+func addFile(zw *zip.Writer, path, name string, mod time.Time) error {
+	src, err := os.Open(path) //nolint:gosec // G304: arquivos da própria pasta de logs
+	if err != nil {
+		return err
+	}
+	defer func() { _ = src.Close() }()
+	dst, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate, Modified: mod})
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(dst, src)
+	return err
+}
+
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }

@@ -112,7 +112,7 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	}
 	local := &config.Local{
 		ServerURL: strings.TrimRight(*server, "/"), AgentID: resp.AgentID, InsecureDev: *insecure, ProxyURL: *proxy,
-		HealthAddr: *healthAddr, EnrolledAt: time.Now().UTC(),
+		HealthAddr: *healthAddr, EnrolledAt: time.Now().UTC(), WSURL: resp.WSURL,
 	}
 	if err := config.Save(dir, local); err != nil {
 		return fail(stderr, "salvar configuração: %v", err)

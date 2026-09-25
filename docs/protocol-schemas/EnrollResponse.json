@@ -19,12 +19,18 @@
       "default": 1,
       "title": "V",
       "type": "integer"
+    },
+    "ws_url": {
+      "description": "Endereço do canal WebSocket (wss://…/ws/agent)",
+      "title": "Ws Url",
+      "type": "string"
     }
   },
   "required": [
     "agent_id",
     "secret",
-    "server_time"
+    "server_time",
+    "ws_url"
   ],
   "title": "EnrollResponse",
   "type": "object"

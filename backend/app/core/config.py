@@ -3,7 +3,9 @@
 import base64
 import binascii
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,7 +50,14 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:5173"
     # Endereço que os coletores usam para falar com o servidor (vai no comando de cadastro).
     public_server_url: str = "http://127.0.0.1:8000"
+    # WebSocket dos coletores. Vazio = mesmo host do public_server_url em /ws/agent (atrás do Caddy);
+    # em desenvolvimento o gateway roda em outra porta (ws://127.0.0.1:8001/ws/agent).
+    public_ws_url: str | None = None
     agent_rate_limit_per_minute: int = Field(default=600, ge=10)
+    # Comandos remotos (seção 4.7) e arquivos enviados pelos coletores (logs, walks).
+    command_expiry_minutes: int = Field(default=10, ge=1, le=1440)
+    storage_dir: Path = REPO_ROOT / "var" / "storage"
+    gateway_sweep_seconds: int = Field(default=30, ge=1)
     bootstrap_reseller_name: str = "Daticopy"
     bootstrap_admin_email: str = "admin@local"
 
@@ -66,6 +75,14 @@ class Settings(BaseSettings):
     @property
     def master_key_bytes(self) -> bytes:
         return base64.b64decode(self.master_key.get_secret_value())
+
+    @property
+    def agent_ws_url(self) -> str:
+        if self.public_ws_url:
+            return self.public_ws_url
+        u = urlsplit(self.public_server_url)
+        scheme = "wss" if u.scheme == "https" else "ws"
+        return urlunsplit((scheme, u.netloc, "/ws/agent", "", ""))
 
 
 @lru_cache(maxsize=1)

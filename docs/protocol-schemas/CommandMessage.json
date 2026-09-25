@@ -1,0 +1,42 @@
+{
+  "description": "Comando entregue ao coletor (pelo WebSocket ou por GET /api/agent/commands/pending).",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "params": {
+      "additionalProperties": true,
+      "title": "Params",
+      "type": "object"
+    },
+    "type": {
+      "title": "Type",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "created_at",
+    "expires_at"
+  ],
+  "title": "CommandMessage",
+  "type": "object"
+}

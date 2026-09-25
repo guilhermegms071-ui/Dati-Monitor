@@ -1,0 +1,34 @@
+{
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "pending",
+        "sent",
+        "acked",
+        "running",
+        "succeeded",
+        "failed",
+        "expired",
+        "cancelled"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "state"
+  ],
+  "title": "CommandUpdateResponse",
+  "type": "object"
+}

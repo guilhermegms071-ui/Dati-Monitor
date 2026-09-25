@@ -291,6 +291,11 @@
       "default": 1,
       "title": "V",
       "type": "integer"
+    },
+    "ws_url": {
+      "description": "Endereço do canal WebSocket (wss://…/ws/agent)",
+      "title": "Ws Url",
+      "type": "string"
     }
   },
   "required": [
@@ -302,7 +307,8 @@
     "discovery",
     "ranges",
     "credentials",
-    "profiles"
+    "profiles",
+    "ws_url"
   ],
   "title": "AgentConfig",
   "type": "object"

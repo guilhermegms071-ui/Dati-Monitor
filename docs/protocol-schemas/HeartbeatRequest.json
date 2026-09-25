@@ -81,6 +81,20 @@
       "default": null,
       "title": "Last Scan At"
     },
+    "latency_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Ida e volta do ping no WebSocket",
+      "title": "Latency Ms"
+    },
     "local_ips": {
       "items": {
         "type": "string"
@@ -140,6 +154,11 @@
       "maxLength": 64,
       "title": "Version",
       "type": "string"
+    },
+    "ws_connected": {
+      "default": false,
+      "title": "Ws Connected",
+      "type": "boolean"
     }
   },
   "required": [

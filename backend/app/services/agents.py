@@ -17,8 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import crypto
 from app.core.config import Settings
 from app.core.errors import AppError, bad_request, conflict, not_found, unauthorized
+from app.core.notify import CH_AGENT_REVOKED, notify
 from app.core.principal import Principal, customer_scope, reseller_scope
-from app.core.security import agent_signature, create_agent_token, derive_agent_key
+from app.core.security import (
+    InvalidTokenError,
+    agent_signature,
+    create_agent_token,
+    decode_agent_token,
+    derive_agent_key,
+)
 from app.models import (
     Agent,
     AgentEnrollmentCode,
@@ -246,6 +253,8 @@ async def revoke_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID)
     await audit.record(
         session, p, action="revoke", entity="agent", entity_id=agent.id, reseller_id=agent.reseller_id
     )
+    # "A credencial para de funcionar imediatamente e o gateway derruba a conexão" (seção 4.2).
+    await notify(session, CH_AGENT_REVOKED, str(agent.id))
     return agent
 
 
@@ -259,6 +268,7 @@ async def delete_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID)
     await audit.record(
         session, p, action="delete", entity="agent", entity_id=agent.id, reseller_id=agent.reseller_id
     )
+    await notify(session, CH_AGENT_REVOKED, str(agent.id))
 
 
 async def _release_master(
@@ -337,7 +347,10 @@ async def enroll(
     )
     logger.info("coletor %s cadastrado (host %s)", agent.id, req.hostname)
     return proto.EnrollResponse(
-        agent_id=str(agent.id), secret=base64.b64encode(raw_secret).decode(), server_time=now
+        agent_id=str(agent.id),
+        secret=base64.b64encode(raw_secret).decode(),
+        server_time=now,
+        ws_url=settings.agent_ws_url,
     )
 
 
@@ -400,6 +413,23 @@ async def issue_token(
     return proto.TokenResponse(access_token=token, expires_at=expires, server_time=now)
 
 
+async def authenticate(session: AsyncSession, settings: Settings, authorization: str) -> Agent:
+    """Validates "Bearer <agent JWT>" (HTTP channel and WebSocket handshake) and loads the agent."""
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise unauthorized("token_missing", "Token do coletor ausente")
+    try:
+        claims = decode_agent_token(token, secret=settings.jwt_secret.get_secret_value())
+    except InvalidTokenError as exc:
+        raise unauthorized("token_invalid", f"Token do coletor inválido: {exc}") from exc
+    agent = await session.get(Agent, claims.agent_id)
+    if agent is None or agent.deleted_at is not None:
+        raise unauthorized("agent_invalid", "Coletor desconhecido")
+    if agent.revoked_at is not None:
+        raise unauthorized("agent_revoked", "Coletor revogado no portal")
+    return agent
+
+
 # ----------------------------------------------------------------------------- heartbeat / config
 
 
@@ -447,7 +477,12 @@ async def heartbeat(
     agent.memory_bytes = req.memory_bytes
     agent.applied_config_version = req.applied_config_version
     agent.last_error = "; ".join(req.errors)[:2000] or None
-    if req.paused:
+    if req.latency_ms is not None:
+        # Média móvel exponencial: desempate do failover prefere o coletor com menor latência (4.8).
+        prev = agent.avg_latency_ms
+        agent.avg_latency_ms = req.latency_ms if prev is None else round(prev * 0.8 + req.latency_ms * 0.2, 2)
+    # A pausa é decidida no portal (agent.paused); o que o coletor informa é só o eco dela.
+    if agent.paused:
         agent.state = "paused"
     elif req.queue_pending > DEGRADED_QUEUE or req.errors:
         agent.state = "degraded"
@@ -466,13 +501,14 @@ async def heartbeat(
             uptime_seconds=req.uptime_seconds,
             version=req.version,
             cluster_role=agent.cluster_role,
+            latency_ms=req.latency_ms,
         )
     )
     return proto.HeartbeatResponse(
         server_time=now,
         config_version=agent.config_version,
         cluster_role="master" if agent.cluster_role == "master" else "standby",
-        paused=req.paused if agent.state == "paused" else False,
+        paused=agent.paused,
     )
 
 
@@ -509,7 +545,7 @@ async def agent_config(session: AsyncSession, settings: Settings, agent: Agent) 
         config_version=agent.config_version,
         site_id=str(site.id),
         cluster_role="master" if agent.cluster_role == "master" else "standby",
-        paused=agent.state == "paused",
+        paused=agent.paused,
         intervals=proto.Intervals(
             discovery_minutes=cfg["discovery_minutes"],
             counters_minutes=cfg["counters_minutes"],
@@ -550,6 +586,7 @@ async def agent_config(session: AsyncSession, settings: Settings, agent: Agent) 
         profiles=profiles,
         proxy_url=cfg.get("proxy_url"),
         keep_awake=bool(cfg.get("keep_awake")),
+        ws_url=settings.agent_ws_url,
     )
 
 

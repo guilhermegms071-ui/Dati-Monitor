@@ -117,8 +117,10 @@ def mail_catcher(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
 
 
 @pytest.fixture(scope="session")
-def test_settings(migrated_db: str, mail_catcher: Any) -> Settings:
+def test_settings(migrated_db: str, mail_catcher: Any, tmp_path_factory: pytest.TempPathFactory) -> Settings:
     return Settings(
+        storage_dir=tmp_path_factory.mktemp("storage"),
+        gateway_sweep_seconds=1,
         database_url=migrated_db,
         app_env="test",
         db_check_interval_seconds=1,

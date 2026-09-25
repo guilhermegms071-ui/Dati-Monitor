@@ -26,6 +26,11 @@ ENDPOINTS = [
     ("GET", "/api/agent/config", "-", "AgentConfig", "Bearer"),
     ("POST", "/api/agent/ranges/suggest", "SuggestRangesRequest", "-", "Bearer"),
     ("POST", "/api/agent/readings", "ReadingsRequest", "ReadingsResponse", "Bearer; corpo gzip"),
+    ("GET", "/api/agent/commands/pending", "-", "PendingCommandsResponse", "Bearer (contingência)"),
+    ("POST", "/api/agent/commands/{id}/update", "CommandUpdate", "CommandUpdateResponse", "Bearer"),
+    ("POST", "/api/agent/uploads/logs?command_id=", "-", "UploadResponse", "Bearer; corpo .zip"),
+    ("POST", "/api/agent/uploads/mib-walk?command_id=", "-", "UploadResponse", "Bearer; .snmprec em gzip"),
+    ("WS", "/ws/agent", "WsMessage", "WsMessage", "Bearer no handshake"),
 ]
 
 INTRO = f"""# Protocolo agente ↔ servidor (v{PROTOCOL_VERSION})
@@ -67,6 +72,34 @@ Toda mensagem tem `"v": {PROTOCOL_VERSION}`. Horários em UTC (ISO 8601).
 - `error_bits`: bit *i* = i-ésima condição de `hrPrinterDetectedErrorState` (bit 0 = MSB do 1º byte:
   lowPaper, noPaper, lowToner, noToner, doorOpen, jammed, offline, serviceRequested, inputTrayMissing,
   outputTrayMissing, markerSupplyMissing, outputNearFull, outputFull, inputTrayEmpty, overduePreventMaint).
+
+## Canal WebSocket `/ws/agent` (principal)
+- Handshake com `Authorization: Bearer <token do agente>`; o endereço vem em `ws_url` (cadastro e
+  configuração). Toda mensagem é um `WsMessage` `{{"v":1,"type":...,"data":{{...}}}}`.
+- Coletor → servidor: `hello` (versão e comandos suportados), `heartbeat` (a cada 30 s; resposta
+  `heartbeat_ack`), `command_update` (resposta `command_update_ack`).
+- Servidor → coletor: `welcome`, `command` (`CommandMessage`), `cancel` (`{{"id"}}`), `error`.
+- Ping WebSocket a cada 20 s; 2 pongs perdidos → reconecta. Reconexão com backoff exponencial e jitter
+  (1 s → 60 s), para sempre.
+- Fechamentos: `4401` token inválido (o agente renova o token), `4403` coletor revogado, `4000` outra
+  conexão do mesmo coletor assumiu, `4429` excesso de mensagens, `1001` gateway reiniciando.
+- Presença: o gateway grava a conexão em `agent_presence`; comandos chegam ao gateway por
+  `LISTEN/NOTIFY` do PostgreSQL (`dm_command`, `dm_agent_revoked`), com varredura periódica de segurança.
+
+## Canal de contingência (HTTPS)
+Com o WebSocket caído há mais de 2 min, o agente envia o heartbeat por `POST /api/agent/heartbeat` e
+busca comandos em `GET /api/agent/commands/pending` a cada 60 s. Atualizações de comando podem sempre ir
+por `POST /api/agent/commands/{{id}}/update`.
+
+## Comandos remotos
+- Estados: `pending` → `sent` → `acked` → `running` → `succeeded`/`failed`; ou `expired` (padrão 10 min
+  sem ser iniciado) e `cancelled` (portal). Estados finais nunca mudam; atualização repetida é aceita e
+  ignorada. Comando entregue e não confirmado em 20 s é reentregue — o coletor não executa duas vezes o
+  mesmo `id` (registro local na tabela `commands`).
+- Tipos executados pelo coletor: `reconnect`, `restart_watchdog`, `scan_now`, `read_now`, `read_device`,
+  `snmp_test`, `mib_walk` (envia o arquivo por `/uploads/mib-walk`), `set_config`, `get_logs` (envia por
+  `/uploads/logs`), `diagnostics`, `pause`, `resume`, `promote_master`, `wake_host`, `ping_host`.
+- `output` é texto livre limitado a 1 MB; `result` é JSON; erros vão em `error`.
 
 ## Endpoints
 

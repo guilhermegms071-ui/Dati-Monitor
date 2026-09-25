@@ -34,7 +34,9 @@ $lines = @(
     'COOKIE_SECURE=false',
     'SMTP_HOST=127.0.0.1',
     'SMTP_PORT=1025',
-    'PUBLIC_BASE_URL=http://localhost:5173'
+    'PUBLIC_BASE_URL=http://localhost:5173',
+    'PUBLIC_SERVER_URL=http://127.0.0.1:8000',
+    'PUBLIC_WS_URL=ws://127.0.0.1:8001/ws/agent'
 )
 [IO.File]::WriteAllText($path, ($lines -join "`n") + "`n")
 Write-Ok ".env criado em $path. Próximo passo: scripts\setup-db.ps1"

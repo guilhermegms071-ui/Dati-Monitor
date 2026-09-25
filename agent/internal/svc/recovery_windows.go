@@ -3,9 +3,11 @@
 package svc
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -102,4 +104,62 @@ func ServiceState(name string) (string, error) {
 	default:
 		return fmt.Sprintf("state_%d", st.State), nil
 	}
+}
+
+// ErrNotInstalled means the service does not exist on this machine.
+var ErrNotInstalled = errors.New("serviço não está instalado neste PC")
+
+// ErrNoPermission means the process may not control services (not running as the service account).
+var ErrNoPermission = errors.New("sem permissão para controlar serviços do Windows (o coletor precisa rodar como serviço do sistema)")
+
+// RestartService stops (waiting up to 30 s) and starts a Windows service.
+func RestartService(name string) error {
+	m, err := mgr.Connect()
+	if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+		return ErrNoPermission
+	}
+	if err != nil {
+		return fmt.Errorf("conectar ao gerenciador de serviços: %w", err)
+	}
+	defer func() { _ = m.Disconnect() }()
+	s, err := m.OpenService(name)
+	if err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return fmt.Errorf("%s: %w", name, ErrNotInstalled)
+		}
+		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			return ErrNoPermission
+		}
+		return fmt.Errorf("abrir serviço %s: %w", name, err)
+	}
+	defer func() { _ = s.Close() }()
+	st, err := s.Query()
+	if err != nil {
+		return fmt.Errorf("consultar serviço %s: %w", name, err)
+	}
+	if st.State != svc.Stopped {
+		if _, err := s.Control(svc.Stop); errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			return ErrNoPermission
+		} else if err != nil && !errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
+			return fmt.Errorf("parar serviço %s: %w", name, err)
+		}
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			st, err = s.Query()
+			if err != nil {
+				return fmt.Errorf("consultar serviço %s: %w", name, err)
+			}
+			if st.State == svc.Stopped {
+				break
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("serviço %s não parou em 30 s", name)
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+	if err := s.Start(); err != nil {
+		return fmt.Errorf("iniciar serviço %s: %w", name, err)
+	}
+	return nil
 }

@@ -93,8 +93,11 @@ class AgentOut(ORMModel):
     uptime_seconds: int | None
     cpu_percent: float | None
     memory_bytes: int | None
+    avg_latency_ms: float | None
     last_error: str | None
     suggested_ranges: list[Any]
+    paused: bool
+    ws_connected: bool = Field(default=False, description="Há conexão WebSocket viva agora")
     created_at: datetime
     updated_at: datetime
 

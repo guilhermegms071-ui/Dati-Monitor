@@ -1,6 +1,8 @@
-"""/api/agent — endpoints used by dm-agent (enrollment, token, heartbeat, config, readings)."""
+"""/api/agent — endpoints used by dm-agent (enrollment, token, heartbeat, config, readings, command
+contingency channel and uploads). The WebSocket channel lives in the gateway process."""
 
 import gzip
+import uuid
 import zlib
 from typing import Annotated
 
@@ -8,13 +10,13 @@ from fastapi import APIRouter, Depends, Request, status
 from pydantic import ValidationError
 
 from app.api.deps import SessionDep, SettingsDep, client_ip
-from app.core.errors import AppError, bad_request, unauthorized
+from app.core.errors import AppError, bad_request
 from app.core.ratelimit import RateLimiter
-from app.core.security import InvalidTokenError, decode_agent_token
 from app.models import Agent
 from app.schemas import agent as proto
 from app.schemas.common import ERROR_RESPONSES, OkResponse
 from app.services import agents as svc
+from app.services import commands as commands_svc
 from app.services.ingest import ingest_batch
 
 router = APIRouter(prefix="/api/agent", tags=["coletores (protocolo)"], responses=ERROR_RESPONSES)
@@ -33,19 +35,7 @@ def _rate(request: Request, key: str) -> None:
 
 
 async def current_agent(request: Request, session: SessionDep, settings: SettingsDep) -> Agent:
-    header = request.headers.get("Authorization", "")
-    scheme, _, token = header.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise unauthorized("token_missing", "Token do coletor ausente")
-    try:
-        claims = decode_agent_token(token, secret=settings.jwt_secret.get_secret_value())
-    except InvalidTokenError as exc:
-        raise unauthorized("token_invalid", f"Token do coletor inválido: {exc}") from exc
-    agent = await session.get(Agent, claims.agent_id)
-    if agent is None or agent.deleted_at is not None:
-        raise unauthorized("agent_invalid", "Coletor desconhecido")
-    if agent.revoked_at is not None:
-        raise unauthorized("agent_revoked", "Coletor revogado no portal")
+    agent = await svc.authenticate(session, settings, request.headers.get("Authorization", ""))
     _rate(request, f"agent:{agent.id}")
     return agent
 
@@ -133,3 +123,71 @@ async def readings(request: Request, agent: AgentDep, session: SessionDep) -> pr
     resp = await ingest_batch(session, agent, body)
     await session.commit()
     return resp
+
+
+# ----------------------------------------------------------------------------- comandos (contingência HTTPS)
+
+
+@router.get(
+    "/commands/pending",
+    response_model=proto.PendingCommandsResponse,
+    summary="Comandos pendentes (canal de contingência quando o WebSocket está caído)",
+)
+async def pending_commands(agent: AgentDep, session: SessionDep) -> proto.PendingCommandsResponse:
+    cmds = await commands_svc.claim_for_delivery(session, agent.id)
+    await session.commit()
+    return proto.PendingCommandsResponse(commands=[commands_svc.to_message(c) for c in cmds])
+
+
+@router.post(
+    "/commands/{command_id}/update",
+    response_model=proto.CommandUpdateResponse,
+    summary="Andamento/resultado de um comando (idempotente)",
+)
+async def command_update(
+    command_id: str, body: proto.CommandUpdate, agent: AgentDep, session: SessionDep
+) -> proto.CommandUpdateResponse:
+    if body.id != command_id:
+        raise bad_request("id_mismatch", "O id do corpo difere do id da URL")
+    cmd = await commands_svc.apply_update(session, agent, body)
+    await session.commit()
+    return proto.CommandUpdateResponse.model_validate({"id": str(cmd.id), "state": cmd.state})
+
+
+async def _upload_body(request: Request, limit: int) -> bytes:
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > limit:
+            raise AppError(status.HTTP_413_CONTENT_TOO_LARGE, "upload_too_large", "Arquivo grande demais")
+    return bytes(data)
+
+
+@router.post(
+    "/uploads/logs",
+    response_model=proto.UploadResponse,
+    summary="Logs compactados (.zip) pedidos por get_logs",
+    openapi_extra={"requestBody": {"content": {"application/zip": {}}}},
+)
+async def upload_logs(
+    command_id: uuid.UUID, request: Request, agent: AgentDep, session: SessionDep, settings: SettingsDep
+) -> proto.UploadResponse:
+    data = await _upload_body(request, commands_svc.MAX_LOG_UPLOAD)
+    row = await commands_svc.store_logs(session, settings, agent, command_id, data)
+    await session.commit()
+    return proto.UploadResponse(id=str(row.id), size_bytes=row.size_bytes)
+
+
+@router.post(
+    "/uploads/mib-walk",
+    response_model=proto.UploadResponse,
+    summary="Walk SNMP (.snmprec em gzip) pedido por mib_walk",
+    openapi_extra={"requestBody": {"content": {"application/gzip": {}}}},
+)
+async def upload_walk(
+    command_id: uuid.UUID, request: Request, agent: AgentDep, session: SessionDep, settings: SettingsDep
+) -> proto.UploadResponse:
+    data = await _upload_body(request, commands_svc.MAX_WALK_UPLOAD)
+    row = await commands_svc.store_walk(session, settings, agent, command_id, data)
+    await session.commit()
+    return proto.UploadResponse(id=str(row.id), size_bytes=len(data))

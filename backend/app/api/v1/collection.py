@@ -1,6 +1,7 @@
 """/api/v1 collectors (agents), IP ranges, SNMP credentials and devices (read)."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated
 
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import PrincipalDep, SessionDep, SettingsDep
 from app.core.product import get_product
-from app.models import AgentEnrollmentCode
+from app.models import Agent, AgentEnrollmentCode
 from app.schemas.collection import (
     AgentCreated,
     AgentIn,
@@ -28,6 +29,7 @@ from app.schemas.collection import (
 from app.schemas.common import ERROR_RESPONSES, Page
 from app.services import agents as agents_svc
 from app.services import devices as devices_svc
+from app.services import presence as presence_svc
 from app.services import site_config as site_svc
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
 
@@ -51,6 +53,15 @@ def enrollment_out(code: AgentEnrollmentCode, server_url: str) -> EnrollmentCode
 
 
 # ----------------------------------------------------------------------------- agents
+
+
+async def agents_out(session: SessionDep, agents: Sequence[Agent]) -> list[AgentOut]:
+    connected = await presence_svc.connected_ids(session, (a.id for a in agents))
+    return [AgentOut.model_validate(a).model_copy(update={"ws_connected": a.id in connected}) for a in agents]
+
+
+async def agent_out(session: SessionDep, agent: Agent) -> AgentOut:
+    return (await agents_out(session, [agent]))[0]
 
 
 @router.get("/agents", response_model=Page[AgentOut], tags=["coletores"])
@@ -78,7 +89,7 @@ async def list_agents(
         limit=limit,
         cursor=cursor,
     )
-    return Page(items=[AgentOut.model_validate(a) for a in page.items], next_cursor=page.next_cursor)
+    return Page(items=await agents_out(session, page.items), next_cursor=page.next_cursor)
 
 
 @router.post("/agents", response_model=AgentCreated, status_code=status.HTTP_201_CREATED, tags=["coletores"])
@@ -88,13 +99,13 @@ async def create_agent(
     agent, code = await agents_svc.create_agent(session, p, body)
     await session.commit()
     return AgentCreated(
-        agent=AgentOut.model_validate(agent), enrollment=enrollment_out(code, settings.public_server_url)
+        agent=await agent_out(session, agent), enrollment=enrollment_out(code, settings.public_server_url)
     )
 
 
 @router.get("/agents/{agent_id}", response_model=AgentOut, tags=["coletores"])
 async def get_agent(agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> AgentOut:
-    return AgentOut.model_validate(await agents_svc.get_agent(session, p, agent_id))
+    return await agent_out(session, await agents_svc.get_agent(session, p, agent_id))
 
 
 @router.patch("/agents/{agent_id}", response_model=AgentOut, tags=["coletores"])
@@ -103,7 +114,7 @@ async def update_agent(
 ) -> AgentOut:
     agent = await agents_svc.update_agent(session, p, agent_id, body)
     await session.commit()
-    return AgentOut.model_validate(agent)
+    return await agent_out(session, agent)
 
 
 @router.post("/agents/{agent_id}/enrollment-code", response_model=EnrollmentCodeOut, tags=["coletores"])
@@ -119,7 +130,7 @@ async def regenerate_code(
 async def revoke_agent(agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> AgentOut:
     agent = await agents_svc.revoke_agent(session, p, agent_id)
     await session.commit()
-    return AgentOut.model_validate(agent)
+    return await agent_out(session, agent)
 
 
 @router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["coletores"])

@@ -1,0 +1,84 @@
+{
+  "description": "Andamento de um comando informado pelo coletor. Estados finais são definitivos: atualizações\nrepetidas (mesmo `id`) são aceitas e ignoradas — o coletor pode reenviar sem medo.",
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "id": {
+      "maxLength": 64,
+      "title": "Id",
+      "type": "string"
+    },
+    "output": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Texto livre; o servidor guarda até 1 MB",
+      "title": "Output"
+    },
+    "progress": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Progress"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result"
+    },
+    "state": {
+      "enum": [
+        "acked",
+        "running",
+        "succeeded",
+        "failed"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "state"
+  ],
+  "title": "CommandUpdate",
+  "type": "object"
+}

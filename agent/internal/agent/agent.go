@@ -1,5 +1,5 @@
-// Package agent wires the collector, the outbox uploader, the heartbeat/config loop and the local
-// health endpoint into the dm-agent process.
+// Package agent wires the collector, the outbox uploader, the WebSocket channel, the remote-command
+// executor, the heartbeat/config loop and the local health endpoint into the dm-agent process.
 package agent
 
 import (
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/api"
 	"github.com/daticopy/dati-monitor/agent/internal/buildinfo"
 	"github.com/daticopy/dati-monitor/agent/internal/collector"
+	"github.com/daticopy/dati-monitor/agent/internal/commands"
 	"github.com/daticopy/dati-monitor/agent/internal/config"
 	"github.com/daticopy/dati-monitor/agent/internal/health"
 	"github.com/daticopy/dati-monitor/agent/internal/osinfo"
@@ -23,10 +25,16 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/secret"
 	"github.com/daticopy/dati-monitor/agent/internal/store"
 	"github.com/daticopy/dati-monitor/agent/internal/uploader"
+	"github.com/daticopy/dati-monitor/agent/internal/ws"
 )
 
-// HeartbeatInterval between heartbeats (PROMPT 4.3).
-const HeartbeatInterval = 30 * time.Second
+// Intervals of PROMPT 4.3.
+const (
+	HeartbeatInterval = 30 * time.Second
+	// With the WebSocket down for longer than this, heartbeats and commands go over HTTPS.
+	ContingencyAfter = 2 * time.Minute
+	PollInterval     = 60 * time.Second
+)
 
 // HealthLoop is the heartbeat loop name in /health.
 const HealthLoop = "heartbeat"
@@ -41,13 +49,22 @@ type Agent struct {
 	Collector *collector.Collector
 	Uploader  *uploader.Uploader
 	Health    *health.Registry
+	WS        *ws.Channel
+	Exec      *commands.Executor
+	// ContingencyAfter/PollInterval/ReconnectWait are fields so tests can shorten them.
+	ContingencyAfter time.Duration
+	PollInterval     time.Duration
+	ReconnectWait    time.Duration
 
 	meter          osinfo.ProcessMeter
 	started        time.Time
 	applied        atomic.Int64
 	lastHeartbeat  atomic.Int64
 	heartbeatError atomic.Value
+	wsLastError    atomic.Value
+	hbKick         chan struct{}
 	mu             sync.Mutex
+	runCtx         context.Context
 }
 
 // New loads the local configuration and credential and prepares every component.
@@ -69,15 +86,40 @@ func New(dir string, log *slog.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &Agent{Dir: dir, Local: local, Log: log, Client: client, Store: st, Health: health.NewRegistry(), started: time.Now()}
+	a := &Agent{
+		Dir: dir, Local: local, Log: log, Client: client, Store: st, Health: health.NewRegistry(), started: time.Now(),
+		ContingencyAfter: ContingencyAfter, PollInterval: PollInterval, hbKick: make(chan struct{}, 1),
+	}
 	a.heartbeatError.Store("")
+	a.wsLastError.Store("")
 	a.Uploader = &uploader.Uploader{Store: st, Send: client, AgentID: local.AgentID, Log: log, Health: a.Health}
 	a.Collector = collector.New(collector.Deps{
 		Store: st, Log: log, Health: a.Health, Clock: client.ServerNow,
 		Suggest: client.SuggestRanges, OnEnqueue: a.Uploader.Kick,
 	})
+	a.Exec = commands.New(st, a.commandSpecs(), a.reportCommand, log, client.ServerNow)
+	a.WS = ws.New(client, a.wsURL, (*wsHandler)(a), log)
+	a.WS.OnError = func(msg string) { a.wsLastError.Store(msg) }
+	a.WS.Capabilities = a.Exec.Types()
+	sort.Strings(a.WS.Capabilities)
 	a.Health.SetInfo(a.info)
 	return a, nil
+}
+
+// wsURL is the WebSocket endpoint: from the server configuration, else from enrollment, else derived.
+func (a *Agent) wsURL() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	configured := a.Local.WSURL
+	if a.Local.Server != nil && a.Local.Server.WSURL != "" {
+		configured = a.Local.Server.WSURL
+	}
+	return ws.Endpoint(a.Local.ServerURL, configured)
+}
+
+func (a *Agent) wsError() string {
+	s, _ := a.wsLastError.Load().(string)
+	return s
 }
 
 func (a *Agent) info() map[string]any {
@@ -101,6 +143,10 @@ func (a *Agent) info() map[string]any {
 		"applied_config":       a.applied.Load(),
 		"clock_offset_seconds": a.Client.ClockOffset().Seconds(),
 		"profiles":             a.Collector.Profiles(),
+		"ws_connected":         a.WS.Connected(),
+		"ws_down_seconds":      a.WS.DownFor().Seconds(),
+		"ws_rtt_ms":            a.WS.RTT(),
+		"ws_last_error":        a.wsError(),
 	}
 }
 
@@ -128,7 +174,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		"os", osinfo.Describe())
 	if a.Local.Server != nil {
 		// Configuração em cache: o coletor trabalha mesmo que o servidor esteja fora do ar.
-		a.apply(a.Local.Server, false)
+		_ = a.apply(a.Local.Server, false)
+	}
+	if err := a.Exec.Recover(ctx); err != nil {
+		a.Log.Error("recuperar comandos interrompidos", "erro", err)
 	}
 	addr := a.Local.HealthAddr
 	if addr == "" {
@@ -136,9 +185,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	a.mu.Lock()
+	a.runCtx = ctx
+	a.mu.Unlock()
 	var wg sync.WaitGroup
 	errs := make(chan error, 1)
-	wg.Add(3)
+	wg.Add(6)
 	go func() {
 		defer wg.Done()
 		if err := health.Serve(ctx, addr, a.Health); err != nil {
@@ -152,6 +204,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	}()
 	go func() { defer wg.Done(); a.Collector.Run(ctx) }()
 	go func() { defer wg.Done(); a.Uploader.Run(ctx) }()
+	go func() { defer wg.Done(); a.WS.Run(ctx) }()
+	go func() { defer wg.Done(); a.Exec.Run(ctx) }()
+	go func() { defer wg.Done(); a.pollLoop(ctx) }()
 	_ = sdnotify.Ready()
 	a.heartbeatLoop(ctx)
 	_ = sdnotify.Stopping()
@@ -181,8 +236,14 @@ func (a *Agent) heartbeatLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		case <-a.hbKick:
 		}
 	}
+}
+
+// contingency reports whether the WebSocket has been down long enough to use the HTTPS channel.
+func (a *Agent) contingency() bool {
+	return !a.WS.Connected() && a.WS.DownFor() >= a.ContingencyAfter
 }
 
 // HeartbeatRequest builds the heartbeat payload.
@@ -195,7 +256,7 @@ func (a *Agent) HeartbeatRequest(ctx context.Context) protocol.HeartbeatRequest 
 		UptimeSeconds: int64(time.Since(a.started).Seconds()), LocalIPs: osinfo.LocalIPv4(),
 		Hostname: osinfo.Hostname(), OS: osinfo.Describe(), Arch: runtime.GOARCH, HostMAC: osinfo.HostMAC(),
 		AppliedConfigVersion: int(a.applied.Load()), DevicesKnown: a.Collector.KnownDevices(ctx),
-		Paused: a.Collector.Paused(),
+		Paused: a.Collector.Paused(), LatencyMS: a.WS.RTT(), WSConnected: a.WS.Connected(),
 	}
 	if t := a.Collector.LastScan(); !t.IsZero() {
 		req.LastScanAt = &t
@@ -212,7 +273,21 @@ func (a *Agent) HeartbeatRequest(ctx context.Context) protocol.HeartbeatRequest 
 func (a *Agent) heartbeatOnce(ctx context.Context) {
 	hctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	resp, err := a.Client.Heartbeat(hctx, a.HeartbeatRequest(hctx))
+	var resp *protocol.HeartbeatResponse
+	var err error
+	switch {
+	case a.WS.Connected():
+		resp, err = a.WS.Heartbeat(hctx, a.HeartbeatRequest(hctx))
+		if err != nil && ctx.Err() == nil {
+			// Canal "conectado" que não confirma: garante o lease pelo HTTPS nesta rodada.
+			a.Log.Warn("heartbeat pelo WebSocket falhou; enviando pelo HTTPS", "erro", err)
+			resp, err = a.Client.Heartbeat(hctx, a.HeartbeatRequest(hctx))
+		}
+	case a.contingency():
+		resp, err = a.Client.Heartbeat(hctx, a.HeartbeatRequest(hctx))
+	default:
+		return // WebSocket reconectando há menos de 2 min: o heartbeat sai assim que ele voltar
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return
@@ -235,28 +310,103 @@ func (a *Agent) heartbeatOnce(ctx context.Context) {
 			a.Log.Error("baixar configuração do local", "erro", err)
 			return
 		}
-		a.apply(cfg, true)
+		_ = a.apply(cfg, true)
 	}
 }
 
-func (a *Agent) apply(cfg *protocol.AgentConfig, persist bool) {
-	if err := a.Collector.Apply(cfg); err != nil {
-		a.Log.Error("configuração aplicada com problemas", "erro", err)
+// pollLoop is the HTTPS contingency channel for commands (PROMPT 4.3): with the WebSocket down for
+// more than 2 min, pending commands are fetched every 60 s.
+func (a *Agent) pollLoop(ctx context.Context) {
+	t := time.NewTicker(a.PollInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if !a.contingency() || a.WS.Revoked() {
+			continue
+		}
+		pctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		cmds, err := a.Client.PendingCommands(pctx)
+		cancel()
+		if err != nil {
+			if ctx.Err() == nil {
+				a.Log.Warn("buscar comandos pelo HTTPS falhou", "erro", err)
+			}
+			continue
+		}
+		for _, c := range cmds {
+			a.Exec.Dispatch(ctx, c)
+		}
+	}
+}
+
+// reportCommand sends a command update: WebSocket when up, HTTPS otherwise.
+func (a *Agent) reportCommand(ctx context.Context, upd protocol.CommandUpdate) error {
+	if a.WS.Connected() {
+		err := a.WS.CommandUpdate(ctx, upd)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, ws.ErrRejected) {
+			return fmt.Errorf("%w: %w", commands.ErrRejected, err)
+		}
+	}
+	_, err := a.Client.CommandUpdate(ctx, upd)
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Permanent() {
+		return fmt.Errorf("%w: %w", commands.ErrRejected, err)
+	}
+	return err
+}
+
+func (a *Agent) apply(cfg *protocol.AgentConfig, persist bool) error {
+	applyErr := a.Collector.Apply(cfg)
+	if applyErr != nil {
+		a.Log.Error("configuração aplicada com problemas", "erro", applyErr)
 	}
 	a.applied.Store(int64(cfg.ConfigVersion))
 	if err := osinfo.KeepAwake(cfg.KeepAwake); err != nil {
 		a.Log.Error("não foi possível impedir a suspensão do Windows", "erro", err)
 	}
 	if !persist {
-		return
+		return applyErr
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Local.Server = cfg
 	if err := config.Save(a.Dir, a.Local); err != nil {
 		a.Log.Error("salvar configuração local", "erro", err)
-		return
+		return fmt.Errorf("salvar configuração local: %w", err)
 	}
 	a.Log.Info("configuração aplicada", "versao", cfg.ConfigVersion, "faixas", len(cfg.Ranges),
 		"credenciais", len(cfg.Credentials), "perfis", len(cfg.Profiles))
+	return applyErr
 }
+
+// wsHandler receives the WebSocket events (methods must not block the read loop).
+type wsHandler Agent
+
+func (h *wsHandler) OnConnected() {
+	a := (*Agent)(h)
+	select { // heartbeat imediato: presença e lease atualizados assim que o canal volta
+	case a.hbKick <- struct{}{}:
+	default:
+	}
+	a.Exec.Kick()
+}
+
+func (h *wsHandler) OnCommand(cmd protocol.CommandMessage) {
+	a := (*Agent)(h)
+	a.mu.Lock()
+	ctx := a.runCtx
+	a.mu.Unlock()
+	if ctx == nil || ctx.Err() != nil {
+		return // encerrando: o comando fica "sent" e é reentregue quando o coletor voltar
+	}
+	go a.Exec.Dispatch(ctx, cmd)
+}
+
+func (h *wsHandler) OnCancel(id string) { (*Agent)(h).Exec.Cancel(id) }

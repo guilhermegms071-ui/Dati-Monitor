@@ -66,8 +66,8 @@ python_version = "3.12"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-# APScheduler 3.x e pysnmp não publicam tipos (py.typed).
-module = ["apscheduler.*", "pysnmp.*"]
+# APScheduler 3.x, pysnmp e asyncpg não publicam tipos (py.typed).
+module = ["asyncpg", "asyncpg.*", "apscheduler.*", "pysnmp.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

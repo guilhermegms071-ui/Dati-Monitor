@@ -18,7 +18,10 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `agent/internal/{store,uploader,api,protocol}` | Fila SQLite; envio em lote; cliente HTTPS do agente; mensagens v1 (espelho de `app/schemas/agent.py`). |
 | `agent/internal/{agent,health,svc,secret,config,osinfo,logx}` | Montagem do processo, `/health`, serviço Windows/systemd, DPAPI, `config.json`, SO, logs. |
 | `agent/internal/simtest/` | Testes de integração (`-tags integration`) contra o snmpsim real do venv. |
-| `backend/app/api/agent/` | Rotas `/api/agent/*` (protocolo do agente). Ingestão em `services/ingest.py`. |
+| `backend/app/api/agent/` | Rotas `/api/agent/*` (protocolo do agente, contingência de comandos, uploads). Ingestão em `services/ingest.py`. |
+| `backend/app/gateway/` | Processo do WebSocket `/ws/agent`: `hub.py` (conexões e entrega de comandos), `listener.py` (LISTEN/NOTIFY), `main.py`. |
+| `backend/app/services/{commands,presence}.py` | Ciclo de vida dos comandos (4.7), uploads, expiração; presença e varredura de offline. |
+| `agent/internal/{ws,commands,netdiag}` | Canal WebSocket; executor idempotente de comandos; ping/WOL/disco/interfaces. Handlers em `internal/agent/commands.go`. |
 | `backend/app/core/` | Config (`pydantic-settings`, lê `.env` da raiz), banco, segurança (argon2/JWT), cripto AES-GCM, `Principal` + escopos, permissões, erros, e-mail, rate limit. |
 | `backend/app/models/` | Todas as tabelas (SQLAlchemy 2 tipado). `PARTITIONED_TABLES`/`APPEND_ONLY_TABLES` em `__init__`. |
 | `backend/app/schemas/` | Pydantic de entrada/saída da API. |
@@ -26,7 +29,6 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/app/api/v1/` | Roteadores finos: validam, chamam o serviço e fazem `session.commit()`. `api/deps.py` = autenticação central. |
 | `backend/app/cli.py` | `python -m app.cli migrate / bootstrap / seed-dev / ensure-partitions`. |
 | `backend/app/api/` | Processo da API REST (porta 8000). `create_app()` é fábrica (`uvicorn --factory`). |
-| `backend/app/gateway/` | Processo do gateway WebSocket dos agentes (porta 8001). |
 | `backend/app/worker/` | Jobs agendados (APScheduler). `python -m app.worker.main`. |
 | `backend/alembic/` | Migrações (a URL vem de `DATABASE_URL`, nunca do `alembic.ini`). |
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
@@ -86,6 +88,12 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   `dati_test` é recriado por sessão e esvaziado a cada teste (`clean_db`).
 - Primeiro start: a senha temporária do `admin@local` aparece no console do dev.ps1/API.
 - Edições complexas por script: grave o script em arquivo (heredocs longos no bash quebram neste ambiente).
+- Novo comando remoto: modelo de parâmetros em `schemas/commands.py` (`PARAMS_BY_TYPE`, `COMMAND_LABELS`),
+  preparo opcional em `services/commands.py` (`_PREPARERS`) e handler em `agent/internal/agent/commands.go`
+  (`commandSpecs`). Todo comando precisa de teste nos dois lados.
+- Canais `pg_notify` só em `app/core/notify.py`; o `notify` vai na mesma transação da mudança.
+- `dev.ps1` sobe cada serviço no próprio console oculto: não volte para `-NoNewWindow` (o reload do
+  uvicorn manda CTRL_C para o console inteiro).
 - Protocolo do agente: mudou `app/schemas/agent.py`? Atualize `agent/internal/protocol` e rode
   `.venv\Scripts\python scripts\gen_protocol_docs.py` (um teste compara `docs/protocol.md`).
 - Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de

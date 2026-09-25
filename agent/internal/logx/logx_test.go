@@ -1,12 +1,16 @@
 package logx
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWritesJSONLinesAtTheConfiguredLevel(t *testing.T) {
@@ -42,5 +46,44 @@ func TestParseLevel(t *testing.T) {
 		if got := parseLevel(in); got != want {
 			t.Errorf("%q -> %v", in, got)
 		}
+	}
+}
+
+func TestZipRecentPicksNewestLogs(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	write := func(name, body string, mod time.Time) {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, mod, mod); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("agent.log", "atual\n", now)
+	write("agent-2026-09-24T10-00-00.000.log", "rotacionado\n", now.Add(-2*time.Hour))
+	write("agent-2026-09-01T10-00-00.000.log", "antigo\n", now.Add(-30*24*time.Hour))
+	write("outra-coisa.txt", "x", now)
+	var buf bytes.Buffer
+	n, err := ZipRecent(dir, now.Add(-24*time.Hour), 1<<20, &buf)
+	if err != nil || n != 2 {
+		t.Fatalf("%d %v", n, err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zr.File) != 2 || zr.File[0].Name != "agent.log" {
+		t.Fatalf("arquivos: %v", zr.File)
+	}
+	rc, _ := zr.File[0].Open()
+	body, _ := io.ReadAll(rc)
+	_ = rc.Close()
+	if string(body) != "atual\n" {
+		t.Fatalf("%q", body)
+	}
+	if _, err := ZipRecent(filepath.Join(dir, "nao-existe"), now, 1, &buf); err == nil {
+		t.Fatal("pasta inexistente")
 	}
 }

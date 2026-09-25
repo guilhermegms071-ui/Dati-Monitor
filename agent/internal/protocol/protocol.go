@@ -50,6 +50,7 @@ type EnrollResponse struct {
 	AgentID    string    `json:"agent_id"`
 	Secret     string    `json:"secret"`
 	ServerTime time.Time `json:"server_time"`
+	WSURL      string    `json:"ws_url"`
 }
 
 // TokenRequest proves possession of the secret: signature = hex(HMAC-SHA256(K, agent_id\nts\nnonce))
@@ -92,6 +93,8 @@ type HeartbeatRequest struct {
 	DevicesKnown         int        `json:"devices_known"`
 	Paused               bool       `json:"paused"`
 	Errors               []string   `json:"errors,omitempty"`
+	LatencyMS            *float64   `json:"latency_ms,omitempty"`
+	WSConnected          bool       `json:"ws_connected"`
 }
 
 // HeartbeatResponse tells the agent its role and the current configuration version.
@@ -144,6 +147,7 @@ type AgentConfig struct {
 	Profiles      []json.RawMessage `json:"profiles"`
 	ProxyURL      string            `json:"proxy_url,omitempty"`
 	KeepAwake     bool              `json:"keep_awake"`
+	WSURL         string            `json:"ws_url"`
 }
 
 // SuggestRangesRequest sends the /24 of the agent's private interfaces when the site has no range.
@@ -227,4 +231,95 @@ type ErrorBody struct {
 		Message    string    `json:"message"`
 		ServerTime time.Time `json:"server_time"`
 	} `json:"detail"`
+}
+
+// Command states reported by the agent (PROMPT 4.7).
+const (
+	StateAcked     = "acked"
+	StateRunning   = "running"
+	StateSucceeded = "succeeded"
+	StateFailed    = "failed"
+)
+
+// CommandMessage is a command delivered to the agent (WebSocket or GET /api/agent/commands/pending).
+type CommandMessage struct {
+	V         int             `json:"v"`
+	ID        string          `json:"id"`
+	Type      string          `json:"type"`
+	Params    json.RawMessage `json:"params"`
+	CreatedAt time.Time       `json:"created_at"`
+	ExpiresAt time.Time       `json:"expires_at"`
+}
+
+// CommandUpdate reports progress/result of a command (idempotent by ID on the server).
+type CommandUpdate struct {
+	V        int            `json:"v"`
+	ID       string         `json:"id"`
+	State    string         `json:"state"`
+	Progress string         `json:"progress,omitempty"`
+	Result   map[string]any `json:"result,omitempty"`
+	Output   string         `json:"output,omitempty"`
+	Error    string         `json:"error,omitempty"`
+}
+
+// CommandUpdateResponse is the server's view of the command after an update.
+type CommandUpdateResponse struct {
+	V     int    `json:"v"`
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
+// PendingCommandsResponse is the answer of the HTTPS contingency channel.
+type PendingCommandsResponse struct {
+	V        int              `json:"v"`
+	Commands []CommandMessage `json:"commands"`
+}
+
+// UploadResponse acknowledges an uploaded file (logs, walk).
+type UploadResponse struct {
+	V         int    `json:"v"`
+	ID        string `json:"id"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// WebSocket message types (/ws/agent).
+const (
+	WSHello            = "hello"
+	WSHeartbeat        = "heartbeat"
+	WSCommandUpdate    = "command_update"
+	WSWelcome          = "welcome"
+	WSHeartbeatAck     = "heartbeat_ack"
+	WSCommand          = "command"
+	WSCancel           = "cancel"
+	WSCommandUpdateAck = "command_update_ack"
+	WSError            = "error"
+)
+
+// WSMessage is the envelope of every WebSocket message.
+type WSMessage struct {
+	V    int             `json:"v"`
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+// Hello is the first message sent by the agent after connecting.
+type Hello struct {
+	V            int      `json:"v"`
+	Version      string   `json:"version"`
+	Capabilities []string `json:"capabilities"`
+}
+
+// Welcome is the server's greeting.
+type Welcome struct {
+	V                int       `json:"v"`
+	AgentID          string    `json:"agent_id"`
+	ServerTime       time.Time `json:"server_time"`
+	HeartbeatSeconds int       `json:"heartbeat_seconds"`
+}
+
+// WSErrorData is the payload of an "error" message.
+type WSErrorData struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	ID      string `json:"id,omitempty"`
 }

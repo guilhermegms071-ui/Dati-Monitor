@@ -31,6 +31,7 @@ type Local struct {
 	InsecureDev bool                  `json:"insecure_dev,omitempty"`
 	ProxyURL    string                `json:"proxy_url,omitempty"`
 	HealthAddr  string                `json:"health_addr,omitempty"`
+	WSURL       string                `json:"ws_url,omitempty"` // canal WebSocket informado no cadastro
 	EnrolledAt  time.Time             `json:"enrolled_at"`
 	Server      *protocol.AgentConfig `json:"server,omitempty"`
 }

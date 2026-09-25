@@ -32,7 +32,7 @@ services:
   gateway:
     build: { context: .., dockerfile: deploy/Dockerfile.backend }
     restart: unless-stopped
-    command: ["python", "-m", "uvicorn", "app.gateway.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers"]
+    command: ["python", "-m", "uvicorn", "app.gateway.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers", "--ws", "websockets-sansio"]
     environment: *backend-env
     depends_on:
       postgres: { condition: service_healthy }

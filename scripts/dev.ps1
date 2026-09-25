@@ -35,7 +35,7 @@ $services = [System.Collections.Generic.List[hashtable]]::new()
 $services.Add(@{ Name = 'api'; Color = 'Cyan'; Port = 8000; Cwd = 'backend'; File = $VenvPython
     Args = @('-m', 'uvicorn', 'app.api.main:create_app', '--factory', '--host', '127.0.0.1', '--port', '8000') + $reload })
 $services.Add(@{ Name = 'gateway'; Color = 'Blue'; Port = 8001; Cwd = 'backend'; File = $VenvPython
-    Args = @('-m', 'uvicorn', 'app.gateway.main:create_app', '--factory', '--host', '127.0.0.1', '--port', '8001') + $reload })
+    Args = @('-m', 'uvicorn', 'app.gateway.main:create_app', '--factory', '--host', '127.0.0.1', '--port', '8001', '--ws', 'websockets-sansio') + $reload })
 $services.Add(@{ Name = 'worker'; Color = 'Magenta'; Cwd = 'backend'; File = $VenvPython; Args = @('-m', 'app.worker.main') })
 $services.Add(@{ Name = 'portal'; Color = 'Green'; Port = 5173; Cwd = 'frontend'; File = 'npm.cmd'; Args = @('run', 'dev') })
 $services.Add(@{ Name = 'smtp'; Color = 'Yellow'; Port = 8025; ExtraPort = 1025; Cwd = '.'; File = $VenvPython; Args = @('scripts\smtp_catcher.py') })
@@ -91,8 +91,11 @@ try {
         $err = Join-Path $logDir "$($s.Name).err.log"
         [System.IO.File]::WriteAllText($out, ''); [System.IO.File]::WriteAllText($err, '')
         $quoted = $s.Args | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }
+        # Cada serviço no próprio console (oculto): o "uvicorn --reload" do Windows reinicia o processo
+        # filho com CTRL_C_EVENT, que atinge TODOS os processos do mesmo console — com console
+        # compartilhado, salvar um arquivo derrubava o dev.ps1, o worker e os simuladores.
         $p = Start-Process -FilePath $s.File -ArgumentList $quoted -WorkingDirectory (Join-Path $RepoRoot $s.Cwd) `
-            -RedirectStandardOutput $out -RedirectStandardError $err -NoNewWindow -PassThru
+            -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden -PassThru
         $null = $p.Handle  # garante ExitCode disponível após o término
         $running += @{ Name = $s.Name; Color = $s.Color; Process = $p; Files = @($out, $err); Pos = @{ $out = 0L; $err = 0L } }
         Write-Host ("[{0,-8}] iniciado (PID {1})" -f $s.Name, $p.Id) -ForegroundColor $s.Color

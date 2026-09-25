@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "agent_id": {
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "heartbeat_seconds": {
+      "default": 30,
+      "title": "Heartbeat Seconds",
+      "type": "integer"
+    },
+    "server_time": {
+      "format": "date-time",
+      "title": "Server Time",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "agent_id",
+    "server_time"
+  ],
+  "title": "Welcome",
+  "type": "object"
+}

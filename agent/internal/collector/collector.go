@@ -317,7 +317,7 @@ func (c *Collector) tick(ctx context.Context) {
 				return
 			}
 			defer func() { <-c.sem }()
-			c.readDevice(ctx, dev, due)
+			_ = c.readDevice(ctx, dev, due) // falhas já registradas (log, contagem e evento read_failed)
 		}(dev, due)
 	}
 }
@@ -380,7 +380,7 @@ func (c *Collector) profileByKey(k string) *profile.Profile {
 // errTransport marks failures where the device did not answer.
 var errTransport = errors.New("equipamento sem resposta")
 
-func (c *Collector) readDevice(ctx context.Context, dev store.Device, due []string) {
+func (c *Collector) readDevice(ctx context.Context, dev store.Device, due []string) error {
 	k := key(dev.IP, dev.Port)
 	defer c.release(k)
 	err := c.readTasks(ctx, &dev, due)
@@ -399,10 +399,10 @@ func (c *Collector) readDevice(ctx context.Context, dev store.Device, due []stri
 		}
 		c.mu.Unlock()
 		c.lastRead.Store(now.UnixMilli())
-		return
+		return nil
 	}
 	if ctx.Err() != nil {
-		return
+		return err
 	}
 	if !errors.Is(err, errTransport) {
 		c.d.Log.Error("falha ao ler equipamento", "ip", dev.IP, "porta", dev.Port, "erro", err)
@@ -419,7 +419,7 @@ func (c *Collector) readDevice(ctx context.Context, dev store.Device, due []stri
 		st.retryAt = now.Add(RetryDelay)
 		c.mu.Unlock()
 		c.d.Log.Warn("equipamento não respondeu; nova tentativa em 2 min", "ip", dev.IP, "tentativa", attempts)
-		return
+		return err
 	}
 	report := st.lastReported.IsZero() || now.Sub(st.lastReported) >= FailureReportEvery
 	if report {
@@ -438,6 +438,7 @@ func (c *Collector) readDevice(ctx context.Context, dev store.Device, due []stri
 		}}
 		c.enqueue(ctx, protocol.Item{Kind: protocol.KindEvent, Device: ref, Event: ev})
 	}
+	return err
 }
 
 func (c *Collector) intervalLocked(task string) time.Duration {
@@ -597,26 +598,49 @@ func (c *Collector) enqueue(ctx context.Context, it protocol.Item) {
 	c.d.OnEnqueue()
 }
 
+// ScanResult summarizes a discovery run.
+type ScanResult struct {
+	Ranges    int     `json:"ranges"`
+	Targets   int     `json:"targets"`
+	Probed    int     `json:"probed"`
+	Found     int     `json:"printers_found"`
+	New       int     `json:"new"`
+	Removed   int     `json:"removed"`
+	DurationS float64 `json:"duration_s"`
+}
+
+// scan is the periodic discovery (all approved ranges; suggestion when there is none).
 func (c *Collector) scan(ctx context.Context) {
-	start := time.Now()
 	defer func() { c.lastScan.Store(time.Now().UnixMilli()) }()
 	c.mu.Lock()
-	cfg, creds, disc := c.cfg, c.creds, c.disc
+	cfg := c.cfg
 	c.mu.Unlock()
 	if len(cfg.Ranges) == 0 {
 		c.suggestRanges(ctx)
 		return
 	}
-	targets, err := discovery.Expand(cfg.Ranges)
+	_, _ = c.scanRanges(ctx, cfg.Ranges, true) // erros já vão para o log
+}
+
+// scanRanges probes the given ranges and registers the printers found. full=true means these are
+// all the site's ranges, so known devices outside them stop being read by this agent.
+func (c *Collector) scanRanges(ctx context.Context, ranges []protocol.IPRange, full bool) (ScanResult, error) {
+	start := time.Now()
+	res := ScanResult{Ranges: len(ranges)}
+	c.mu.Lock()
+	creds, disc := c.creds, c.disc
+	c.mu.Unlock()
+	targets, err := discovery.Expand(ranges)
 	if err != nil {
 		c.d.Log.Error("faixas de IP inválidas", "erro", err)
-		return
+		return res, fmt.Errorf("faixas de IP inválidas: %w", err)
 	}
+	res.Targets = len(targets)
 	known := map[string]string{}
 	devices, err := c.d.Store.Devices(ctx)
 	if err != nil {
 		c.d.Log.Error("ler equipamentos conhecidos", "erro", err)
-		return
+		return res, err
 	}
 	for _, d := range devices {
 		known[key(d.IP, d.Port)] = d.CredentialID
@@ -629,33 +653,40 @@ func (c *Collector) scan(ctx context.Context) {
 	c.d.Log.Info("varredura iniciada", "alvos", len(targets))
 	var found []discovery.Found
 	probed, err := sc.Scan(ctx, targets, func(f discovery.Found) { found = append(found, f) })
+	res.Probed = probed
 	if err != nil {
 		c.d.Log.Error("varredura interrompida", "erro", err, "sondados", probed)
-		return
+		return res, err
 	}
-	newCount := 0
+	res.Found = len(found)
 	for _, f := range found {
 		if isNew, err := c.register(ctx, f); err != nil {
 			c.d.Log.Error("registrar impressora encontrada", "ip", f.Target.IP, "porta", f.Target.Port, "erro", err)
 		} else if isNew {
-			newCount++
+			res.New++
 		}
 	}
-	// Equipamentos cujo IP saiu das faixas aprovadas deixam de ser lidos por este coletor.
-	inRange := map[string]bool{}
-	for _, t := range targets {
-		inRange[key(t.IP, t.Port)] = true
-	}
-	for _, d := range devices {
-		if !inRange[key(d.IP, d.Port)] {
-			if err := c.d.Store.RemoveDevice(ctx, d.IP, d.Port); err != nil {
-				c.d.Log.Error("remover equipamento fora das faixas", "ip", d.IP, "erro", err)
+	if full {
+		// Equipamentos cujo IP saiu das faixas aprovadas deixam de ser lidos por este coletor.
+		inRange := map[string]bool{}
+		for _, t := range targets {
+			inRange[key(t.IP, t.Port)] = true
+		}
+		for _, d := range devices {
+			if !inRange[key(d.IP, d.Port)] {
+				if err := c.d.Store.RemoveDevice(ctx, d.IP, d.Port); err != nil {
+					c.d.Log.Error("remover equipamento fora das faixas", "ip", d.IP, "erro", err)
+				} else {
+					res.Removed++
+				}
 			}
 		}
 	}
-	c.d.Log.Info("varredura concluída", "sondados", probed, "impressoras", len(found), "novas", newCount,
-		"duracao_s", time.Since(start).Seconds())
+	res.DurationS = time.Since(start).Seconds()
+	c.d.Log.Info("varredura concluída", "sondados", probed, "impressoras", res.Found, "novas", res.New,
+		"duracao_s", res.DurationS)
 	c.kick()
+	return res, nil
 }
 
 func (c *Collector) register(ctx context.Context, f discovery.Found) (bool, error) {

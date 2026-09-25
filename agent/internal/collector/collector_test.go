@@ -294,7 +294,9 @@ func TestReadFailureRetriesThenReportsOncePerDay(t *testing.T) {
 	}
 	k := key(dev.IP, dev.Port)
 	for attempt := 1; attempt < MaxAttempts; attempt++ {
-		f.c.readDevice(ctx, dev, []string{TaskCounters})
+		if err := f.c.readDevice(ctx, dev, []string{TaskCounters}); !errors.Is(err, errTransport) {
+			t.Fatalf("tentativa %d deveria falhar por falta de resposta: %v", attempt, err)
+		}
 		st := f.c.state[k]
 		if st.attempts != attempt || time.Until(st.retryAt) < RetryDelay-time.Second {
 			t.Fatalf("tentativa %d: %+v", attempt, st)
@@ -303,7 +305,9 @@ func TestReadFailureRetriesThenReportsOncePerDay(t *testing.T) {
 			t.Fatal("falha antes da 3ª tentativa não gera evento")
 		}
 	}
-	f.c.readDevice(ctx, dev, []string{TaskCounters})
+	if err := f.c.readDevice(ctx, dev, []string{TaskCounters}); err == nil {
+		t.Fatal("3ª tentativa também falha")
+	}
 	ev := filter(f.items(t), protocol.KindEvent, "SIMSLEEP06")
 	if len(ev) != 1 || ev[0].Event.Type != "read_failed" || ev[0].Event.Data["consecutive_failures"].(float64) != 3 {
 		t.Fatalf("evento read_failed: %+v", ev)
@@ -313,14 +317,18 @@ func TestReadFailureRetriesThenReportsOncePerDay(t *testing.T) {
 	}
 	// Mais 3 falhas no mesmo dia: não repete o evento.
 	for range MaxAttempts {
-		f.c.readDevice(ctx, dev, []string{TaskCounters})
+		if err := f.c.readDevice(ctx, dev, []string{TaskCounters}); err == nil {
+			t.Fatal("sem resposta deveria falhar")
+		}
 	}
 	if n := len(filter(f.items(t), protocol.KindEvent, "")); n != 1 {
 		t.Fatalf("read_failed repetido no mesmo dia: %d", n)
 	}
 	// Responde de novo (economia de energia acabou): zera as falhas.
 	f.net.set(k, "06-economia")
-	f.c.readDevice(ctx, dev, []string{TaskCounters})
+	if err := f.c.readDevice(ctx, dev, []string{TaskCounters}); err != nil {
+		t.Fatal(err)
+	}
 	got, err := f.st.DeviceAt(ctx, dev.IP, dev.Port)
 	if err != nil || got.Failures != 0 || got.LastOK.IsZero() {
 		t.Fatalf("depois de responder: %+v %v", got, err)
@@ -346,7 +354,9 @@ func TestStatusIsSentOnlyOnChange(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.c.readDevice(ctx, *d, []string{TaskStatus})
+		if err := f.c.readDevice(ctx, *d, []string{TaskStatus}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	read()
 	read()
@@ -377,7 +387,9 @@ func TestSerialChangeOnSameIPRefreshesIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.c.readDevice(ctx, *d, []string{TaskCounters})
+	if err := f.c.readDevice(ctx, *d, []string{TaskCounters}); err != nil {
+		t.Fatal(err)
+	}
 	r := filter(f.items(t), protocol.KindReading, "")
 	if len(r) != 1 || r[0].Device.Serial != "SIMCAN0002" || r[0].Reading.ProfileKey != "canon" || r[0].Reading.Counters["total"] != 45678 {
 		t.Fatalf("leitura depois da troca: %+v", r)

@@ -1,0 +1,26 @@
+{
+  "properties": {
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "version": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "title": "Hello",
+  "type": "object"
+}

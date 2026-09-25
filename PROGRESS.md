@@ -7,8 +7,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 0 — Fundação | ✅ concluída (24/09/2026) |
 | 1 — Backend núcleo | ✅ concluída (24/09/2026) |
 | 2 — Agente núcleo | ✅ concluída (25/09/2026) — falta só instalar o serviço Windows num terminal de administrador (ver abaixo) |
-| 3 — Tempo real e comandos | ⏳ próxima |
-| 4 a 11 | pendentes |
+| 3 — Tempo real e comandos | ✅ concluída (25/09/2026) |
+| 4 — Portal | ⏳ próxima |
+| 5 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -273,6 +274,120 @@ var\bin\dm-agent.exe run --data-dir var\agent1
   executado num Linux real (o CI Linux roda os testes; a instalação entra na Fase 8).
 - WebSocket, comandos e watchdog: Fases 3 e 5.
 
+## Fase 3 — Tempo real e comandos ✅
+
+### Plano executado
+Gateway WebSocket com presença em tabela e LISTEN/NOTIFY (sem Redis), canal de contingência HTTPS,
+serviço de comandos com ciclo de vida completo e executor idempotente no agente. Todos os comandos da
+tabela 4.7 executados pelo **coletor** foram implementados. Ficam para depois, como manda a seção 14:
+- `update` e `rollback`: Fase 5.
+- `restart_agent`, `uninstall` e `get_logs` do **watchdog**: Fase 5, junto com o próprio watchdog.
+- `web_proxy_open` e `web_proxy_close`: Fase 7 (acesso web, seção 4.9).
+
+### O que foi feito
+- **Banco** (migração `fase 3 presenca e pausa`):
+  - `agent_presence`: uma linha por conexão viva (gateway, horário, IP, latência);
+  - `agents.paused`: a pausa agora é decidida pelo servidor e devolvida em todo heartbeat e configuração;
+  - a `config_version` de todos os coletores foi incrementada, porque a configuração ganhou `ws_url`
+    e `paused`.
+- **Gateway** (`app/gateway/`):
+  - `/ws/agent` autenticado pelo token do agente, com uma conexão por coletor (a nova derruba a
+    antiga, código 4000);
+  - heartbeat pelo WebSocket, gravando `agent_heartbeats` com canal `ws` e latência;
+  - `command_update` com confirmação; mensagens inválidas respondidas com `error`; limite de
+    mensagens por conexão (código 4429);
+  - `LISTEN dm_command` e `dm_agent_revoked` numa conexão dedicada, com reconexão e varredura de
+    recuperação, mais varredura periódica a cada 30 s;
+  - revogação derruba a conexão na hora (código 4403).
+- **Comandos** (`services/commands.py`, `api/v1/commands.py`, `schemas/commands.py`):
+  - parâmetros validados por tipo; comandos de diagnóstico só miram IPs da rede local do cliente;
+  - `read_now` resolve os equipamentos do local; `wake_host` resolve o MAC de outro coletor do local;
+  - `promote_master` troca o lease e registra `cluster_events`; `pause` e `resume` mudam o estado;
+  - permissão `agents.command`; auditoria `command.<tipo>` e `command.cancel`;
+  - estados `pending → sent → acked → running → succeeded/failed`, mais `expired` (pelo worker,
+    padrão 10 min) e `cancelled`; comando não confirmado em 20 s é reentregue; saída limitada a 1 MB;
+  - uploads de logs (.zip) e walks (.snmprec.gz) gravados em disco (`STORAGE_DIR`), com listagem e
+    download pelo portal.
+- **Contingência HTTPS**: `GET /api/agent/commands/pending` e `POST /api/agent/commands/{id}/update`.
+- **Worker**, a cada 30 s:
+  - `commands`: expira comandos não iniciados e falha os que rodam sem notícia;
+  - `presence`: remove presenças órfãs e marca offline quem está sem heartbeat há 3 min.
+- **Agente**:
+  - `internal/ws`: reconexão com backoff e jitter (1 s → 60 s), zerado quando a sessão funcionou ou o
+    servidor só reiniciou (1001/1012); ping a cada 20 s, com reconexão após 2 pongs perdidos; usa o
+    proxy do sistema e HTTP/1.1 no handshake.
+  - `internal/commands`: executor idempotente por id. Grava cada estado no SQLite antes de enviar e
+    reenvia até chegar. Após reinício, finaliza o que ficou pela metade. Aceita cancelamento, tem
+    tempo limite por tipo e transforma pânico em falha.
+  - `internal/netdiag`: ping ICMP (IcmpSendEcho no Windows, sem administrador; x/net/icmp no Linux),
+    teste de portas TCP, Wake-on-LAN, interfaces e disco. Também `logx.ZipRecent` e
+    `svc.RestartService`.
+  - Coletor:
+    - `ScanNow` varre todas as faixas ou uma (uma faixa parcial nunca remove equipamentos);
+    - `ReadNow` espera a leitura agendada em curso terminar e lê de novo;
+    - `ReadRaw`, `SNMPTest` e `Walk` para os comandos de diagnóstico.
+  - Heartbeat pelo WebSocket; com ele caído há mais de 2 min, heartbeat e busca de comandos pelo HTTPS.
+- **dev.ps1**: cada serviço roda no próprio console oculto (ver D38).
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **84,4%**. Testes novos: canal WebSocket contra gateway falso (hello, heartbeat, comandos, cancelamento, códigos 4401/4403/1012, pongs perdidos); executor (idempotência, reinício, recusa, cancelamento, pânico); comandos pela contingência; **agente real × snmpsim** (`scan_now`, `read_now`, `read_device`, `snmp_test`, `mib_walk`) |
+| pytest | **132** testes; cobertura 91,9%. Testes novos: ciclo de vida, validação, permissões e escopo, cancelamento e expiração, reentrega, pausa, promoção, wake, uploads, presença, NOTIFY; **gateway real** (uvicorn + cliente WebSocket): token inválido, heartbeat e presença, comando ao vivo via LISTEN/NOTIFY, entrega na reconexão, substituição de conexão, revogação |
+| Vitest / Playwright | 7 / 1 |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc: sem problemas |
+
+### Fluxo manual executado (25/09/2026) e resultado
+1. `dev.ps1` → migração da Fase 3 aplicada; gateway "escutando comandos no PostgreSQL". ✅
+2. Coletor 1 (da Fase 2, com a configuração antiga em cache):
+   - o WebSocket no endereço derivado (porta 8000) foi recusado;
+   - um comando `diagnostics` criado no portal chegou **pela contingência HTTPS** e foi concluído;
+   - no mesmo heartbeat o coletor baixou a configuração v5 com `ws_url` e conectou no WebSocket. ✅
+3. Coletor 2 cadastrado no mesmo local: o `ws_url` já veio no cadastro e ele conectou na hora como
+   STANDBY. ✅
+4. Comandos pelo portal, via WebSocket (0,3 s a 3 s cada):
+   - `snmp_test`: a credencial `public` responde na Konica; a `privada-teste` não;
+   - `read_device`: total **217031** = PB 100150 + cor 116881;
+   - `mib_walk` da subárvore 43: 42 OIDs, baixado pelo portal;
+   - `get_logs`: zip baixado pelo portal;
+   - `scan_now`: 8 impressoras; `read_now`: 8 de 8;
+   - `ping_host`: porta 8000 aberta e porta 9 recusada;
+   - `scan_now` no STANDBY: recusado com motivo claro;
+   - `pause`: estado `paused` no portal; `resume` e `set_config`: ok;
+   - `restart_watchdog`: "sem permissão para controlar serviços do Windows" (terminal comum; o
+     watchdog chega na Fase 5);
+   - `wake_host` do coletor 2 para o PC do coletor 1: magic packet enviado a 8 destinos;
+   - `promote_master` nos dois sentidos: o antigo MASTER vira STANDBY no heartbeat seguinte;
+   - `reconnect`: 0,8 s. ✅
+5. Revogar o coletor 2 no portal: o gateway derrubou a conexão em ~12 ms, o coletor registrou
+   "coletor revogado no portal" e no portal ele aparece offline e sem WebSocket. ✅
+6. **Defeitos encontrados e corrigidos no fluxo** (todos com teste):
+   - `mib_walk` dava erro 500 com várias impressoras no mesmo IP, porque casava só o IP; agora casa
+     IP e porta.
+   - `read_now` falhava quando coincidia com a leitura agendada; agora espera e lê.
+   - Um reload do uvicorn derrubava o `dev.ps1` inteiro, sem aviso (D38).
+   - Depois de um reinício do gateway, o backoff não zerava e o coletor levava 50 s para voltar;
+     agora volta em ~1 s (D41).
+   - A atualização de comando esperava 15 s de confirmação numa conexão que já tinha caído; agora
+     desiste na hora e segue pelo HTTPS.
+   - `avg_latency_ms` era gravado, mas não aparecia na API.
+   - "Access is denied" virou mensagem em português.
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E
+scripts\dev.ps1
+# cadastre um coletor (Fase 2) e rode: var\bin\dm-agent.exe run --data-dir var\agent1
+# POST /api/v1/agents/{id}/commands {"type":"read_device","params":{"ip":"127.0.0.1","port":1163}}
+# GET  /api/v1/commands/{id}   (estado e resultado ao vivo);  GET /api/v1/command-types
+# POST /api/v1/agents/{id}/revoke   → o gateway derruba a conexão
+```
+
+### O que falta
+- A tela de comandos ao vivo no portal é da Fase 4; o NOTIFY `dm_command_update` já é emitido a cada
+  mudança de estado.
+- Comandos do watchdog, atualização e rollback ficam para a Fase 5; o túnel web, para a Fase 7.
+
 ---
 
 ## Decisões
@@ -312,3 +427,11 @@ var\bin\dm-agent.exe run --data-dir var\agent1
 | D31 | Economia de energia simulada por um proxy UDP (`scripts/sleepy_udp_proxy.py`) na frente do snmpsim | O snmpsim não tem "responder só na 2ª tentativa"; o proxy descarta pacotes enquanto "acorda" |
 | D32 | Mudança de faixa **ou de credencial** dispara varredura imediata | Encontrado no fluxo manual: com só a faixa, uma credencial nova esperava o intervalo de descoberta (6 h) |
 | D33 | Logs do agente em UTC | Regra "tudo armazenado em UTC"; alinha com os logs do servidor independente do fuso do PC |
+| D34 | Presença numa tabela (`agent_presence`) com `gateway_id`; comandos por `pg_notify` na mesma transação | Sem Redis (seção 2); a notificação só é entregue se a transação confirmar, então o gateway nunca vê comando desfeito; a varredura periódica cobre notificações perdidas |
+| D35 | Pausa decidida pelo servidor (`agents.paused`) | Sobrevive a reinício do coletor; na Fase 2 a pausa era só o eco do que o agente dizia |
+| D36 | Comandos de diagnóstico (`read_device`, `snmp_test`, `mib_walk`, `ping_host`) só aceitam IPs privados, de loopback ou link-local | O coletor não pode virar ferramenta para sondar a internet a partir da rede do cliente |
+| D37 | Com o WebSocket caído, heartbeat pelo HTTPS só depois de 2 min (seção 4.3); atualizações de comando vão pelo HTTPS sempre que o WebSocket não confirma | O lease do MASTER dura 3 min, então 2 min sem heartbeat não derruba o papel; o resultado de um comando nunca espera o WebSocket voltar |
+| D38 | `dev.ps1` sobe cada serviço no próprio console oculto (`-WindowStyle Hidden`), não mais com `-NoNewWindow` | No Windows o `uvicorn --reload` reinicia o filho com `CTRL_C_EVENT`, que atinge o console inteiro: salvar um arquivo derrubava o supervisor, o worker e os simuladores sem aviso |
+| D39 | Comandos executados pelo watchdog (`restart_agent`, `uninstall`, `get_logs` do watchdog) só serão aceitos pela API na Fase 5 | Aceitar um comando que ninguém executa seria um stub (ficaria `pending` até expirar) |
+| D40 | Arquivos enviados pelos coletores (logs, walks) ficam em disco (`STORAGE_DIR`, padrão `var/storage`), com o caminho no banco | Seção 3: "armazenar arquivo em disco/objeto e referência aqui"; na hospedagem vira um volume |
+| D41 | Reconexão do WebSocket volta ao backoff mínimo quando a sessão durou ≥ 10 s ou o servidor fechou com 1001/1012 | Reinício do gateway (deploy, reload) não pode deixar coletores fora por até 60 s; falhas de conexão continuam com backoff crescente |

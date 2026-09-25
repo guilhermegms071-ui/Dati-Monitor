@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.core.config import Settings, get_settings
 from app.core.db import DbStatus, check_database, make_engine, make_sessionmaker
 from app.core.logging import configure_logging
+from app.services import commands as commands_svc
+from app.services import presence as presence_svc
 from app.services.partitions import default_partition_rows, ensure_partitions
 
 logger = logging.getLogger("app.worker")
@@ -59,6 +61,36 @@ async def partitions_job(ctx: WorkerContext) -> list[str]:
     return created
 
 
+async def commands_job(ctx: WorkerContext) -> int:
+    """Expires commands nobody picked up in time (PROMPT 4.7: default 10 min)."""
+    try:
+        async with ctx.sessionmaker() as session:
+            changed = await commands_svc.expire_commands(session)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha ao expirar comandos")
+        raise
+    if changed:
+        logger.info("worker: %d comando(s) expirado(s)", changed)
+    return changed
+
+
+async def presence_job(ctx: WorkerContext) -> tuple[int, int]:
+    """Removes presence of dead gateways and marks agents without heartbeat as offline."""
+    try:
+        async with ctx.sessionmaker() as session:
+            stale, offline = await presence_svc.sweep(session)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha na varredura de presença")
+        raise
+    if stale:
+        logger.warning("worker: %d presença(s) órfã(s) removida(s) (gateway caiu sem limpar)", stale)
+    if offline:
+        logger.warning("worker: %d coletor(es) sem sinal marcado(s) como offline", offline)
+    return stale, offline
+
+
 def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True})
     scheduler.add_job(
@@ -69,6 +101,8 @@ def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
         id="db_check",
     )
     scheduler.add_job(partitions_job, "cron", hour=3, minute=15, args=[ctx], id="partitions")
+    scheduler.add_job(commands_job, "interval", seconds=30, args=[ctx], id="commands")
+    scheduler.add_job(presence_job, "interval", seconds=30, args=[ctx], id="presence")
     return scheduler
 
 

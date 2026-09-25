@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -8,8 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings
 from app.core.db import make_engine, make_sessionmaker
+from app.models import Agent, AgentPresence, Command
 from app.services.partitions import month_starts
-from app.worker.main import DbWatch, WorkerContext, build_scheduler, db_check_job, partitions_job, run
+from app.worker.main import (
+    DbWatch,
+    WorkerContext,
+    build_scheduler,
+    commands_job,
+    db_check_job,
+    partitions_job,
+    presence_job,
+    run,
+)
+from tests.conftest import Factory
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +65,52 @@ async def test_scheduler_registers_jobs(engine: AsyncEngine, test_settings: Sett
     assert job is not None
     assert job.trigger.interval.total_seconds() == test_settings.db_check_interval_seconds
     assert scheduler.get_job("partitions") is not None
+    for job_id in ("commands", "presence"):
+        job = scheduler.get_job(job_id)
+        assert job is not None
+        assert job.trigger.interval.total_seconds() == 30
+
+
+@pytest.mark.usefixtures("clean_db")
+async def test_commands_and_presence_jobs(
+    engine: AsyncEngine, test_settings: Settings, factory: Factory, caplog: pytest.LogCaptureFixture
+) -> None:
+    tenant = await factory.tenant()
+    ctx = WorkerContext(settings=test_settings, engine=engine, sessionmaker=make_sessionmaker(engine))
+    old = datetime.now(UTC) - timedelta(hours=3)
+    async with ctx.sessionmaker() as s:
+        agent = Agent(
+            reseller_id=tenant.reseller_id,
+            site_id=tenant.site_id,
+            name="Velho",
+            state="online",
+            last_seen_at=old,
+        )
+        s.add(agent)
+        await s.flush()
+        s.add(
+            Command(
+                reseller_id=tenant.reseller_id, agent_id=agent.id, type="reconnect", params={}, expires_at=old
+            )
+        )
+        s.add(
+            AgentPresence(
+                agent_id=agent.id,
+                reseller_id=tenant.reseller_id,
+                gateway_id="gw-morto",
+                connected_at=old,
+                last_seen_at=old,
+            )
+        )
+        await s.commit()
+    assert await commands_job(ctx) == 1
+    assert await presence_job(ctx) == (1, 1)
+    assert await commands_job(ctx) == 0
+    assert await presence_job(ctx) == (0, 0)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("1 comando(s) expirado(s)" in m for m in messages)
+    assert any("presença(s) órfã(s)" in m for m in messages)
+    assert any("marcado(s) como offline" in m for m in messages)
 
 
 @pytest.mark.usefixtures("clean_db")

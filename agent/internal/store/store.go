@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS commands (
+    id         TEXT    PRIMARY KEY,
+    type       TEXT    NOT NULL,
+    state      TEXT    NOT NULL,
+    last_update BLOB   NOT NULL,
+    reported   INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_commands_reported ON commands(reported, updated_at);
 `
 
 // Open opens (creating if needed) the database with WAL and synchronous=FULL, so an enqueued item

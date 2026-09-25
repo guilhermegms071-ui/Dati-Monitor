@@ -283,6 +283,81 @@ func (c *Client) UploadReadings(ctx context.Context, req protocol.ReadingsReques
 	return &out, nil
 }
 
+// PendingCommands fetches commands over HTTPS (contingency channel when the WebSocket is down).
+func (c *Client) PendingCommands(ctx context.Context) ([]protocol.CommandMessage, error) {
+	var out protocol.PendingCommandsResponse
+	if err := c.call(ctx, http.MethodGet, "/api/agent/commands/pending", nil, &out, false); err != nil {
+		return nil, err
+	}
+	return out.Commands, nil
+}
+
+// CommandUpdate reports a command state over HTTPS.
+func (c *Client) CommandUpdate(ctx context.Context, upd protocol.CommandUpdate) (*protocol.CommandUpdateResponse, error) {
+	upd.V = protocol.Version
+	var out protocol.CommandUpdateResponse
+	path := "/api/agent/commands/" + url.PathEscape(upd.ID) + "/update"
+	if err := c.call(ctx, http.MethodPost, path, upd, &out, false); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Upload sends a file produced by a command ("logs" → .zip, "mib-walk" → .snmprec.gz).
+func (c *Client) Upload(ctx context.Context, kind, commandID, contentType string, data []byte) (*protocol.UploadResponse, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		tok, err := c.bearer(ctx)
+		if err != nil {
+			return nil, err
+		}
+		u := *c.base
+		u.Path = strings.TrimRight(c.base.Path, "/") + "/api/agent/uploads/" + kind
+		u.RawQuery = url.Values{"command_id": {commandID}}.Encode()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("User-Agent", userAgent())
+		var out protocol.UploadResponse
+		err = finish(c.hc, req, "/api/agent/uploads/"+kind, &out)
+		var apiErr *Error
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized && attempt == 0 {
+			c.ResetToken()
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &out, nil
+	}
+	return nil, errors.New("falha de autenticação repetida")
+}
+
+// ResetToken forgets the session token (the next call authenticates again).
+func (c *Client) ResetToken() {
+	c.mu.Lock()
+	c.token = ""
+	c.mu.Unlock()
+}
+
+// WSHTTPClient is an HTTP client for the WebSocket handshake: same proxy and TLS settings, but
+// HTTP/1.1 only (the Upgrade handshake does not exist in HTTP/2).
+func (c *Client) WSHTTPClient() *http.Client {
+	tr, ok := c.hc.Transport.(*http.Transport)
+	if !ok {
+		return &http.Client{Transport: c.hc.Transport}
+	}
+	t := tr.Clone()
+	t.ForceAttemptHTTP2 = false
+	t.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	if t.TLSClientConfig != nil {
+		t.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	}
+	return &http.Client{Transport: t, Timeout: 30 * time.Second}
+}
+
 // SuggestRanges sends the agent's private /24 networks for approval in the portal.
 func (c *Client) SuggestRanges(ctx context.Context, ranges []string) error {
 	req := protocol.SuggestRangesRequest{V: protocol.Version, Ranges: ranges}
@@ -336,6 +411,11 @@ func doJSON(ctx context.Context, hc *http.Client, base *url.URL, method, path, t
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	return finish(hc, req, path, out)
+}
+
+// finish sends the request and decodes a JSON answer (or the error body).
+func finish(hc *http.Client, req *http.Request, path string, out any) error {
 	resp, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("falha de rede ao chamar %s: %w", path, err)
