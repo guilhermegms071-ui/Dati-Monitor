@@ -109,7 +109,7 @@ async def suggest(body: proto.SuggestRangesRequest, agent: AgentDep, session: Se
     summary="Lote de leituras (gzip, até 500 itens, idempotente por chave)",
     openapi_extra={
         "requestBody": {
-            "content": {"application/json": {"schema": proto.ReadingsRequest.model_json_schema()}}
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ReadingsRequest"}}}
         }
     },
 )

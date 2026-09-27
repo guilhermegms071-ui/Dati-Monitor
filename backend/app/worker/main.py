@@ -12,6 +12,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import DbStatus, check_database, make_engine, make_sessionmaker
 from app.core.logging import configure_logging
 from app.services import commands as commands_svc
+from app.services import park as park_svc
 from app.services import presence as presence_svc
 from app.services.partitions import default_partition_rows, ensure_partitions
 
@@ -91,6 +92,26 @@ async def presence_job(ctx: WorkerContext) -> tuple[int, int]:
     return stale, offline
 
 
+async def disconnected_job(ctx: WorkerContext) -> tuple[int, int]:
+    """Devices without a reading for DEVICE_DISCONNECTED_HOURS become "desconectado" (PROMPT 8)."""
+    try:
+        async with ctx.sessionmaker() as session:
+            newly, back = await park_svc.mark_disconnected(session, ctx.settings.device_disconnected_hours)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha ao marcar equipamentos desconectados")
+        raise
+    if newly:
+        logger.warning(
+            "worker: %d equipamento(s) sem leitura há %d h marcado(s) como desconectado(s)",
+            newly,
+            ctx.settings.device_disconnected_hours,
+        )
+    if back:
+        logger.info("worker: %d equipamento(s) voltaram a enviar leituras", back)
+    return newly, back
+
+
 def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True})
     scheduler.add_job(
@@ -103,6 +124,7 @@ def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler.add_job(partitions_job, "cron", hour=3, minute=15, args=[ctx], id="partitions")
     scheduler.add_job(commands_job, "interval", seconds=30, args=[ctx], id="commands")
     scheduler.add_job(presence_job, "interval", seconds=30, args=[ctx], id="presence")
+    scheduler.add_job(disconnected_job, "interval", minutes=5, args=[ctx], id="disconnected")
     return scheduler
 
 

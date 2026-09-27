@@ -181,8 +181,10 @@ func TestScanRegistersPrintersAndReadsEveryTask(t *testing.T) {
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		items := f.items(t)
+		// Espera também o ciclo terminar (LastScan/LastRead): cancelar no meio das tarefas de um
+		// equipamento interrompe a leitura dele antes de ela ser registrada.
 		if len(filter(items, protocol.KindReading, "")) >= 2 && len(filter(items, protocol.KindStatus, "")) >= 2 &&
-			len(filter(items, protocol.KindSupplies, "")) >= 2 {
+			len(filter(items, protocol.KindSupplies, "")) >= 2 && !f.c.LastScan().IsZero() && !f.c.LastRead().IsZero() {
 			break
 		}
 		if time.Now().After(deadline) {

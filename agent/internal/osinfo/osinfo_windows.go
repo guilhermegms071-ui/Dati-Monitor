@@ -11,16 +11,19 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// VersionInfo is the real Windows version (RtlGetVersion is not affected by manifests).
+// VersionInfo is the real Windows version.
 type VersionInfo struct {
 	Major, Minor, Build uint32
 	Server              bool
 }
 
-// CurrentVersion reads the Windows version.
+// CurrentVersion reads the real Windows version. RtlGetVersion is not affected by manifests, but it IS
+// affected by compatibility shims (e.g. __COMPAT_LAYER=Win7RTM or "compatibility mode" on the exe), which
+// would make a Windows 10 refuse to enroll; RtlGetNtVersionNumbers returns the kernel numbers unshimmed.
 func CurrentVersion() VersionInfo {
+	major, minor, build := windows.RtlGetNtVersionNumbers()
 	v := windows.RtlGetVersion()
-	return VersionInfo{Major: v.MajorVersion, Minor: v.MinorVersion, Build: v.BuildNumber, Server: v.ProductType != 1}
+	return VersionInfo{Major: major, Minor: minor, Build: build & 0xffff, Server: v.ProductType != 1}
 }
 
 // Name returns a friendly name, e.g. "Windows 7" or "Windows Server 2012 R2".

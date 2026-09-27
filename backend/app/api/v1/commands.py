@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.api.deps import PrincipalDep, SessionDep, SettingsDep
 from app.core.errors import not_found
 from app.schemas.commands import COMMAND_LABELS, AgentLogOut, CommandIn, CommandOut, MibWalkOut
 from app.schemas.common import ERROR_RESPONSES, Page
+from app.services import agent_ops as ops
 from app.services import commands as svc
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
 
@@ -100,3 +101,61 @@ async def download_walk(walk_id: uuid.UUID, p: PrincipalDep, session: SessionDep
     row = await svc.get_walk(session, p, walk_id)
     name = f"walk-{row.ip.replace('.', '-')}-{row.created_at:%Y%m%d-%H%M}.snmprec.gz"
     return _file(row.file_path, name, "application/gzip")
+
+
+# ----------------------------------------------------------------------------- telas de coletores (Fase 4)
+
+
+@router.get(
+    "/agents/{agent_id}/heartbeats", response_model=list[ops.HeartbeatPoint], summary="Série de heartbeats"
+)
+async def heartbeats(
+    agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep, hours: Annotated[int, Query(ge=1, le=720)] = 24
+) -> list[ops.HeartbeatPoint]:
+    return await ops.heartbeats(session, p, agent_id, hours)
+
+
+@router.get(
+    "/agents/{agent_id}/versions", response_model=list[ops.VersionSeen], summary="Histórico de versões"
+)
+async def versions(agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> list[ops.VersionSeen]:
+    return await ops.versions(session, p, agent_id)
+
+
+@router.get(
+    "/sites/{site_id}/cluster", response_model=ops.SiteCluster, summary="Cluster de coletores do local"
+)
+async def site_cluster(site_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> ops.SiteCluster:
+    return await ops.cluster(session, p, site_id)
+
+
+@router.post(
+    "/agents/{agent_id}/reactivate", response_model=ops.Reactivation, summary="Reativar (ação composta)"
+)
+async def reactivate(
+    agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep, settings: SettingsDep
+) -> ops.Reactivation:
+    result = await ops.reactivate(session, settings, p, agent_id)
+    await session.commit()
+    return result
+
+
+@router.post("/agents/commands/bulk", response_model=list[ops.BulkCommandResult], summary="Comando em massa")
+async def bulk_commands(
+    body: ops.BulkCommandIn, p: PrincipalDep, session: SessionDep, settings: SettingsDep
+) -> list[ops.BulkCommandResult]:
+    result = await ops.bulk_commands(session, settings, p, body)
+    await session.commit()
+    return result
+
+
+@router.get("/agent-logs/{log_id}/tail", response_class=PlainTextResponse, summary="Últimas linhas do log")
+async def log_tail(
+    log_id: uuid.UUID,
+    p: PrincipalDep,
+    session: SessionDep,
+    lines: Annotated[int, Query(ge=10, le=5000)] = 500,
+) -> PlainTextResponse:
+    return PlainTextResponse(
+        await ops.log_tail(session, p, log_id, lines), media_type="text/plain; charset=utf-8"
+    )

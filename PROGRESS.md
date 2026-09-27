@@ -8,8 +8,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 1 — Backend núcleo | ✅ concluída (24/09/2026) |
 | 2 — Agente núcleo | ✅ concluída (25/09/2026) — falta só instalar o serviço Windows num terminal de administrador (ver abaixo) |
 | 3 — Tempo real e comandos | ✅ concluída (25/09/2026) |
-| 4 — Portal | ⏳ próxima |
-| 5 a 11 | pendentes |
+| 4 — Portal | ✅ concluída (27/09/2026) |
+| 5 — Confiabilidade | ⏳ próxima |
+| 6 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -390,6 +391,123 @@ scripts\dev.ps1
 
 ---
 
+## Fase 4 — Portal ✅
+
+### Plano executado
+Portal completo sobre a API das Fases 1–3, com cliente TypeScript gerado do OpenAPI, eventos ao vivo
+por SSE (LISTEN/NOTIFY, sem Redis) e a tela de parque da seção 10.6. O que depende de funcionalidade
+que ainda não existe fica para as próximas fases (ver "O que falta").
+
+### O que foi feito
+- **Backend para o portal**:
+  - `/api/v1/park` com filtros por coluna, pesquisa global, ordenação, cursor e contagens;
+  - exportação CSV/XLSX; edição e ações em massa (PAT, setor, mover de local, desativar, ler agora
+    no MASTER do local);
+  - séries de contadores (dia/mês no fuso de São Paulo), histórico de suprimentos, ajustes manuais
+    com motivo (a leitura original nunca é alterada) e exportação de leituras;
+  - dashboard: cards, páginas por dia (PB × cor, 30 dias), coletores offline e toners críticos;
+  - operações de coletor: histórico de heartbeats, versões, cluster do local, comandos em massa,
+    últimas linhas dos logs e o **Reativar** (comandos, failover com promoção + Wake-on-LAN, ou
+    diagnóstico com último sinal e sugestões);
+  - `/api/v1/events` (SSE) filtrado pelo escopo do usuário, com keep-alive e `resync`;
+  - `type_label` nos comandos (nome em português).
+- **Portal** (React 18 + Tailwind 4 + Radix, tudo em pt-BR):
+  - **Layout**: barra lateral, revenda no cabeçalho, "Você está em", indicador "Ao vivo", sino de
+    alertas, menu do usuário e tema claro/escuro/do sistema;
+  - **Login**: com TOTP, "esqueci a senha", redefinição por link e sessão limitada (troca de senha
+    ou TOTP obrigatórios);
+  - **Dashboard**;
+  - **Parque** com as 12 colunas do Datacount:
+    - filtro por coluna, pesquisa global, Selecionar/Desconectados/Desativados e filtro avançado;
+    - colunas salvas por usuário, ações em massa e exportação;
+    - virtualização, e **cartões no celular**.
+  - **Detalhe do equipamento**:
+    - dados editáveis, níveis, contadores dia/mês e leituras com exportação;
+    - suprimentos com histórico e previsão, linha do tempo de eventos e ajustes manuais;
+    - Ler agora / Testar SNMP / Leitura bruta / Walk.
+  - **Coletores**:
+    - lista com estado, papel, fila, versão e último sinal;
+    - ações por linha e em massa, e **Reativar** com passos ao vivo;
+    - "Novo coletor" com código, link e 3 passos.
+  - **Detalhe do coletor**:
+    - saúde (gráfico de heartbeat, CPU, memória, fila e latência) e comandos com saída ao vivo;
+    - logs, cluster, faixas de IP (aprovar sugestões), credenciais SNMP, intervalos/proxy e versões.
+  - **Clientes** (locais, coletores, equipamentos, contatos/ERP), **Empresas**, **Revendas**
+    (superadmin), **Usuários** (papéis, escopo por cliente, senha temporária, link por e-mail, reset
+    do TOTP), **Auditoria** (filtros e exportação) e **Minha conta**.
+- **E2E de verdade**:
+  - `scripts/e2e_seed.py` cria o usuário E2E (senha aleatória por execução), o cliente e os locais,
+    e envia leituras assinadas pelo protocolo do agente;
+  - `scripts/e2e_sims.py` sobe as 8 impressoras simuladas em portas próprias;
+  - o Playwright compila e roda o **dm-agent real**;
+  - `lint.ps1`/CI conferem que `openapi.json` e `schema.d.ts` estão atualizados.
+- **Correções encontradas no caminho** (todas com teste):
+  - **O agente recusava Windows 10 em modo de compatibilidade**: `RtlGetVersion` é afetado pelo shim
+    `Win7RTM`; agora a versão vem de `RtlGetNtVersionNumbers` (D49).
+  - Teste do coletor instável: cancelava antes do ciclo terminar.
+  - Nome `TokenResponse` duplicado no OpenAPI (D43).
+  - O portal chamava o refresh sem sessão e gerava um 403 no console (D50).
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **84,3%**; novo teste: versão do Windows correta com `__COMPAT_LAYER=Win7RTM` |
+| pytest | **142** testes; cobertura **92%**. Novos: parque (filtros, ordenação, cursor, exportação, edição, massa, desconectados, séries, suprimentos, ajustes imutáveis), dashboard, Reativar (3 desfechos), comandos em massa, SSE com servidor real, `type_label` |
+| Vitest | **25**: parser SSE e invalidação, formatação UTC → São Paulo, refresh único para vários 401, `ApiError`, `SupplyBars`, login com TOTP, ApiStatus |
+| Playwright | **6**. Com o **dm-agent real** (compilado do código): código gerado no portal → cadastro → online em < 10 s → faixa de IP e "Varrer agora" pelo portal → 8 impressoras no parque, com a Konica em 217.031 = 100.150 + 116.881 e níveis 25/55/66/5% → detalhe com gráfico. Também: login → dashboard → parque → detalhe → recarregar mantém a sessão; parque no celular; rota protegida; senha errada; smoke |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, `openapi.json` e `schema.d.ts` atualizados: sem problemas |
+
+### Fluxo manual executado (27/09/2026) e resultado
+1. `dev.ps1` com o coletor 1 (da Fase 2) rodando. Revisão visual de 14 telas (claro, escuro e
+   celular 390 px), sem nenhum erro no console. ✅
+2. Problemas encontrados na revisão e corrigidos:
+   - o parque a 1440 px escondia Medidor, Monitor e Níveis. As colunas agora têm largura mínima
+     proporcional e as 12 cabem.
+   - no celular a tabela era inutilizável. Virou cartões: serial, modelo, cliente, IP,
+     comunicação, status, medidor e níveis.
+   - os comandos apareciam pelo código (`reconnect`). A API devolve `type_label` e o portal mostra
+     "Reconectar".
+   - o eixo do gráfico de heartbeats cortava o minuto ("03:0"). Agora é um eixo de tempo.
+   - a auditoria mostrava "sistema/coletor" num login recusado. Agora mostra "não autenticado".
+   - a versão do coletor quebrava linha.
+   ✅
+3. Parque:
+   - 9 equipamentos com contadores PB/cor e níveis C/M/Y/K (5% em vermelho);
+   - status "Erro" e "Economia de energia" nos simuladores 07 e 06;
+   - detalhe da Konica: 217.031, PB/Cor 100.150/116.881, perfil `konica-minolta / konica_counters`.
+   ✅
+4. **Reativar** com o coletor derrubado: ele aparece offline no portal depois do prazo de 3 min. A
+   mensagem é "Nenhum coletor deste local está ligado. Último sinal: 27/09 03:18. Provável PC
+   desligado ou sem internet.", com as 3 sugestões. ✅
+5. Coletor religado:
+   - voltou para **Online sem recarregar a página** (evento ao vivo);
+   - Reativar → "Coletor está conectado: comandos enviados", com "Reconectando" e "Lendo todos os
+     equipamentos", os dois **Concluído**.
+   ✅
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E      # inclui o fluxo com o dm-agent real e as 8 impressoras simuladas
+scripts\dev.ps1            # portal em http://localhost:5173 (senha temporária do admin@local no console)
+# Revisão visual com a credencial E2E descartável (senha só em memória, criada pelo seed):
+#   $env:DM_E2E_PASSWORD = '<aleatória>'; .venv\Scripts\python scripts\e2e_seed.py
+#   $env:DM_E2E_EMAIL = 'e2e@dati.local'; $env:DM_AGENT_NAME = '<nome do coletor>'
+#   node frontend\e2e\manual-screens.mjs <pasta-de-saida>
+```
+
+### O que falta
+- **Alertas** (aba do cliente e do equipamento, lista no sino), "Toners que acabam em até 7 dias" no
+  dashboard e **Relatórios**: Fase 6 (alertas e previsão) e Fase 7 (relatórios). Por enquanto o
+  dashboard mostra "Toners críticos (≤ 10%)" (D46).
+- **Abrir página web da impressora**: Fase 7 (túnel da seção 4.9).
+- **Terminal de logs contínuo**: hoje o portal pede os logs (`get_logs`) e mostra as últimas 500
+  linhas. O stream contínuo depende do canal de logs do agente/watchdog e entra na Fase 5 (D45).
+- Watchdog vivo, Atualizar e Reiniciar o agente pelo portal: Fase 5.
+- E2E da seção 13, partes restantes: derrubar o agente → alerta offline e e-mail (Fase 6); Reativar
+  com volta automática (Fase 5); página web pelo túnel (Fase 7).
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -435,3 +553,12 @@ scripts\dev.ps1
 | D39 | Comandos executados pelo watchdog (`restart_agent`, `uninstall`, `get_logs` do watchdog) só serão aceitos pela API na Fase 5 | Aceitar um comando que ninguém executa seria um stub (ficaria `pending` até expirar) |
 | D40 | Arquivos enviados pelos coletores (logs, walks) ficam em disco (`STORAGE_DIR`, padrão `var/storage`), com o caminho no banco | Seção 3: "armazenar arquivo em disco/objeto e referência aqui"; na hospedagem vira um volume |
 | D41 | Reconexão do WebSocket volta ao backoff mínimo quando a sessão durou ≥ 10 s ou o servidor fechou com 1001/1012 | Reinício do gateway (deploy, reload) não pode deixar coletores fora por até 60 s; falhas de conexão continuam com backoff crescente |
+| D42 | Cliente TypeScript gerado do OpenAPI (`openapi.json` versionado + `openapi-typescript --default-non-nullable false`); modelos de resposta com campos default marcam `json_schema_serialization_defaults_required` | Tipos do portal sempre iguais aos da API; o lint e o CI falham se ficarem desatualizados |
+| D43 | `TokenResponse` do portal renomeado para `SessionResponse` | Dois modelos com o mesmo nome (agente e portal) viravam `app__schemas__...` no OpenAPI |
+| D44 | Tempo real do portal por **SSE** (`/api/v1/events`) sobre LISTEN/NOTIFY; o evento só invalida as consultas afetadas | Sem Redis (seção 0); o portal busca os dados de novo pela API, que já aplica o escopo |
+| D45 | "Terminal de logs ao vivo" na Fase 4 = `get_logs` + últimas linhas; o stream contínuo fica para a Fase 5 | Um stream de verdade precisa de um canal de logs no agente/watchdog, que é escopo da Fase 5 |
+| D46 | O dashboard mostra "Toners críticos (≤ 10%)" até existir a previsão de término (Fase 6) | "Acabam em até 7 dias" sem o cálculo de previsão seria dado inventado |
+| D47 | E2E com dados criados pelos fluxos reais (`scripts/e2e_seed.py`, só dev/CI) e senha aleatória por execução, só em memória; testes em série | Nada de fixture falsa nem senha fixa; como o usuário e o banco são compartilhados, rodar em paralelo ficava instável |
+| D48 | Simuladores do E2E em portas próprias (12161–12168; a 12160 indica que estão prontos) | O E2E roda mesmo com o `dev.ps1` no ar (1161–1168), sem disputar portas |
+| D49 | Versão do Windows lida por `RtlGetNtVersionNumbers`; o `RtlGetVersion` fica só para saber se é Server | O shim de compatibilidade (`__COMPAT_LAYER=Win7RTM`, "modo de compatibilidade" no .exe) faz o `RtlGetVersion` responder 6.1, e o coletor recusaria um Windows 10 |
+| D50 | O portal só tenta recuperar a sessão se existir o cookie `dm_csrf` | Sem esse cookie não há sessão; a chamada gerava um 403 no console a cada visita anônima |

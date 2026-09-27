@@ -31,7 +31,7 @@ class MeResponse(BaseModel):
     last_login_at: datetime | None
 
 
-class TokenResponse(BaseModel):
+class SessionResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"  # noqa: S105 - tipo do token, não é senha
     expires_at: datetime

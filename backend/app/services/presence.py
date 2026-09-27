@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Agent, AgentPresence
 from app.models.agents import PRESENCE_STALE_SECONDS
+from app.services import agents as agents_svc
 
 # Sem heartbeat por este tempo → offline. Maior que 2 min de WebSocket caído (o agente só passa ao
 # heartbeat por HTTPS depois disso) + 30 s de intervalo, e igual à duração do lease do MASTER.
@@ -97,6 +98,9 @@ async def sweep(session: AsyncSession) -> tuple[int, int]:
             Agent.last_seen_at < now - OFFLINE_AFTER,
         )
         .values(state="offline")
-        .returning(Agent.id)
+        .returning(Agent)
     )
-    return len(stale.all()), len(offline.all())
+    gone = list(offline.scalars())
+    for agent in gone:
+        await agents_svc.emit_state(session, agent)
+    return len(stale.all()), len(gone)

@@ -57,7 +57,21 @@ def enrollment_out(code: AgentEnrollmentCode, server_url: str) -> EnrollmentCode
 
 async def agents_out(session: SessionDep, agents: Sequence[Agent]) -> list[AgentOut]:
     connected = await presence_svc.connected_ids(session, (a.id for a in agents))
-    return [AgentOut.model_validate(a).model_copy(update={"ws_connected": a.id in connected}) for a in agents]
+    places = await agents_svc.site_names(session, {a.site_id for a in agents})
+    out = []
+    for a in agents:
+        site_name, customer_id, customer_name = places.get(a.site_id, ("", None, ""))
+        out.append(
+            AgentOut.model_validate(a).model_copy(
+                update={
+                    "ws_connected": a.id in connected,
+                    "site_name": site_name,
+                    "customer_id": customer_id,
+                    "customer_name": customer_name,
+                }
+            )
+        )
+    return out
 
 
 async def agent_out(session: SessionDep, agent: Agent) -> AgentOut:

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import bad_request, conflict, not_found
-from app.core.notify import CH_COMMAND, CH_COMMAND_UPDATE, notify
+from app.core.notify import CH_COMMAND, CH_COMMAND_UPDATE, notify, notify_event
 from app.core.principal import Principal
 from app.models import Agent, AgentLog, ClusterEvent, Command, Device, IpRange, MibWalk, Site
 from app.schemas import agent as proto
@@ -91,7 +91,35 @@ async def create_command(
         after={"agent_id": str(agent.id), "type": data.type, "params": stored},
     )
     await notify(session, CH_COMMAND, str(agent.id))
+    await emit_commands(session, [cmd])
+    if data.type in ("pause", "resume", "promote_master"):
+        await agents_svc.emit_state(session, agent)
     return cmd
+
+
+async def _customers(session: AsyncSession, agent_ids: set[uuid.UUID]) -> dict[uuid.UUID, uuid.UUID]:
+    if not agent_ids:
+        return {}
+    rows = await session.execute(
+        select(Agent.id, Site.customer_id).join(Site, Site.id == Agent.site_id).where(Agent.id.in_(agent_ids))
+    )
+    return dict(rows.tuples().all())
+
+
+async def emit_commands(session: AsyncSession, cmds: list[Command]) -> None:
+    """Live event (portal SSE) for each command whose state changed."""
+    customers = await _customers(session, {c.agent_id for c in cmds})
+    for c in cmds:
+        await notify_event(
+            session,
+            CH_COMMAND_UPDATE,
+            "command",
+            reseller_id=c.reseller_id,
+            customer_id=customers.get(c.agent_id),
+            id=c.id,
+            agent_id=c.agent_id,
+            state=c.state,
+        )
 
 
 async def _prepare(
@@ -286,7 +314,7 @@ async def cancel_command(session: AsyncSession, p: Principal, command_id: uuid.U
         after={"state": "cancelled"},
     )
     await notify(session, CH_COMMAND, str(cmd.agent_id))
-    await notify(session, CH_COMMAND_UPDATE, str(cmd.id))
+    await emit_commands(session, [cmd])
     return cmd
 
 
@@ -324,7 +352,8 @@ async def claim_for_delivery(session: AsyncSession, agent_id: uuid.UUID) -> list
     for cmd in rows:
         cmd.state = "sent"
         cmd.sent_at = now
-        await notify(session, CH_COMMAND_UPDATE, str(cmd.id))
+    if rows:
+        await emit_commands(session, rows)
     return rows
 
 
@@ -384,7 +413,7 @@ async def apply_update(session: AsyncSession, agent: Agent, upd: proto.CommandUp
             applied = result.get("applied_config_version")
             if isinstance(applied, int):
                 agent.applied_config_version = applied
-    await notify(session, CH_COMMAND_UPDATE, str(cmd.id))
+    await emit_commands(session, [cmd])
     return cmd
 
 
@@ -398,7 +427,7 @@ async def expire_commands(session: AsyncSession) -> int:
                 update(Command)
                 .where(Command.state.in_(("pending", "sent", "acked")), Command.expires_at < now)
                 .values(state="expired", finished_at=now)
-                .returning(Command.id)
+                .returning(Command)
             )
         ).scalars()
     )
@@ -412,12 +441,12 @@ async def expire_commands(session: AsyncSession) -> int:
                     finished_at=now,
                     result={"error": "O coletor não informou o resultado (tempo esgotado)"},
                 )
-                .returning(Command.id)
+                .returning(Command)
             )
         ).scalars()
     )
-    for cid in expired + stuck:
-        await notify(session, CH_COMMAND_UPDATE, str(cid))
+    if expired or stuck:
+        await emit_commands(session, expired + stuck)
     return len(expired) + len(stuck)
 
 

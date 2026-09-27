@@ -120,6 +120,7 @@ async def accept_agent(ws: WebSocket, settings: Settings) -> None:
             await ws.close(code=code, reason=exc.code)
             return
         await presence_svc.connect(session, agent, hub.gateway_id, remote)
+        await agents_svc.emit_state(session, agent)  # portal ao vivo: coletor conectado
         await session.commit()
         agent_id = agent.id
 
@@ -148,6 +149,9 @@ async def accept_agent(ws: WebSocket, settings: Settings) -> None:
             try:
                 async with hub.sessionmaker() as session:
                     await presence_svc.disconnect(session, agent_id, hub.gateway_id)
+                    gone = await session.get(Agent, agent_id)
+                    if gone is not None:
+                        await agents_svc.emit_state(session, gone)
                     await session.commit()
             except Exception:
                 logger.exception("não foi possível apagar a presença do coletor %s", agent_id)

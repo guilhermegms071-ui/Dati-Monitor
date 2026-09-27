@@ -3,9 +3,45 @@
 package osinfo
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
+
+// TestMain doubles as a child process that prints CurrentVersion (see TestVersionIgnoresCompatShim).
+func TestMain(m *testing.M) {
+	if os.Getenv("DM_OSINFO_PRINT_VERSION") == "1" {
+		v := CurrentVersion()
+		fmt.Printf("%d.%d.%d\n", v.Major, v.Minor, v.Build)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// Modo de compatibilidade do Windows 7 no processo (o que um usuário faria nas propriedades do .exe)
+// não pode fazer um Windows 10 ser recusado no cadastro.
+func TestVersionIgnoresCompatShim(t *testing.T) {
+	want := CurrentVersion()
+	if want.Major < 10 {
+		t.Fatalf("versão real deveria ser 10+: %+v", want)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.run=^$") //nolint:gosec // G204: é o próprio binário deste teste
+
+	cmd.Env = append(os.Environ(), "DM_OSINFO_PRINT_VERSION=1", "__COMPAT_LAYER=Win7RTM")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(out)); got != fmt.Sprintf("%d.%d.%d", want.Major, want.Minor, want.Build) {
+		t.Fatalf("com __COMPAT_LAYER=Win7RTM a versão virou %q (real %+v)", got, want)
+	}
+}
 
 func TestWindowsVersionGate(t *testing.T) {
 	cases := []struct {
@@ -35,7 +71,7 @@ func TestWindowsVersionGate(t *testing.T) {
 		}
 	}
 	if CurrentVersion().Major < 10 {
-		t.Fatal("RtlGetVersion deveria ver o Windows real")
+		t.Fatal("CurrentVersion deveria ver o Windows real")
 	}
 }
 

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import crypto
 from app.core.config import Settings
 from app.core.errors import AppError, bad_request, conflict, not_found, unauthorized
-from app.core.notify import CH_AGENT_REVOKED, notify
+from app.core.notify import CH_AGENT_REVOKED, CH_AGENT_STATE, notify, notify_event
 from app.core.principal import Principal, customer_scope, reseller_scope
 from app.core.security import (
     InvalidTokenError,
@@ -31,6 +31,7 @@ from app.models import (
     AgentEnrollmentCode,
     AgentHeartbeat,
     ClusterEvent,
+    Customer,
     IpRange,
     ReadProfile,
     Site,
@@ -130,7 +131,21 @@ async def get_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID) ->
     return agent
 
 
-async def _site_in_scope(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> Site:
+async def site_names(
+    session: AsyncSession, site_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, uuid.UUID, str]]:
+    """site_id → (nome do local, id do cliente, nome do cliente), numa consulta só."""
+    if not site_ids:
+        return {}
+    rows = await session.execute(
+        select(Site.id, Site.name, Customer.id, Customer.name)
+        .join(Customer, Customer.id == Site.customer_id)
+        .where(Site.id.in_(site_ids))
+    )
+    return {sid: (sname, cid, cname) for sid, sname, cid, cname in rows.tuples().all()}
+
+
+async def site_in_scope(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> Site:
     site = await session.get(Site, site_id)
     if (
         site is None
@@ -176,7 +191,7 @@ async def create_agent(
     session: AsyncSession, p: Principal, data: AgentIn
 ) -> tuple[Agent, AgentEnrollmentCode]:
     p.require("agents.write")
-    site = await _site_in_scope(session, p, data.site_id)
+    site = await site_in_scope(session, p, data.site_id)
     agent = Agent(
         reseller_id=site.reseller_id,
         site_id=site.id,
@@ -255,6 +270,7 @@ async def revoke_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID)
     )
     # "A credencial para de funcionar imediatamente e o gateway derruba a conexão" (seção 4.2).
     await notify(session, CH_AGENT_REVOKED, str(agent.id))
+    await emit_state(session, agent)
     return agent
 
 
@@ -269,6 +285,22 @@ async def delete_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID)
         session, p, action="delete", entity="agent", entity_id=agent.id, reseller_id=agent.reseller_id
     )
     await notify(session, CH_AGENT_REVOKED, str(agent.id))
+    await emit_state(session, agent)
+
+
+async def emit_state(session: AsyncSession, agent: Agent) -> None:
+    """Live event (portal SSE): the agent's state/role/presence changed."""
+    site = await session.get(Site, agent.site_id)
+    await notify_event(
+        session,
+        CH_AGENT_STATE,
+        "agent",
+        reseller_id=agent.reseller_id,
+        customer_id=site.customer_id if site else None,
+        id=agent.id,
+        state=agent.state,
+        cluster_role=agent.cluster_role,
+    )
 
 
 async def _release_master(
@@ -464,6 +496,7 @@ async def heartbeat(
     session: AsyncSession, agent: Agent, req: proto.HeartbeatRequest, *, channel: str
 ) -> proto.HeartbeatResponse:
     now = _now()
+    before = (agent.state, agent.cluster_role)
     agent.last_seen_at = now
     agent.version = req.version or agent.version
     agent.hostname = req.hostname or agent.hostname
@@ -504,6 +537,8 @@ async def heartbeat(
             latency_ms=req.latency_ms,
         )
     )
+    if (agent.state, agent.cluster_role) != before:
+        await emit_state(session, agent)
     return proto.HeartbeatResponse(
         server_time=now,
         config_version=agent.config_version,

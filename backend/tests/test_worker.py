@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings
 from app.core.db import make_engine, make_sessionmaker
-from app.models import Agent, AgentPresence, Command
+from app.models import Agent, AgentPresence, Command, Device
 from app.services.partitions import month_starts
 from app.worker.main import (
     DbWatch,
@@ -16,6 +16,7 @@ from app.worker.main import (
     build_scheduler,
     commands_job,
     db_check_job,
+    disconnected_job,
     partitions_job,
     presence_job,
     run,
@@ -107,10 +108,25 @@ async def test_commands_and_presence_jobs(
     assert await presence_job(ctx) == (1, 1)
     assert await commands_job(ctx) == 0
     assert await presence_job(ctx) == (0, 0)
+    async with ctx.sessionmaker() as s:
+        s.add(
+            Device(
+                reseller_id=tenant.reseller_id,
+                site_id=tenant.site_id,
+                customer_id=tenant.customer_id,
+                serial="SEM-LEITURA",
+                first_seen_at=old - timedelta(hours=10),
+                last_read_at=old - timedelta(hours=10),
+            )
+        )
+        await s.commit()
+    assert await disconnected_job(ctx) == (1, 0)
+    assert await disconnected_job(ctx) == (0, 0)
     messages = [r.getMessage() for r in caplog.records]
     assert any("1 comando(s) expirado(s)" in m for m in messages)
     assert any("presença(s) órfã(s)" in m for m in messages)
     assert any("marcado(s) como offline" in m for m in messages)
+    assert any("marcado(s) como desconectado(s)" in m for m in messages)
 
 
 @pytest.mark.usefixtures("clean_db")

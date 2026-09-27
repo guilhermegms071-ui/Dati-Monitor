@@ -19,7 +19,7 @@ from app.schemas.auth import (
     MeResponse,
     PreferencesUpdate,
     ResetPasswordRequest,
-    TokenResponse,
+    SessionResponse,
     TotpCodeRequest,
     TotpDisableRequest,
     TotpSetupResponse,
@@ -106,8 +106,8 @@ def _check_csrf(csrf_cookie: str | None, csrf_header: str | None) -> None:
         raise forbidden("Falha na verificação CSRF")
 
 
-def _token_response(result: auth_service.Session) -> TokenResponse:
-    return TokenResponse(
+def _token_response(result: auth_service.Session) -> SessionResponse:
+    return SessionResponse(
         access_token=result.access_token,
         expires_at=result.access_expires_at,
         limited=result.limited,
@@ -115,7 +115,7 @@ def _token_response(result: auth_service.Session) -> TokenResponse:
     )
 
 
-@router.post("/login", response_model=TokenResponse, summary="Entrar")
+@router.post("/login", response_model=SessionResponse, summary="Entrar")
 async def login(
     body: LoginRequest,
     request: Request,
@@ -123,7 +123,7 @@ async def login(
     session: SessionDep,
     settings: SettingsDep,
     user_agent: Annotated[str | None, Header()] = None,
-) -> TokenResponse:
+) -> SessionResponse:
     ip = client_ip(request)
     _check_rate(request, f"login:ip:{ip}")
     result = await auth_service.login(
@@ -140,7 +140,7 @@ async def login(
     return _token_response(result)
 
 
-@router.post("/refresh", response_model=TokenResponse, summary="Renovar a sessão (cookie + CSRF)")
+@router.post("/refresh", response_model=SessionResponse, summary="Renovar a sessão (cookie + CSRF)")
 async def refresh(
     request: Request,
     response: Response,
@@ -150,7 +150,7 @@ async def refresh(
     dm_csrf: Annotated[str | None, Cookie()] = None,
     x_csrf_token: Annotated[str | None, Header()] = None,
     user_agent: Annotated[str | None, Header()] = None,
-) -> TokenResponse:
+) -> SessionResponse:
     _check_csrf(dm_csrf, x_csrf_token)
     if not dm_refresh:
         raise unauthorized("refresh_missing", "Sessão expirada. Entre novamente.")
@@ -200,7 +200,7 @@ async def update_preferences(
     return me_payload(user, reseller)
 
 
-@router.post("/change-password", response_model=TokenResponse, summary="Trocar a senha")
+@router.post("/change-password", response_model=SessionResponse, summary="Trocar a senha")
 async def change_password(
     body: ChangePasswordRequest,
     response: Response,
@@ -208,7 +208,7 @@ async def change_password(
     session: SessionDep,
     settings: SettingsDep,
     user_agent: Annotated[str | None, Header()] = None,
-) -> TokenResponse:
+) -> SessionResponse:
     result = await auth_service.change_password(
         session,
         settings,
@@ -256,7 +256,7 @@ async def totp_setup(
     return TotpSetupResponse(secret=secret, otpauth_uri=uri)
 
 
-@router.post("/totp/enable", response_model=TokenResponse, summary="Ativar o autenticador")
+@router.post("/totp/enable", response_model=SessionResponse, summary="Ativar o autenticador")
 async def totp_enable(
     body: TotpCodeRequest,
     response: Response,
@@ -264,7 +264,7 @@ async def totp_enable(
     session: SessionDep,
     settings: SettingsDep,
     user_agent: Annotated[str | None, Header()] = None,
-) -> TokenResponse:
+) -> SessionResponse:
     result = await auth_service.totp_enable(
         session, settings, principal, code=body.code, user_agent=user_agent
     )

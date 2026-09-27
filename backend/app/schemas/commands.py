@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.schemas.common import ORMModel
 
@@ -169,6 +169,12 @@ class CommandOut(ORMModel):
     started_at: datetime | None
     finished_at: datetime | None
     expires_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def type_label(self) -> str:
+        """Nome do comando em português (o portal nunca mostra o código cru)."""
+        return COMMAND_LABELS.get(self.type, self.type)
 
 
 class AgentLogOut(ORMModel):

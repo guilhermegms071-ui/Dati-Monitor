@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     command_expiry_minutes: int = Field(default=10, ge=1, le=1440)
     storage_dir: Path = REPO_ROOT / "var" / "storage"
     gateway_sweep_seconds: int = Field(default=30, ge=1)
+    # Equipamento sem leitura há tantas horas aparece como desconectado no parque (seção 8).
+    device_disconnected_hours: int = Field(default=6, ge=1, le=720)
     bootstrap_reseller_name: str = "Daticopy"
     bootstrap_admin_email: str = "admin@local"
 

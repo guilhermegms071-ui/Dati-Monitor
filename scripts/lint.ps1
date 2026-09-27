@@ -34,11 +34,13 @@ try {
 Push-Location (Join-Path $RepoRoot 'backend')
 try {
     $scriptsPy = @('..\scripts\smtp_catcher.py', '..\scripts\sleepy_udp_proxy.py', '..\scripts\gen_protocol_docs.py',
-        '..\profiles\recordings\sim\generate.py')
+        '..\scripts\gen_openapi.py', '..\scripts\e2e_seed.py', '..\profiles\recordings\sim\generate.py')
     $pyTargets = @('app', 'tests', 'alembic') + $scriptsPy
     Invoke-Checked 'Python: ruff check' { & "$venvScripts\ruff.exe" check @pyTargets }
     Invoke-Checked 'Python: ruff format --check' { & "$venvScripts\ruff.exe" format --check @pyTargets }
     Invoke-Checked 'Python: mypy --strict' { & "$venvScripts\mypy.exe" --strict app tests @scriptsPy }
+    # O cliente TypeScript do portal é gerado do OpenAPI: mudou a API, tem de regenerar (e versionar).
+    Invoke-Checked 'OpenAPI: openapi.json atualizado' { & "$venvScripts\python.exe" ..\scripts\gen_openapi.py --check }
 } finally { Pop-Location }
 
 Push-Location (Join-Path $RepoRoot 'frontend')
@@ -46,6 +48,7 @@ try {
     Invoke-Checked 'Frontend: eslint' { & npm.cmd run --silent lint }
     Invoke-Checked 'Frontend: prettier --check' { & npm.cmd run --silent format:check }
     Invoke-Checked 'Frontend: tsc --noEmit' { & npm.cmd run --silent typecheck }
+    Invoke-Checked 'Frontend: schema.d.ts atualizado' { & npm.cmd run --silent api:check }
 } finally { Pop-Location }
 
 Write-Ok 'Lint completo sem problemas'

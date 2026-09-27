@@ -32,7 +32,11 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/app/worker/` | Jobs agendados (APScheduler). `python -m app.worker.main`. |
 | `backend/alembic/` | Migrações (a URL vem de `DATABASE_URL`, nunca do `alembic.ini`). |
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
-| `frontend/` | Portal React 18 + TS + Vite + Tailwind. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
+| `backend/app/services/{park,dashboard,agent_ops,live}.py` | Tela de parque, dashboard, operações de coletor (Reativar, cluster, comandos em massa) e eventos ao vivo (SSE `/api/v1/events` sobre LISTEN/NOTIFY). |
+| `frontend/` | Portal React 18 + TS + Vite + Tailwind 4. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
+| `frontend/src/api/` | `openapi.json` (gerado da API por `scripts/gen_openapi.py`) e `schema.d.ts` (gerado por `npm run gen:api`). **Não editar à mão.** |
+| `frontend/src/lib/` | `api.ts` (cliente openapi-fetch com refresh e CSRF), sessão (`AuthProvider`/`auth-context`), `live.ts` (SSE), `format.ts` (pt-BR/São Paulo), rótulos. |
+| `frontend/src/{components,pages}/` | UI (`components/ui` = primitivos Radix; `domain.tsx` = status, níveis, comandos) e telas por menu. Rotas em `src/router.tsx`. |
 | `profiles/` | Perfis de leitura YAML. `canon.yaml` e `konica-minolta.yaml` são fornecidos: **não alterar OIDs**. |
 | `profiles/recordings/sim/NN-nome/public.snmprec` | Impressoras simuladas (snmpsim), porta UDP `1160+NN`. **Geradas** por `generate.py` (edite o gerador, não o arquivo). Pasta com `sleepy.json` = economia de energia (proxy UDP na porta `1160+NN`, snmpsim em `11100+NN`). |
 | `profiles/recordings/real/` | Walks de impressoras reais (Fase 10). |
@@ -96,6 +100,13 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   uvicorn manda CTRL_C para o console inteiro).
 - Protocolo do agente: mudou `app/schemas/agent.py`? Atualize `agent/internal/protocol` e rode
   `.venv\Scripts\python scripts\gen_protocol_docs.py` (um teste compara `docs/protocol.md`).
+- Mudou a API (rota ou schema)? `.venv\Scripts\python scripts\gen_openapi.py` e `cd frontend; npm run gen:api`;
+  o lint e o CI falham se `openapi.json`/`schema.d.ts` estiverem desatualizados. Campo com default numa
+  **resposta**: marque o modelo com `json_schema_serialization_defaults_required=True` (senão o TS o vê opcional).
+- Portal: hooks e componentes em arquivos separados (regra `react-refresh`); nada de `setState` síncrono em
+  `useEffect` (use `key` para remontar formulários); falhas via `showError` (toast + `console.error`).
+- E2E: o `global-setup` roda `scripts/e2e_seed.py` (só dev/CI) com senha aleatória por execução, e
+  os testes rodam em série. Leituras de teste precisam de chave de idempotência nova (`agent_id:uuid`).
 - Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de
   verdade levam `//go:build integration` e usam `internal/simtest`. Rodar `-race` exige o GCC no PATH
   (o `test.ps1` acha o WinLibs sozinho).
@@ -105,4 +116,6 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
 Windows 10 Pro **sem virtualização**: nada de Docker/WSL. PostgreSQL 16 nativo (serviço
 `postgresql-x64-16`, início automático). Go 1.27, Python 3.12 (`py -3.12`; o `python` padrão é 3.11),
 Node 24 LTS, golangci-lint v2 em `%GOPATH%\bin`, GCC (WinLibs, via winget) para `go test -race`.
-Portas: API 8000, gateway 8001, portal 5173, SMTP 1025, e-mails 8025, snmpsim 1161–1168.
+Portas: API 8000, gateway 8001, portal 5173, SMTP 1025, e-mails 8025, snmpsim 1161–1168 (E2E: 12161–12168, pronto em 12160).
+A sessão do Claude Code aqui roda com `__COMPAT_LAYER=Win7RTM` herdado pelos processos filhos: o
+`RtlGetVersion` responde 6.1. Por isso o agente usa `RtlGetNtVersionNumbers` (D49).

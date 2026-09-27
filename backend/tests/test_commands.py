@@ -85,6 +85,7 @@ async def test_command_lifecycle_over_https(client: httpx.AsyncClient, factory: 
 
     got = (await client.get(f"/api/v1/commands/{cmd['id']}", headers=auth(admin))).json()
     assert got["state"] == "succeeded"
+    assert got["type_label"] == "Diagnóstico"  # o portal mostra o nome em português
     assert got["result"] == {"dns": {"ok": True}}
     assert got["output"] == "tudo certo"
     assert got["progress"] == "testando DNS"

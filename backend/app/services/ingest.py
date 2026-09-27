@@ -12,6 +12,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.notify import CH_DEVICES, notify_event
 from app.models import (
     Agent,
     Brand,
@@ -80,6 +81,18 @@ async def ingest_batch(
         except ItemRejectedError as exc:
             logger.warning("item %s do coletor %s rejeitado: %s", item.key, agent.id, exc)
             results.append(proto.ItemResult(key=item.key, status="rejected", reason=str(exc)))
+    accepted = sum(1 for r in results if r.status == "accepted")
+    if accepted:
+        # Portal ao vivo: parque e dashboard do cliente atualizam sozinhos.
+        await notify_event(
+            session,
+            CH_DEVICES,
+            "devices",
+            reseller_id=agent.reseller_id,
+            customer_id=ctx.site.customer_id,
+            site_id=ctx.site.id,
+            count=accepted,
+        )
     return proto.ReadingsResponse(results=results)
 
 

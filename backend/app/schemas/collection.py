@@ -98,6 +98,9 @@ class AgentOut(ORMModel):
     suggested_ranges: list[Any]
     paused: bool
     ws_connected: bool = Field(default=False, description="Há conexão WebSocket viva agora")
+    customer_id: uuid.UUID | None = None
+    customer_name: str = ""
+    site_name: str = ""
     created_at: datetime
     updated_at: datetime
 
