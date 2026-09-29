@@ -32,6 +32,7 @@ from app.services import devices as devices_svc
 from app.services import presence as presence_svc
 from app.services import site_config as site_svc
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
+from app.services.watchdog import watchdog_alive
 
 router = APIRouter(responses=ERROR_RESPONSES)
 Limit = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)]
@@ -65,6 +66,7 @@ async def agents_out(session: SessionDep, agents: Sequence[Agent]) -> list[Agent
             AgentOut.model_validate(a).model_copy(
                 update={
                     "ws_connected": a.id in connected,
+                    "watchdog_alive": watchdog_alive(a),
                     "site_name": site_name,
                     "customer_id": customer_id,
                     "customer_name": customer_name,

@@ -9,17 +9,20 @@ import { repoRoot } from './paths';
  * Fluxo da seção 13 do PROMPT com o dm-agent real (compilado do código): portal gera o código →
  * agente se cadastra → aparece online → faixa de IP configurada pelo portal → varredura pelo botão →
  * as 8 impressoras simuladas aparecem no parque com contadores PB/cor e níveis → detalhe com gráfico.
- * (Derrubar o agente → alerta/e-mail, Reativar com retorno e página web pelo túnel entram nas Fases 5–7.)
+ * O coletor roda sob o dm-watchdog real (modo processo): o portal mostra o vigia ativo e o comando
+ * "Reiniciar o coletor (pelo watchdog)" é executado por ele (seção 5.1).
+ * (Alerta de offline por e-mail e página web pelo túnel entram nas Fases 6 e 7.)
  */
 
 const win = process.platform === 'win32';
 const workDir = `${repoRoot}var/e2e`;
 const agentExe = `${workDir}/dm-agent${win ? '.exe' : ''}`;
+const watchdogExe = `${workDir}/dm-watchdog${win ? '.exe' : ''}`;
 const dataDir = `${workDir}/agent-data`;
 const AGENT_NAME = 'Coletor E2E real';
 const SIM_PORTS = Array.from({ length: 8 }, (_, i) => 12161 + i);
 
-let agent: ChildProcess | null = null;
+let watchdog: ChildProcess | null = null;
 
 function goExe(): string {
   if (process.env.GO_EXE) return process.env.GO_EXE;
@@ -57,12 +60,28 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
   mkdirSync(workDir, { recursive: true });
   rmSync(dataDir, { recursive: true, force: true });
-  execFileSync(goExe(), ['build', '-o', agentExe, './cmd/dm-agent'], { cwd: `${repoRoot}agent`, stdio: 'inherit' });
+  for (const [exe, pkg] of [
+    [agentExe, './cmd/dm-agent'],
+    [watchdogExe, './cmd/dm-watchdog'],
+  ]) {
+    execFileSync(goExe(), ['build', '-o', exe, pkg], { cwd: `${repoRoot}agent`, stdio: 'inherit' });
+  }
 });
 
+/** Encerra o watchdog E o coletor filho dele (a árvore toda). */
+function killTree(child: ChildProcess | null) {
+  if (!child?.pid) return;
+  try {
+    if (win) execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    else process.kill(-child.pid, 'SIGKILL');
+  } catch (err) {
+    console.error('Falha ao encerrar o watchdog do E2E:', err);
+  }
+}
+
 test.afterAll(() => {
-  agent?.kill();
-  agent = null;
+  killTree(watchdog);
+  watchdog = null;
 });
 
 test('coletor real: cadastro pelo portal, online, varredura e parque com contadores e níveis', async ({ page }) => {
@@ -85,7 +104,7 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   expect(code).toMatch(/^[A-Z0-9]{8}$/);
   await dialog.getByRole('button', { name: 'Fechar' }).first().click();
 
-  // 2. O agente real se cadastra com o código e passa a rodar.
+  // 2. O agente real se cadastra com o código e passa a rodar, iniciado e vigiado pelo dm-watchdog.
   execFileSync(
     agentExe,
     [
@@ -103,15 +122,36 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   );
   const started = Date.now();
   const log = createWriteStream(`${workDir}/agent.log`);
-  agent = spawn(agentExe, ['run', '--data-dir', dataDir], { stdio: ['ignore', 'pipe', 'pipe'] });
-  agent.stdout?.pipe(log);
-  agent.stderr?.pipe(log);
+  watchdog = spawn(
+    watchdogExe,
+    [
+      'run',
+      '--data-dir',
+      dataDir,
+      '--agent-exe',
+      agentExe,
+      '--health-addr',
+      '127.0.0.1:47792',
+      '--check-every',
+      '3s',
+      '--report-every',
+      '5s',
+      '--start-grace',
+      '10s',
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'], detached: !win },
+  );
+  watchdog.stdout?.pipe(log);
+  watchdog.stderr?.pipe(log);
 
   // 3. Aparece online no portal em menos de 10 s (critério 2 da seção 15).
   await page.getByRole('link', { name: AGENT_NAME }).first().click();
   await expect(page).toHaveURL(/\/coletores\/[0-9a-f-]{36}$/);
   await expect(page.getByText('Online').first()).toBeVisible({ timeout: 10_000 });
   expect(Date.now() - started).toBeLessThan(10_000);
+  // O vigia se comunica com o servidor pelo canal próprio e aparece ativo (aba Saúde).
+  await expect(page.getByText('Vigia (dm-watchdog)')).toBeVisible();
+  await expect(page.getByText(/^ativo/).first()).toBeVisible({ timeout: 30_000 });
 
   // 4. Faixa de IP das impressoras simuladas, aplicada e varrida pelos comandos ao vivo.
   await page.getByRole('tab', { name: 'Faixas de IP' }).click();
@@ -140,6 +180,12 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await expect(page.getByText('217.031').first()).toBeVisible();
   await page.getByRole('tab', { name: 'Contadores' }).click();
   await expect(page.locator('.recharts-surface').first()).toBeVisible();
+
+  // 7. Reiniciar o coletor pelo watchdog: comando entregue no canal do vigia, coletor volta saudável.
+  await page.goto('/coletores');
+  await page.getByRole('link', { name: AGENT_NAME }).first().click();
+  const restarted = await runCommand(page, 'Reiniciar o coletor (pelo watchdog)', 90_000);
+  expect(restarted).toContain('"restarted": true');
 
   expect(consoleErrors).toEqual([]);
 });

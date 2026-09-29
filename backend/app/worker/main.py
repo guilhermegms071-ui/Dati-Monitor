@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.core.config import Settings, get_settings
 from app.core.db import DbStatus, check_database, make_engine, make_sessionmaker
 from app.core.logging import configure_logging
+from app.services import cluster as cluster_svc
 from app.services import commands as commands_svc
 from app.services import park as park_svc
 from app.services import presence as presence_svc
+from app.services import updates as updates_svc
 from app.services.partitions import default_partition_rows, ensure_partitions
 
 logger = logging.getLogger("app.worker")
@@ -112,6 +114,33 @@ async def disconnected_job(ctx: WorkerContext) -> tuple[int, int]:
     return newly, back
 
 
+async def cluster_job(ctx: WorkerContext) -> int:
+    """MASTER lease (PROMPT 4.8): promotes a STANDBY when the MASTER's lease expired, or the operator's
+    preferred MASTER once it is online."""
+    try:
+        async with ctx.sessionmaker() as session:
+            changes = await cluster_svc.failover(session)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha no failover do cluster")
+        raise
+    return len(changes)
+
+
+async def updates_job(ctx: WorkerContext) -> int:
+    """Automatic signed updates by channel and gradual rollout (PROMPT 5.2)."""
+    try:
+        async with ctx.sessionmaker() as session:
+            created = await updates_svc.offer_updates(session, ctx.settings)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha ao oferecer atualizações")
+        raise
+    if created:
+        logger.info("worker: %d atualização(ões) automática(s) enviada(s)", created)
+    return created
+
+
 def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True})
     scheduler.add_job(
@@ -125,6 +154,8 @@ def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler.add_job(commands_job, "interval", seconds=30, args=[ctx], id="commands")
     scheduler.add_job(presence_job, "interval", seconds=30, args=[ctx], id="presence")
     scheduler.add_job(disconnected_job, "interval", minutes=5, args=[ctx], id="disconnected")
+    scheduler.add_job(cluster_job, "interval", seconds=30, args=[ctx], id="cluster")
+    scheduler.add_job(updates_job, "interval", minutes=5, args=[ctx], id="updates")
     return scheduler
 
 

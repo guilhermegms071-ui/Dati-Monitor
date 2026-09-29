@@ -9,8 +9,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 2 — Agente núcleo | ✅ concluída (25/09/2026) — falta só instalar o serviço Windows num terminal de administrador (ver abaixo) |
 | 3 — Tempo real e comandos | ✅ concluída (25/09/2026) |
 | 4 — Portal | ✅ concluída (27/09/2026) |
-| 5 — Confiabilidade | ⏳ próxima |
-| 6 a 11 | pendentes |
+| 5 — Confiabilidade | ✅ concluída (28/09/2026) — falta só instalar os serviços num terminal de administrador |
+| 6 — Alertas e notificações | ⏳ próxima |
+| 7 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -508,6 +509,141 @@ scripts\dev.ps1            # portal em http://localhost:5173 (senha temporária 
 
 ---
 
+## Fase 5 — Confiabilidade ✅
+
+### Plano executado
+Watchdog completo com vigilância mútua, failover do cluster pelo lease no servidor, atualização
+assinada com canais, liberação gradual e rollback automático, as 4 etapas do botão Reativar e o teste
+de caos da seção 13. O Wake-on-LAN (Fase 3) virou parte do failover do Reativar.
+
+### O que foi feito
+- **dm-watchdog** (`agent/internal/watchdog`, `cmd/dm-watchdog`):
+  - a cada 15 s confere o coletor:
+    - serviço parado → inicia;
+    - `/health` falhou 3 vezes seguidas → reinicia;
+    - memória acima de 300 MB → reinicia;
+    - o motivo de cada reinício vai para o servidor e aparece no portal;
+  - canal próprio `POST /api/watchdog/heartbeat` a cada 60 s, com a mesma credencial do coletor e
+    independente do WebSocket (D53);
+  - executa `restart_agent`, `update`, `rollback`, `get_logs` (do vigia) e `uninstall`:
+    - registro local por `command_id`: nunca executa duas vezes;
+    - reenvia o resultado que não chegou;
+  - roda como serviço `DatiMonitorWatchdog` (LocalSystem, recuperação do SCM) ou, em desenvolvimento e
+    testes, em modo processo com `--agent-exe` (D54);
+  - `/health` próprio em 127.0.0.1:47702.
+- **Vigilância mútua:** o coletor confere o serviço do watchdog a cada 60 s, inicia-o se estiver
+  parado e manda o estado no heartbeat. As consultas usam direitos mínimos, que funcionam fora de
+  administrador (D55).
+- **Atualização assinada (seção 5.2):**
+  - `dm-tool keygen / sign / verify`;
+  - a chave privada fica fora do repositório e do servidor; a pública vai embutida e também é
+    conferida pelo servidor na publicação (D51, D52);
+  - fluxo:
+    1. baixa e confere sha256 e assinatura;
+    2. para e guarda a versão atual como `previous`;
+    3. troca e inicia;
+    4. espera `/health` saudável e heartbeat aceito pelo servidor por até 2 min;
+    5. se não ficar saudável, faz o rollback automático;
+  - o coletor atualiza o watchdog (processo inverso).
+- **Servidor:**
+  - versões: publicar (superadmin), canal, liberação gradual, retirar, e sucesso/falha por versão;
+  - atualização automática no worker a cada 5 min, bloqueando versão com falha acima de 5% no canary
+    (D56);
+  - failover do lease no worker a cada 30 s, com MASTER preferido fixável pelo operador (D57);
+  - Reativar etapa 2: `restart_agent` ao vigia e acompanhamento da volta por até 3 min (D58);
+  - comandos do watchdog aceitos (D39 cumprida);
+  - desinstalar exige papel admin e confirmação dupla.
+- **Portal:**
+  - tela **Versões**: publicar colando a saída do `dm-tool sign`, com o sha256 conferido no navegador
+    antes do envio; canal, liberação e retirada; taxa de falha no canary;
+  - cartão do vigia na aba Saúde: estado, reinícios com motivo e versão guardada para voltar;
+  - coluna Watchdog na lista de coletores;
+  - no menu Comandos: Reiniciar o coletor (pelo watchdog), Logs do watchdog, Atualizar…, Voltar
+    versão e Desinstalar…;
+  - MASTER preferido na aba Cluster;
+  - o Reativar acompanha a volta do coletor.
+- **Teste de caos** `scripts\chaos.ps1` (seção 13), descrito abaixo.
+- **Defeitos encontrados no caminho** (todos com teste):
+  - O Go mandava `null` em 9 campos de lista/mapa vazios e o servidor recusava. O heartbeat do
+    watchdog só era aceito quando havia reinício a relatar, e um PC sem IPv4 não conseguiria se
+    cadastrar. Foi criado o teste de contrato Go × schemas do servidor (D59).
+  - O `dm-tool sign` aceitava assinar outro programa que tivesse a versão certa. Agora exige o nome do
+    componente.
+  - Consultar serviço do Windows exigia administrador.
+  - O script de caos subia a API sem migrar o banco.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,5%**. Testes novos: vetor de assinatura gerado pelo servidor (Go e Python assinam a mesma mensagem); verificação (adulterado, tamanho, outro alvo, versão/componente trocados, outra chave); `Installer` (update, rollback em dois sentidos, rollback automático, adulterado não mexe em nada); watchdog (serviço parado, `/health` 3×, memória, comandos, idempotência e reenvio, update quebrado, desinstalar); alvo processo com processo real; serviço inexistente sem administrador; vigilância mútua; coletor atualizando o watchdog; `dm-tool` confere componente e versão; **contrato do protocolo Go × schemas do servidor**; versão do Windows com shim de compatibilidade |
+| pytest | **156** testes; cobertura **91%**. Novos: canal do watchdog (estado, reinícios, versão guardada), comandos só no canal do vigia, logs do vigia, rollback, desinstalar (papel e confirmação dupla), Reativar etapa 2 (com vigia vivo e morto), publicação assinada (adulterado, reetiquetado, outra chave, duplicada, só superadmin), download por alvo, update manual e do watchdog, versão retirada, atualização automática (canal, liberação gradual, bloqueio por falha no canary, sem repetir versão que falhou, desligada), failover (lease vencido, prioridade, latência, pausado, ninguém online, MASTER preferido, nome de coletor excluído no histórico) |
+| Vitest | **31**: leitura da saída do `dm-tool sign`, sha256 no navegador, estado do vigia, selo do vigia, desinstalar com confirmação dupla |
+| Playwright | **6**; o coletor real agora roda sob o **dm-watchdog real**: vigia "ativo" no portal e "Reiniciar o coletor (pelo watchdog)" concluído de ponta a ponta |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos atualizados: sem problemas |
+
+### Fluxo manual executado (28/09/2026) e resultado
+1. **Teste de caos** (`chaos.py --outage-minutes 10`), com dois dm-agent reais vigiados por dm-watchdog
+   e as 8 impressoras simuladas: **22 OK, 0 falhou** (`var\chaos\relatorio.json`):
+   - ✅ vigias com sinal no portal (heartbeat do watchdog aceito)
+   - ✅ cluster inicial: A MASTER, B STANDBY — {'coletorA': 'master', 'coletorB': 'standby'}
+   - ✅ varredura inicial encontra as 8 impressoras — encontradas 8
+   - ✅ leitura inicial concluída
+   - ✅ watchdog reinicia o coletor morto — 7 s
+   - ✅ motivo do reinício chega ao portal
+   - ✅ coletor A volta a online
+   - ✅ leituras ficam na fila local durante a queda — máximo 32 itens
+   - ✅ coletor não é reiniciado à toa durante a queda (o /health continua saudável) — 0 reinício(s)
+   - ✅ fila local esvazia sozinha quando o servidor volta — 26 s
+   - ✅ coletores voltam a online sem intervenção
+   - ✅ leituras feitas durante a queda chegaram ao banco (nenhuma perdida) — A797019500624=2, SIMCAN0001=2, SIMCAN0002=2, SIMERR07=2, SIMGEN0005=2, SIMKM0004=2, SIMREG08=2, SIMSLEEP06=2
+   - ✅ API se recupera do banco (sem administrador: 10 conexão(ões) do banco derrubadas (pg_terminate_backend))
+   - ✅ comando ao vivo depois do banco (LISTEN do gateway reconectou) — succeeded
+   - ✅ heartbeats continuam gravando depois do banco
+   - ✅ STANDBY assume quando o lease do MASTER expira — 171 s depois da queda
+   - ✅ novo MASTER varre e lê as 8 impressoras
+   - ✅ antigo MASTER volta como STANDBY (não retoma sozinho) — {'coletorA': 'standby', 'coletorB': 'master'}
+   - ✅ nenhum item em dead-letter nos coletores — {'coletorA': 0, 'coletorB': 0}
+   - ✅ sem leituras duplicadas entre coletores (anti-duplicidade) — 0 par(es)
+   - ✅ tudo online no fim, sem intervenção manual
+   - ✅ vigias com sinal no fim
+2. **Atualização assinada** com binários reais, a chave privada real e o `dev.ps1`: **13 OK, 0 falhou**.
+   - O `dm-tool` recusou assinar um `dm-tool` disfarçado de coletor 0.5.2.
+   - O servidor recusou um binário adulterado.
+   - 0.5.0 → 0.5.1 pelo watchdog em 12 s, e o portal mostrou 0.5.1 com a 0.5.0 guardada.
+   - O rollback voltou para a 0.5.0.
+   - A 0.5.2 quebrada não ficou saudável em 60 s e voltou sozinha para a 0.5.0 ("rollback para 0.5.0
+     feito"). Ela ficou fora da atualização automática (100% de falha no canary).
+   - O worker atualizou sozinho para a 0.5.1 em 80 s, sem oferecer a 0.5.2.
+   - Desinstalar pelo portal: o vigia removeu o coletor, relatou e encerrou.
+3. **Revisão visual** (Versões, publicar, coletores, cartão do vigia, menu de comandos, Atualizar, Cluster),
+   sem nenhum erro no console. Na revisão:
+   - o histórico do Cluster mostrava "outro" para coletores excluídos. O servidor agora devolve o nome
+     de todo coletor citado no histórico.
+   - a tela de Versões mostrou falhas de atualização em coletores do teste de caos. O worker de
+     desenvolvimento os atualizava automaticamente, e os dois usavam o mesmo executável, então a troca
+     do arquivo falhou com erro claro, sem mexer em nada. O caos agora roda com a atualização
+     automática desligada e um executável por coletor, como em PCs diferentes.
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E               # inclui o coletor real sob o dm-watchdog e "Reiniciar pelo watchdog"
+scripts\chaos.ps1                   # 10 min de queda (≈ 17 min no total); -OutageMinutes 3 para ensaio
+# Watchdog em modo processo (sem administrador), depois de cadastrar o coletor em var\agent1:
+#   dist\windows-amd64\dm-watchdog.exe run --data-dir var\agent1 --agent-exe dist\windows-amd64\dm-agent.exe
+# Serviços (terminal de administrador): dm-agent.exe install / dm-watchdog.exe install; sc.exe qfailure DatiMonitorWatchdog
+```
+
+### O que falta / pendências
+- **Terminal de administrador** (ação do usuário, como na Fase 2):
+  - instalar os serviços `DatiMonitorAgent` e `DatiMonitorWatchdog` e conferir a recuperação do SCM;
+  - atualizar o watchdog como serviço pelo coletor;
+  - rodar `scripts\chaos.ps1` como administrador para reiniciar de verdade o serviço do PostgreSQL.
+  - O código está pronto; o job Windows do CI cobre isso na Fase 11.
+- O stream contínuo de logs (D45) segue com `get_logs` + últimas linhas: o canal de logs em tempo real
+  ficou fora desta fase por não ser exigido na seção 5 (registrado para a Fase 9, acabamento).
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -562,3 +698,13 @@ scripts\dev.ps1            # portal em http://localhost:5173 (senha temporária 
 | D48 | Simuladores do E2E em portas próprias (12161–12168; a 12160 indica que estão prontos) | O E2E roda mesmo com o `dev.ps1` no ar (1161–1168), sem disputar portas |
 | D49 | Versão do Windows lida por `RtlGetNtVersionNumbers`; o `RtlGetVersion` fica só para saber se é Server | O shim de compatibilidade (`__COMPAT_LAYER=Win7RTM`, "modo de compatibilidade" no .exe) faz o `RtlGetVersion` responder 6.1, e o coletor recusaria um Windows 10 |
 | D50 | O portal só tenta recuperar a sessão se existir o cookie `dm_csrf` | Sem esse cookie não há sessão; a chamada gerava um 403 no console a cada visita anônima |
+| D51 | A assinatura de uma versão cobre componente, versão, SO, arquitetura e sha256 (`release_message`); o `dm-tool sign` só assina se o binário se declarar como o componente e a versão publicados | Um binário assinado antigo não pode se passar por versão nova nem por outro alvo; e um `dm-tool` (ou watchdog) com o número certo não pode ser publicado como coletor |
+| D52 | Chave privada de assinatura fora do repositório e do servidor (`%USERPROFILE%\.dati-monitor\release-signing.key`, gerada nesta máquina); a pública fica em `agent/internal/release/public.key`, embutida nos binários e lida pelo servidor (ou `RELEASE_PUBLIC_KEY`) | Seção 5.2: a privada nunca vai ao servidor web. **Guarde cópia da chave privada**; trocar de chave = `dm-tool keygen` + recompilar + atualizar a pública |
+| D53 | O watchdog usa a mesma credencial do coletor (DPAPI da máquina) e tem canal próprio `POST /api/watchdog/heartbeat`; comandos têm `target` agent/watchdog | Seção 5.1: canal simples, independente do WebSocket e do código do coletor; nada de segunda credencial para cadastrar |
+| D54 | Watchdog com "modo processo" (`--agent-exe`), além do modo serviço | Desenvolvimento, E2E e teste de caos sem terminal de administrador; em produção o watchdog controla o serviço `DatiMonitorAgent` |
+| D55 | Consulta a serviços do Windows com direitos mínimos (`SC_MANAGER_CONNECT` + `SERVICE_QUERY_*`); iniciar/parar pede só `SERVICE_START`/`SERVICE_STOP` | O `mgr.Connect` do Go pede acesso total e falha fora de administrador; a vigilância mútua e o `status` precisam funcionar em qualquer conta |
+| D56 | Atualização automática: canary recebe canary e estável, estável só estável; liberação gradual por `sha256(coletor:versão) % 100`; nunca versão com falha > 5% no canary; nunca repete no coletor uma versão que falhou nele; uma por vez; só com o executor vivo | Seção 5.2 e rollout previsível (o mesmo coletor sempre cai no mesmo lado da porcentagem) |
+| D57 | Failover: prioridade menor = preferido, empate pela menor latência média; coletor pausado nunca assume; o MASTER preferido fixado pelo operador assume assim que fica online | Seção 4.8 ("maior prioridade" = número menor, como no portal); pausa é manutenção no cliente |
+| D58 | Reativar etapa 2: o portal acompanha a volta do coletor por até 3 min contra o horário do servidor (`requested_at`) | Relógio errado no PC do técnico não pode dar "voltou"/"não voltou" falso |
+| D59 | Teste de contrato Go × schemas do servidor; no Go, coleção com padrão no servidor vai `omitempty` e coleção obrigatória nunca vai `null` | O Go serializa lista vazia (nil) como `null` e o servidor recusava: o heartbeat do watchdog nunca era aceito e um PC sem IPv4 não conseguiria se cadastrar |
+| D60 | No teste de caos sem administrador, o passo do banco derruba todas as conexões (`pg_terminate_backend`) em vez de reiniciar o serviço; o relatório diz qual dos dois foi feito | Reiniciar `postgresql-x64-16` exige administrador; a recuperação de API/gateway/worker é a mesma nos dois casos. Rodar `scripts\chaos.ps1` como administrador reinicia o serviço de verdade |

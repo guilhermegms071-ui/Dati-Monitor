@@ -20,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.product import REPO_ROOT
 from app.core.security import hash_password
+from tests.release_helpers import TEST_RELEASE_PUBLIC_B64
 
 
 def _load_repo_env() -> None:
@@ -129,6 +130,7 @@ def test_settings(migrated_db: str, mail_catcher: Any, tmp_path_factory: pytest.
         smtp_port=mail_catcher.smtp.port,
         login_rate_limit_per_minute=1000,
         public_base_url="http://portal.test",
+        release_public_key=TEST_RELEASE_PUBLIC_B64,
     )
 
 

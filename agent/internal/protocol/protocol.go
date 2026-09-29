@@ -5,6 +5,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/daticopy/dati-monitor/agent/internal/printer"
@@ -39,7 +40,7 @@ type EnrollRequest struct {
 	Arch     string   `json:"arch"`
 	Kind     string   `json:"kind"` // windows | linux
 	Version  string   `json:"version"`
-	LocalIPs []string `json:"local_ips"`
+	LocalIPs []string `json:"local_ips,omitempty"`
 	HostMAC  string   `json:"host_mac,omitempty"`
 }
 
@@ -82,7 +83,7 @@ type HeartbeatRequest struct {
 	QueuePending         int        `json:"queue_pending"`
 	QueueDropped         int        `json:"queue_dropped"`
 	UptimeSeconds        int64      `json:"uptime_seconds"`
-	LocalIPs             []string   `json:"local_ips"`
+	LocalIPs             []string   `json:"local_ips,omitempty"`
 	Hostname             string     `json:"hostname"`
 	OS                   string     `json:"os"`
 	Arch                 string     `json:"arch"`
@@ -95,6 +96,8 @@ type HeartbeatRequest struct {
 	Errors               []string   `json:"errors,omitempty"`
 	LatencyMS            *float64   `json:"latency_ms,omitempty"`
 	WSConnected          bool       `json:"ws_connected"`
+	// WatchdogState is the dm-watchdog service as the agent sees it (mutual watch, PROMPT 5.1).
+	WatchdogState string `json:"watchdog_state,omitempty"`
 }
 
 // HeartbeatResponse tells the agent its role and the current configuration version.
@@ -299,14 +302,14 @@ const (
 type WSMessage struct {
 	V    int             `json:"v"`
 	Type string          `json:"type"`
-	Data json.RawMessage `json:"data"`
+	Data json.RawMessage `json:"data,omitempty"`
 }
 
 // Hello is the first message sent by the agent after connecting.
 type Hello struct {
 	V            int      `json:"v"`
 	Version      string   `json:"version"`
-	Capabilities []string `json:"capabilities"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // Welcome is the server's greeting.
@@ -322,4 +325,79 @@ type WSErrorData struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	ID      string `json:"id,omitempty"`
+}
+
+// Service states one product service reports about the other (agent ↔ watchdog).
+const (
+	ServiceRunning      = "running"
+	ServiceStopped      = "stopped"
+	ServiceStarting     = "starting"
+	ServiceNotInstalled = "not_installed"
+	ServiceUnknown      = "unknown"
+)
+
+// WatchdogRestart is one agent restart done by the watchdog, with the reason.
+type WatchdogRestart struct {
+	At     time.Time `json:"at"`
+	Reason string    `json:"reason"`
+}
+
+// WatchdogHeartbeatRequest is sent by dm-watchdog every 60 s (POST /api/watchdog/heartbeat).
+type WatchdogHeartbeatRequest struct {
+	V                    int               `json:"v"`
+	Ts                   time.Time         `json:"ts"`
+	Version              string            `json:"version"`
+	OS                   string            `json:"os"`
+	Arch                 string            `json:"arch"`
+	AgentState           string            `json:"agent_state"`
+	AgentHealthy         bool              `json:"agent_healthy"`
+	AgentVersion         string            `json:"agent_version"`
+	AgentMemoryBytes     uint64            `json:"agent_memory_bytes"`
+	PreviousAgentVersion string            `json:"previous_agent_version"`
+	Restarts             []WatchdogRestart `json:"restarts,omitempty"`
+	Errors               []string          `json:"errors,omitempty"`
+}
+
+// WatchdogHeartbeatResponse carries the commands addressed to the watchdog.
+type WatchdogHeartbeatResponse struct {
+	V          int              `json:"v"`
+	ServerTime time.Time        `json:"server_time"`
+	Commands   []CommandMessage `json:"commands"`
+}
+
+// UpdateParams are the params of an `update` command (PROMPT 5.2).
+type UpdateParams struct {
+	ReleaseID string `json:"release_id"`
+	Component string `json:"component"` // agent | watchdog
+	Version   string `json:"version"`
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
+	SHA256    string `json:"sha256"`
+	Signature string `json:"signature"` // ed25519, base64
+	SizeBytes int64  `json:"size_bytes"`
+	URL       string `json:"url"`
+}
+
+// ReleaseMessage is the exact message covered by a release's ed25519 signature: it binds the binary's
+// sha256 to its component, version and target, so an old signed binary cannot pose as a new version.
+func ReleaseMessage(component, version, goos, goarch, sha256hex string) []byte {
+	return []byte(strings.Join([]string{"dati-monitor-release/v1", component, version, goos, goarch, sha256hex}, "\n"))
+}
+
+// MarshalJSON sends "ranges" as a list even when nil (the server requires the field and refuses null).
+func (r SuggestRangesRequest) MarshalJSON() ([]byte, error) {
+	type plain SuggestRangesRequest
+	if r.Ranges == nil {
+		r.Ranges = []string{}
+	}
+	return json.Marshal(plain(r))
+}
+
+// MarshalJSON sends "counters" as an object even when nil (required by the server; null is refused).
+func (p ReadingPayload) MarshalJSON() ([]byte, error) {
+	type plain ReadingPayload
+	if p.Counters == nil {
+		p.Counters = map[string]int64{}
+	}
+	return json.Marshal(plain(p))
 }

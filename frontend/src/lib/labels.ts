@@ -61,6 +61,7 @@ export const CLUSTER_REASON: Record<string, string> = {
   first_agent: 'Primeiro coletor do local',
   manual_promote: 'Promovido pelo operador',
   lease_expired: 'Lease do MASTER expirou',
+  preferred_master: 'MASTER preferido assumiu',
   revoked: 'Coletor revogado',
   deleted: 'Coletor excluído',
 };

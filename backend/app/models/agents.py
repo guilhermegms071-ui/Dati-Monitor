@@ -64,6 +64,8 @@ class Agent(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     state: Mapped[str] = mapped_column(String(16), server_default=text("'offline'"), default="offline")
     last_seen_at: Mapped[datetime | None] = mapped_column(default=None)
     last_watchdog_seen_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Último relato do dm-watchdog (estado do serviço do agente, reinícios e motivos, versão anterior).
+    watchdog_status: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
     secret_hash: Mapped[str | None] = mapped_column(String(128))
     enrolled_at: Mapped[datetime | None] = mapped_column(default=None)
     revoked_at: Mapped[datetime | None] = mapped_column(default=None)

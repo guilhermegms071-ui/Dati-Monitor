@@ -14,6 +14,7 @@ from app.api.v1 import auth as auth_routes
 from app.api.v1 import collection as collection_routes
 from app.api.v1 import commands as commands_routes
 from app.api.v1 import park as park_routes
+from app.api.v1 import releases as releases_routes
 from app.api.v1 import tenancy as tenancy_routes
 from app.api.v1 import users as users_routes
 from app.core.config import Settings, get_settings
@@ -123,6 +124,8 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
     v1.include_router(collection_routes.router)
     v1.include_router(commands_routes.router)
     v1.include_router(park_routes.router)
+    v1.include_router(releases_routes.router)
     app.include_router(v1)
     app.include_router(agent_routes.router)
+    app.include_router(agent_routes.watchdog_router)
     return app

@@ -76,34 +76,11 @@ func RecoveryReport(name string) (string, error) {
 	return fmt.Sprintf("%sreset=%ds", out, reset), nil
 }
 
-// ServiceState returns the SCM state of a service ("running", "stopped", ...).
+// ServiceState returns the normalized state of a service (running, stopped, not_installed, …); querying
+// needs no special rights.
 func ServiceState(name string) (string, error) {
-	m, err := mgr.Connect()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = m.Disconnect() }()
-	s, err := m.OpenService(name)
-	if err != nil {
-		return "not_installed", nil //nolint:nilerr // serviço ausente é um estado válido
-	}
-	defer func() { _ = s.Close() }()
-	st, err := s.Query()
-	if err != nil {
-		return "", err
-	}
-	switch st.State {
-	case svc.Running:
-		return "running", nil
-	case svc.Stopped:
-		return "stopped", nil
-	case svc.StartPending:
-		return "start_pending", nil
-	case svc.StopPending:
-		return "stop_pending", nil
-	default:
-		return fmt.Sprintf("state_%d", st.State), nil
-	}
+	st, err := Query(name)
+	return st.State, err
 }
 
 // ErrNotInstalled means the service does not exist on this machine.

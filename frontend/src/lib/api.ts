@@ -154,3 +154,17 @@ export async function fetchText(url: string): Promise<string> {
   if (!resp.ok) throw await parseError(resp);
   return resp.text();
 }
+
+/** Envia um arquivo binário no corpo (publicação de versão) e devolve o JSON da resposta. */
+export async function postBinary<T>(url: string, body: Blob): Promise<T> {
+  const resp = await authFetch(
+    new Request(url, {
+      method: 'POST',
+      body,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/json' },
+    }),
+  );
+  if (!resp.ok) throw await parseError(resp);
+  return (await resp.json()) as T;
+}

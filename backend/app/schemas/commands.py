@@ -68,6 +68,24 @@ class MibWalkParams(TargetParams):
 
 class GetLogsParams(_Params):
     hours: int = Field(default=24, ge=1, le=168)
+    source: Literal["agent", "watchdog"] = Field(
+        default="agent",
+        description="Logs do coletor ou do vigia (watchdog), que responde mesmo com o coletor travado",
+    )
+
+
+class UpdateCommandParams(_Params):
+    version: str = Field(min_length=1, max_length=64, description="Versão publicada em Releases")
+    component: Literal["agent", "watchdog"] = Field(
+        default="agent",
+        description="agent: o watchdog atualiza o coletor; watchdog: o coletor atualiza o watchdog",
+    )
+
+
+class UninstallParams(_Params):
+    confirm_name: str = Field(
+        max_length=200, description="Confirmação dupla: o nome do coletor digitado de novo pelo operador"
+    )
 
 
 class WakeHostParams(_Params):
@@ -93,6 +111,10 @@ class PingHostParams(_Params):
 
 CommandType = Literal[
     "reconnect",
+    "restart_agent",
+    "update",
+    "rollback",
+    "uninstall",
     "restart_watchdog",
     "scan_now",
     "read_now",
@@ -111,6 +133,10 @@ CommandType = Literal[
 
 PARAMS_BY_TYPE: dict[str, type[_Params]] = {
     "reconnect": NoParams,
+    "restart_agent": NoParams,
+    "update": UpdateCommandParams,
+    "rollback": NoParams,
+    "uninstall": UninstallParams,
     "restart_watchdog": NoParams,
     "scan_now": ScanNowParams,
     "read_now": ReadNowParams,
@@ -129,6 +155,10 @@ PARAMS_BY_TYPE: dict[str, type[_Params]] = {
 
 COMMAND_LABELS: dict[str, str] = {
     "reconnect": "Reconectar",
+    "restart_agent": "Reiniciar o coletor (pelo watchdog)",
+    "update": "Atualizar",
+    "rollback": "Voltar para a versão anterior",
+    "uninstall": "Desinstalar do PC",
     "restart_watchdog": "Reiniciar o watchdog",
     "scan_now": "Varrer a rede agora",
     "read_now": "Ler agora",
@@ -144,6 +174,21 @@ COMMAND_LABELS: dict[str, str] = {
     "wake_host": "Ligar PC (Wake-on-LAN)",
     "ping_host": "Ping",
 }
+
+
+# Executados pelo dm-watchdog (canal próprio de polling, seção 5.1); os demais, pelo coletor.
+WATCHDOG_COMMANDS = frozenset({"restart_agent", "rollback", "uninstall"})
+
+
+def command_target(ctype: str, params: dict[str, Any]) -> Literal["agent", "watchdog"]:
+    """Quem executa: `update` do coletor e `get_logs` do vigia vão ao watchdog; o resto, ao coletor."""
+    if ctype in WATCHDOG_COMMANDS:
+        return "watchdog"
+    if ctype == "update":
+        return "watchdog" if params.get("component", "agent") == "agent" else "agent"
+    if ctype == "get_logs" and params.get("source") == "watchdog":
+        return "watchdog"
+    return "agent"
 
 
 class CommandIn(BaseModel):

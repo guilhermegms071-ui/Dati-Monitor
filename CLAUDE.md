@@ -21,6 +21,8 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/app/api/agent/` | Rotas `/api/agent/*` (protocolo do agente, contingência de comandos, uploads). Ingestão em `services/ingest.py`. |
 | `backend/app/gateway/` | Processo do WebSocket `/ws/agent`: `hub.py` (conexões e entrega de comandos), `listener.py` (LISTEN/NOTIFY), `main.py`. |
 | `backend/app/services/{commands,presence}.py` | Ciclo de vida dos comandos (4.7), uploads, expiração; presença e varredura de offline. |
+| `agent/internal/{watchdog,release}` | dm-watchdog (vigia a cada 15 s, canal próprio a cada 60 s, comandos do vigia; alvo serviço ou processo) e versões assinadas (ed25519, troca de binário com rollback automático). Chave pública em `release/public.key`. |
+| `backend/app/services/{watchdog,releases,updates,cluster}.py` | Canal do watchdog, publicação/estatística de versões, atualização automática e failover do lease do MASTER (jobs do worker). |
 | `agent/internal/{ws,commands,netdiag}` | Canal WebSocket; executor idempotente de comandos; ping/WOL/disco/interfaces. Handlers em `internal/agent/commands.go`. |
 | `backend/app/core/` | Config (`pydantic-settings`, lê `.env` da raiz), banco, segurança (argon2/JWT), cripto AES-GCM, `Principal` + escopos, permissões, erros, e-mail, rate limit. |
 | `backend/app/models/` | Todas as tabelas (SQLAlchemy 2 tipado). `PARTITIONED_TABLES`/`APPEND_ONLY_TABLES` em `__init__`. |
@@ -57,6 +59,8 @@ scripts\test.ps1            # Go (-race, cobertura >= 80% internal/), pytest (>=
 scripts\test.ps1 -E2E       # + Playwright
 scripts\lint.ps1            # golangci-lint, ruff, mypy --strict, eslint, prettier, tsc
 scripts\build-agent.ps1 [-Version x.y.z]   # 3 binários x 7 alvos em dist\
+scripts\chaos.ps1 [-OutageMinutes 10]      # teste de caos (seção 13); como administrador reinicia também o PostgreSQL
+# Publicar versão: build com -Version x.y.z → dm-tool sign --file <binário> --version x.y.z → colar a saída em Versões (superadmin)
 ```
 
 Instalação do zero: `py -3.12 -m venv .venv`, `.venv\Scripts\pip install -r backend\requirements-dev.lock`,
@@ -107,6 +111,10 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   `useEffect` (use `key` para remontar formulários); falhas via `showError` (toast + `console.error`).
 - E2E: o `global-setup` roda `scripts/e2e_seed.py` (só dev/CI) com senha aleatória por execução, e
   os testes rodam em série. Leituras de teste precisam de chave de idempotência nova (`agent_id:uuid`).
+- Mensagem nova no protocolo (Python + Go): o teste `TestMessagesMatchServerSchemas` confere o Go contra os
+  schemas gerados; coleção com padrão no servidor vai `omitempty`, coleção obrigatória nunca vai `null` (D59).
+- A chave PRIVADA de versões fica fora do repositório (`%USERPROFILE%\.dati-monitor\release-signing.key`);
+  nunca a copie para o projeto, para o servidor ou para logs.
 - Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de
   verdade levam `//go:build integration` e usam `internal/simtest`. Rodar `-race` exige o GCC no PATH
   (o `test.ps1` acha o WinLibs sozinho).

@@ -37,6 +37,7 @@ type fakeServer struct {
 	pending    []protocol.CommandMessage
 	updates    []protocol.CommandUpdate
 	uploads    map[string][]byte
+	releases   map[string][]byte
 }
 
 func (f *fakeServer) handler(t *testing.T) http.Handler {
@@ -93,6 +94,16 @@ func (f *fakeServer) handler(t *testing.T) http.Handler {
 		f.uploads[r.PathValue("kind")+":"+r.URL.Query().Get("command_id")] = body
 		f.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(protocol.UploadResponse{V: 1, ID: "arquivo-1", SizeBytes: int64(len(body))})
+	})
+	mux.HandleFunc("GET /api/agent/releases/{id}/file", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		data, ok := f.releases[r.PathValue("id")]
+		f.mu.Unlock()
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write(data)
 	})
 	mux.HandleFunc("GET /api/agent/config", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()

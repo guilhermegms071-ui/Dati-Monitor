@@ -23,6 +23,7 @@ import { useSendCommand, type CommandType } from '../../lib/commands';
 import { fmtDateTime, fmtInt } from '../../lib/format';
 import { AGENT_STATE } from '../../lib/labels';
 import { showError, showSuccess } from '../../lib/notify';
+import { WatchdogBadge } from './WatchdogPanels';
 
 type Agent = Schemas['AgentOut'];
 
@@ -240,11 +241,7 @@ function AgentRow({
       </td>
       <td className="px-3 py-2 text-right tabular-nums">{fmtInt(a.queue_pending)}</td>
       <td className="px-3 py-2 text-xs">
-        {a.last_watchdog_seen_at ? (
-          <RelativeTime value={a.last_watchdog_seen_at} />
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
+        <WatchdogBadge agent={a} />
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-right">
         {canCommand && enrolled ? (
@@ -269,6 +266,9 @@ function AgentRow({
                 <MenuItem onSelect={() => void send('pause')}>Pausar coletas</MenuItem>
               )}
               <MenuItem onSelect={() => void send('restart_watchdog')}>Reiniciar o watchdog</MenuItem>
+              {a.last_watchdog_seen_at ? (
+                <MenuItem onSelect={() => void send('restart_agent')}>Reiniciar o coletor (pelo watchdog)</MenuItem>
+              ) : null}
             </Menu>
           </span>
         ) : null}

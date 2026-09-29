@@ -4,9 +4,11 @@ package agent
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
 	"sort"
 	"sync"
@@ -20,11 +22,13 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/config"
 	"github.com/daticopy/dati-monitor/agent/internal/health"
 	"github.com/daticopy/dati-monitor/agent/internal/osinfo"
+	"github.com/daticopy/dati-monitor/agent/internal/product"
 	"github.com/daticopy/dati-monitor/agent/internal/protocol"
 	"github.com/daticopy/dati-monitor/agent/internal/sdnotify"
 	"github.com/daticopy/dati-monitor/agent/internal/secret"
 	"github.com/daticopy/dati-monitor/agent/internal/store"
 	"github.com/daticopy/dati-monitor/agent/internal/uploader"
+	"github.com/daticopy/dati-monitor/agent/internal/watchdog"
 	"github.com/daticopy/dati-monitor/agent/internal/ws"
 )
 
@@ -55,6 +59,11 @@ type Agent struct {
 	ContingencyAfter time.Duration
 	PollInterval     time.Duration
 	ReconnectWait    time.Duration
+	// Mutual watch and watchdog updates (PROMPT 5.1/5.2); tests replace the service and the key.
+	WatchdogService    watchdog.Target
+	WatchdogHealth     string
+	WatchdogCheckEvery time.Duration
+	ReleaseKey         ed25519.PublicKey
 
 	meter          osinfo.ProcessMeter
 	started        time.Time
@@ -62,6 +71,7 @@ type Agent struct {
 	lastHeartbeat  atomic.Int64
 	heartbeatError atomic.Value
 	wsLastError    atomic.Value
+	watchdogState  atomic.Value
 	hbKick         chan struct{}
 	mu             sync.Mutex
 	runCtx         context.Context
@@ -89,6 +99,7 @@ func New(dir string, log *slog.Logger) (*Agent, error) {
 	a := &Agent{
 		Dir: dir, Local: local, Log: log, Client: client, Store: st, Health: health.NewRegistry(), started: time.Now(),
 		ContingencyAfter: ContingencyAfter, PollInterval: PollInterval, hbKick: make(chan struct{}, 1),
+		WatchdogService: watchdog.ServiceTarget{Name: product.WatchdogServiceName()}, WatchdogHealth: watchdog.HealthAddr,
 	}
 	a.heartbeatError.Store("")
 	a.wsLastError.Store("")
@@ -128,6 +139,8 @@ func (a *Agent) info() map[string]any {
 	hbErr, _ := a.heartbeatError.Load().(string)
 	return map[string]any{
 		"version":              buildinfo.Version,
+		"pid":                  os.Getpid(),
+		"watchdog_state":       a.WatchdogState(),
 		"agent_id":             a.Local.AgentID,
 		"cluster_role":         a.Collector.Role(),
 		"paused":               a.Collector.Paused(),
@@ -190,7 +203,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.mu.Unlock()
 	var wg sync.WaitGroup
 	errs := make(chan error, 1)
-	wg.Add(6)
+	wg.Add(7)
 	go func() {
 		defer wg.Done()
 		if err := health.Serve(ctx, addr, a.Health); err != nil {
@@ -207,6 +220,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	go func() { defer wg.Done(); a.WS.Run(ctx) }()
 	go func() { defer wg.Done(); a.Exec.Run(ctx) }()
 	go func() { defer wg.Done(); a.pollLoop(ctx) }()
+	go func() { defer wg.Done(); a.watchdogLoop(ctx) }()
 	_ = sdnotify.Ready()
 	a.heartbeatLoop(ctx)
 	_ = sdnotify.Stopping()
@@ -257,6 +271,7 @@ func (a *Agent) HeartbeatRequest(ctx context.Context) protocol.HeartbeatRequest 
 		Hostname: osinfo.Hostname(), OS: osinfo.Describe(), Arch: runtime.GOARCH, HostMAC: osinfo.HostMAC(),
 		AppliedConfigVersion: int(a.applied.Load()), DevicesKnown: a.Collector.KnownDevices(ctx),
 		Paused: a.Collector.Paused(), LatencyMS: a.WS.RTT(), WSConnected: a.WS.Connected(),
+		WatchdogState: a.WatchdogState(),
 	}
 	if t := a.Collector.LastScan(); !t.IsZero() {
 		req.LastScanAt = &t

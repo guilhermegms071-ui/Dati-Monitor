@@ -7,6 +7,7 @@ import zlib
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from app.api.deps import SessionDep, SettingsDep, client_ip
@@ -17,6 +18,8 @@ from app.schemas import agent as proto
 from app.schemas.common import ERROR_RESPONSES, OkResponse
 from app.services import agents as svc
 from app.services import commands as commands_svc
+from app.services import releases as releases_svc
+from app.services import watchdog as watchdog_svc
 from app.services.ingest import ingest_batch
 
 router = APIRouter(prefix="/api/agent", tags=["coletores (protocolo)"], responses=ERROR_RESPONSES)
@@ -191,3 +194,35 @@ async def upload_walk(
     row = await commands_svc.store_walk(session, settings, agent, command_id, data)
     await session.commit()
     return proto.UploadResponse(id=str(row.id), size_bytes=len(data))
+
+
+# ----------------------------------------------------------------------------- releases (download)
+
+
+@router.get(
+    "/releases/{release_id}/file",
+    response_class=FileResponse,
+    summary="Binário de uma versão (para o watchdog/coletor que executa um update)",
+    responses={200: {"content": {"application/octet-stream": {}}}},
+)
+async def release_file(release_id: uuid.UUID, agent: AgentDep, session: SessionDep) -> FileResponse:
+    path = await releases_svc.get_release_file(session, agent, release_id)
+    return FileResponse(path, media_type="application/octet-stream", filename=path.name)
+
+
+# ----------------------------------------------------------------------------- watchdog (seção 5.1)
+
+watchdog_router = APIRouter(prefix="/api/watchdog", tags=["watchdog (protocolo)"], responses=ERROR_RESPONSES)
+
+
+@watchdog_router.post(
+    "/heartbeat",
+    response_model=proto.WatchdogHeartbeatResponse,
+    summary="Heartbeat do dm-watchdog (a cada 60 s); devolve os comandos do watchdog",
+)
+async def watchdog_heartbeat(
+    body: proto.WatchdogHeartbeatRequest, agent: AgentDep, session: SessionDep
+) -> proto.WatchdogHeartbeatResponse:
+    resp = await watchdog_svc.heartbeat(session, agent, body)
+    await session.commit()
+    return resp

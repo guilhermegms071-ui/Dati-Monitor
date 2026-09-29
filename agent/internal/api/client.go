@@ -441,3 +441,52 @@ func finish(hc *http.Client, req *http.Request, path string, out any) error {
 	}
 	return nil
 }
+
+// WatchdogHeartbeat is dm-watchdog's own channel (POST /api/watchdog/heartbeat, PROMPT 5.1).
+func (c *Client) WatchdogHeartbeat(ctx context.Context, req protocol.WatchdogHeartbeatRequest) (*protocol.WatchdogHeartbeatResponse, error) {
+	req.V = protocol.Version
+	var out protocol.WatchdogHeartbeatResponse
+	if err := c.call(ctx, http.MethodPost, "/api/watchdog/heartbeat", req, &out, false); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Download fetches a binary served by the API (release of an `update`) with the session token.
+func (c *Client) Download(ctx context.Context, path string, limit int64) ([]byte, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		tok, err := c.bearer(ctx)
+		if err != nil {
+			return nil, err
+		}
+		u := *c.base
+		u.Path = strings.TrimRight(c.base.Path, "/") + path
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("User-Agent", userAgent())
+		resp, err := c.hc.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("falha de rede ao baixar %s: %w", path, err)
+		}
+		data, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
+			c.ResetToken()
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, &Error{Status: resp.StatusCode, Message: "download recusado pelo servidor"}
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("baixar %s: %w", path, readErr)
+		}
+		if int64(len(data)) > limit {
+			return nil, fmt.Errorf("arquivo de %s maior que o esperado (%d bytes)", path, limit)
+		}
+		return data, nil
+	}
+	return nil, errors.New("falha de autenticação repetida")
+}

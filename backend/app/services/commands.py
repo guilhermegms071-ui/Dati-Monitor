@@ -19,14 +19,15 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import bad_request, conflict, not_found
+from app.core.errors import bad_request, conflict, forbidden, not_found
 from app.core.notify import CH_COMMAND, CH_COMMAND_UPDATE, notify, notify_event
+from app.core.permissions import RESELLER_ADMIN, role_level
 from app.core.principal import Principal
 from app.models import Agent, AgentLog, ClusterEvent, Command, Device, IpRange, MibWalk, Site
 from app.schemas import agent as proto
-from app.schemas.commands import COMMAND_LABELS, PARAMS_BY_TYPE, CommandIn
+from app.schemas.commands import COMMAND_LABELS, PARAMS_BY_TYPE, CommandIn, command_target
 from app.services import agents as agents_svc
-from app.services import audit
+from app.services import audit, releases
 from app.services.pagination import Direction, PageResult, SortOption, paginate
 
 logger = logging.getLogger(__name__)
@@ -66,34 +67,63 @@ async def create_command(
         raise bad_request(
             "invalid_params", f"Parâmetros inválidos para {COMMAND_LABELS[data.type]}", errors=errors
         ) from exc
-    stored = await _prepare(session, p, agent, data.type, params.model_dump(mode="json"))
-    now = _now()
+    raw = params.model_dump(mode="json")
+    target = command_target(data.type, raw)
+    if target == "watchdog" and agent.last_watchdog_seen_at is None:
+        raise conflict(
+            "watchdog_never_seen",
+            "O vigia (dm-watchdog) deste PC nunca se comunicou: instale o serviço DatiMonitorWatchdog",
+        )
+    stored = await _prepare(session, p, agent, data.type, raw)
     minutes = data.expires_in_minutes or settings.command_expiry_minutes
+    cmd = await insert_command(
+        session, p, agent, data.type, stored, target=target, expires_in=timedelta(minutes=minutes)
+    )
+    if data.type in ("pause", "resume", "promote_master"):
+        await agents_svc.emit_state(session, agent)
+    return cmd
+
+
+async def insert_command(
+    session: AsyncSession,
+    p: Principal | None,
+    agent: Agent,
+    ctype: str,
+    stored: dict[str, Any],
+    *,
+    target: str,
+    expires_in: timedelta,
+    reason: str | None = None,
+) -> Command:
+    """Stores a command already validated/prepared. `p=None` = created by the server itself (cluster
+    failover, automatic update), audited without a user and with the reason."""
     cmd = Command(
         reseller_id=agent.reseller_id,
         agent_id=agent.id,
-        target="agent",
-        type=data.type,
+        target=target,
+        type=ctype,
         params=stored,
         state="pending",
-        created_by=p.user_id,
-        expires_at=now + timedelta(minutes=minutes),
+        created_by=p.user_id if p else None,
+        expires_at=_now() + expires_in,
     )
     session.add(cmd)
     await session.flush()
+    after: dict[str, Any] = {"agent_id": str(agent.id), "type": ctype, "target": target, "params": stored}
+    if reason:
+        after["reason"] = reason
     await audit.record(
         session,
         p,
-        action=f"command.{data.type}",
+        action=f"command.{ctype}",
         entity="command",
         entity_id=cmd.id,
         reseller_id=agent.reseller_id,
-        after={"agent_id": str(agent.id), "type": data.type, "params": stored},
+        after=after,
     )
-    await notify(session, CH_COMMAND, str(agent.id))
+    if target == "agent":
+        await notify(session, CH_COMMAND, str(agent.id))  # o gateway entrega na hora pelo WebSocket
     await emit_commands(session, [cmd])
-    if data.type in ("pause", "resume", "promote_master"):
-        await agents_svc.emit_state(session, agent)
     return cmd
 
 
@@ -220,6 +250,36 @@ async def _prep_wake(
     return {"target_agent_id": str(target.id), "mac": target.host_mac, "target_ips": list(target.local_ips)}
 
 
+async def _prep_update(
+    session: AsyncSession, _p: Principal, agent: Agent, params: dict[str, Any]
+) -> dict[str, Any]:
+    release = await releases.find_release(session, agent, params["component"], params["version"])
+    return releases.update_params(release)
+
+
+async def _prep_rollback(
+    _session: AsyncSession, _p: Principal, agent: Agent, _params: dict[str, Any]
+) -> dict[str, Any]:
+    previous = (agent.watchdog_status or {}).get("previous_agent_version") or ""
+    if not previous:
+        raise conflict("no_previous_version", "O vigia não tem versão anterior guardada para voltar")
+    return {"component": "agent", "expected_version": previous}
+
+
+async def _prep_uninstall(
+    _session: AsyncSession, p: Principal, agent: Agent, params: dict[str, Any]
+) -> dict[str, Any]:
+    # Seção 4.7: confirmação dupla no portal e papel admin.
+    if p.level < role_level(RESELLER_ADMIN):
+        raise forbidden("Só administradores desinstalam o coletor do PC do cliente")
+    p.require("agents.write")
+    if params["confirm_name"].strip() != agent.name:
+        raise bad_request(
+            "confirmation_mismatch", "Digite o nome do coletor exatamente como aparece no portal"
+        )
+    return {}
+
+
 _Preparer = Callable[[AsyncSession, Principal, Agent, dict[str, Any]], Awaitable[dict[str, Any]]]
 _PREPARERS: dict[str, _Preparer] = {
     "scan_now": _prep_scan,
@@ -230,6 +290,9 @@ _PREPARERS: dict[str, _Preparer] = {
     "resume": _prep_resume,
     "promote_master": _prep_promote,
     "wake_host": _prep_wake,
+    "update": _prep_update,
+    "rollback": _prep_rollback,
+    "uninstall": _prep_uninstall,
 }
 
 
@@ -327,9 +390,11 @@ def to_message(cmd: Command) -> proto.CommandMessage:
     )
 
 
-async def claim_for_delivery(session: AsyncSession, agent_id: uuid.UUID) -> list[Command]:
-    """Commands to hand to the agent now: pending ones, plus delivered-but-unconfirmed ones (the
-    connection may have dropped in between). Marks them `sent`."""
+async def claim_for_delivery(
+    session: AsyncSession, agent_id: uuid.UUID, target: str = "agent"
+) -> list[Command]:
+    """Commands to hand to the agent (or to its watchdog) now: pending ones, plus delivered-but-
+    unconfirmed ones (the connection may have dropped in between). Marks them `sent`."""
     now = _now()
     rows = list(
         (
@@ -337,7 +402,7 @@ async def claim_for_delivery(session: AsyncSession, agent_id: uuid.UUID) -> list
                 select(Command)
                 .where(
                     Command.agent_id == agent_id,
-                    Command.target == "agent",
+                    Command.target == target,
                     Command.expires_at > now,
                     or_(
                         Command.state == "pending",
@@ -487,7 +552,7 @@ async def store_logs(
         reseller_id=agent.reseller_id,
         agent_id=agent.id,
         command_id=cmd.id,
-        source="agent",
+        source=cmd.target,
         file_path=str(path),
         size_bytes=len(data),
         hours=int(cmd.params.get("hours", 24)),

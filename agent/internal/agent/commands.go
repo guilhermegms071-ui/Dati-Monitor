@@ -58,8 +58,8 @@ func (t target) check() (target, error) {
 	return t, nil
 }
 
-// commandSpecs maps every command type this build executes (PROMPT 4.7; the watchdog's own commands
-// — restart_agent, update, rollback, uninstall — run in dm-watchdog).
+// commandSpecs maps every command type this build executes (PROMPT 4.7). The watchdog runs its own:
+// restart_agent, rollback, uninstall and the agent's update; the agent runs the watchdog's update.
 func (a *Agent) commandSpecs() map[string]commands.Spec {
 	return map[string]commands.Spec{
 		"reconnect":        {Handler: a.cmdReconnect},
@@ -77,6 +77,7 @@ func (a *Agent) commandSpecs() map[string]commands.Spec {
 		"promote_master":   {Handler: a.cmdPromote},
 		"wake_host":        {Handler: a.cmdWakeHost},
 		"ping_host":        {Handler: a.cmdPingHost, Timeout: 2 * time.Minute},
+		"update":           {Handler: a.cmdUpdate, Timeout: 10 * time.Minute}, // só do watchdog (processo inverso)
 	}
 }
 

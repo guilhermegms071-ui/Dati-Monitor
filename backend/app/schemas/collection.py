@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.common import ORMModel
 
@@ -67,6 +67,8 @@ class AgentUpdate(BaseModel):
 
 
 class AgentOut(ORMModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: uuid.UUID
     reseller_id: uuid.UUID
     site_id: uuid.UUID
@@ -98,6 +100,8 @@ class AgentOut(ORMModel):
     suggested_ranges: list[Any]
     paused: bool
     ws_connected: bool = Field(default=False, description="Há conexão WebSocket viva agora")
+    watchdog_status: dict[str, Any] = Field(default_factory=dict)
+    watchdog_alive: bool = Field(default=False, description="O dm-watchdog deu sinal nos últimos 3 min")
     customer_id: uuid.UUID | None = None
     customer_name: str = ""
     site_name: str = ""

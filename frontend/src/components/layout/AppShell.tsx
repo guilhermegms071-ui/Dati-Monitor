@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu as MenuIcon,
   Monitor,
+  PackageCheck,
   Moon,
   Printer,
   Server,
@@ -47,6 +48,7 @@ const NAV: NavItem[] = [
   { to: '/revendas', label: 'Revendas', icon: <Monitor className="h-4 w-4" />, superadmin: true },
   { to: '/usuarios', label: 'Usuários', icon: <Users className="h-4 w-4" />, permission: 'users.read' },
   { to: '/auditoria', label: 'Auditoria', icon: <ClipboardList className="h-4 w-4" />, permission: 'audit.read' },
+  { to: '/versoes', label: 'Versões', icon: <PackageCheck className="h-4 w-4" />, permission: 'agents.read' },
 ];
 
 export interface Crumb {

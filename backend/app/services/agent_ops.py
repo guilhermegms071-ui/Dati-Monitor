@@ -20,6 +20,7 @@ from app.services import agents as agents_svc
 from app.services import audit
 from app.services import commands as commands_svc
 from app.services import presence as presence_svc
+from app.services.watchdog import watchdog_alive
 
 DISPLAY_TZ = ZoneInfo("America/Sao_Paulo")
 # Coletor "vivo" para o Reativar: heartbeat recente ou conexão WebSocket de pé.
@@ -58,6 +59,8 @@ class ClusterEventOut(BaseModel):
     reason: str
     from_agent_id: uuid.UUID | None
     to_agent_id: uuid.UUID | None
+    from_name: str | None = Field(default=None, description="Nome do coletor (também de excluídos)")
+    to_name: str | None = Field(default=None, description="Nome do coletor (também de excluídos)")
 
 
 class SiteCluster(BaseModel):
@@ -80,10 +83,14 @@ class Reactivation(BaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     agent_id: uuid.UUID
-    outcome: str = Field(description="commands_sent | failover | nothing_online")
+    outcome: str = Field(description="commands_sent | watchdog_restart | failover | nothing_online")
     message: str
     steps: list[ReactivationStep]
     suggestions: list[str] = Field(default_factory=list)
+    wait_seconds: int = Field(default=0, description="Por quanto tempo o portal acompanha a volta do coletor")
+    requested_at: datetime = Field(
+        description="Horário do servidor no pedido (a volta do coletor é medida a partir dele)"
+    )
 
 
 class BulkCommandIn(BaseModel):
@@ -146,13 +153,24 @@ async def cluster(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> Si
     )
     connected = await presence_svc.connected_ids(session, (a.id for a in members))
     events = (
-        await session.execute(
-            select(ClusterEvent)
-            .where(ClusterEvent.site_id == site.id)
-            .order_by(ClusterEvent.created_at.desc())
-            .limit(30)
+        (
+            await session.execute(
+                select(ClusterEvent)
+                .where(ClusterEvent.site_id == site.id)
+                .order_by(ClusterEvent.created_at.desc())
+                .limit(30)
+            )
         )
-    ).scalars()
+        .scalars()
+        .all()
+    )
+    # Nomes de todos os coletores citados no histórico, inclusive os já excluídos.
+    ids = {i for e in events for i in (e.from_agent_id, e.to_agent_id) if i is not None}
+    names: dict[uuid.UUID, str] = (
+        dict((await session.execute(select(Agent.id, Agent.name).where(Agent.id.in_(ids)))).tuples().all())
+        if ids
+        else {}
+    )
     return SiteCluster(
         site_id=site.id,
         master_agent_id=site.master_agent_id,
@@ -177,10 +195,47 @@ async def cluster(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> Si
                 reason=e.reason,
                 from_agent_id=e.from_agent_id,
                 to_agent_id=e.to_agent_id,
+                from_name=names.get(e.from_agent_id) if e.from_agent_id else None,
+                to_name=names.get(e.to_agent_id) if e.to_agent_id else None,
             )
             for e in events
         ],
     )
+
+
+async def set_preferred_master(
+    session: AsyncSession, p: Principal, site_id: uuid.UUID, agent_id: uuid.UUID | None
+) -> None:
+    """Operator pins the preferred MASTER (4.8); the cluster job promotes it as soon as it is online."""
+    p.require("sites.write")
+    site = await agents_svc.site_in_scope(session, p, site_id)
+    if agent_id is not None:
+        agent = await session.get(Agent, agent_id)
+        if (
+            agent is None
+            or agent.site_id != site.id
+            or agent.deleted_at is not None
+            or agent.revoked_at is not None
+        ):
+            raise bad_request(
+                "agent_not_in_site", "O coletor precisa ser deste local e não pode estar revogado"
+            )
+    before = site.preferred_master_agent_id
+    site.preferred_master_agent_id = agent_id
+    await audit.record(
+        session,
+        p,
+        action="site.preferred_master",
+        entity="site",
+        entity_id=site.id,
+        reseller_id=site.reseller_id,
+        before={"preferred_master_agent_id": str(before) if before else None},
+        after={"preferred_master_agent_id": str(agent_id) if agent_id else None},
+    )
+
+
+# Seção 4.7, etapa 2: acompanhar a volta do coletor reiniciado pelo watchdog por até 3 min.
+WATCHDOG_RESTART_WAIT_SECONDS = 180
 
 
 def _alive(agent: Agent, connected: set[uuid.UUID], now: datetime) -> bool:
@@ -194,8 +249,8 @@ async def reactivate(
 ) -> Reactivation:
     """The most important button of the system (PROMPT 4.7):
     1. agent connected → `reconnect` + `read_now`;
-    2. agent offline but its watchdog alive → `restart_agent` to the watchdog (arrives with the
-       watchdog, Phase 5);
+    2. agent offline but its watchdog alive → `restart_agent` to the watchdog, and the portal follows
+       until the agent is back (3 min);
     3. both offline and another collector of the site online → `promote_master` on it + `wake_host`
        to the fallen PC;
     4. nothing answers → clear diagnosis and manual suggestions."""
@@ -242,9 +297,27 @@ async def reactivate(
             )
         result = Reactivation(
             agent_id=agent.id,
+            requested_at=now,
             outcome="commands_sent",
             message="Coletor está conectado: comandos enviados",
             steps=steps,
+        )
+    elif watchdog_alive(agent, now):
+        steps.append(
+            ReactivationStep(
+                action="restart_agent",
+                message="O vigia (watchdog) do PC está reiniciando o coletor",
+                agent_id=agent.id,
+                command_id=await send(agent, "restart_agent"),
+            )
+        )
+        result = Reactivation(
+            agent_id=agent.id,
+            requested_at=now,
+            outcome="watchdog_restart",
+            message=f"“{agent.name}” não responde, mas o vigia do PC está ativo: pedido de reinício enviado",
+            steps=steps,
+            wait_seconds=WATCHDOG_RESTART_WAIT_SECONDS,
         )
     else:
         online = sorted(
@@ -279,6 +352,7 @@ async def reactivate(
                 )
             result = Reactivation(
                 agent_id=agent.id,
+                requested_at=now,
                 outcome="failover",
                 message=f"“{agent.name}” está offline; a coleta passa para “{helper.name}”",
                 steps=steps,
@@ -291,6 +365,7 @@ async def reactivate(
             )
             result = Reactivation(
                 agent_id=agent.id,
+                requested_at=now,
                 outcome="nothing_online",
                 message=(
                     f"Nenhum coletor deste local está ligado. Último sinal: {last}. "

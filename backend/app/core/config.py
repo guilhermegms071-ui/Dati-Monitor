@@ -12,6 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.product import REPO_ROOT
 
+RELEASE_PUBLIC_KEY_FILE = REPO_ROOT / "agent" / "internal" / "release" / "public.key"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -62,6 +64,12 @@ class Settings(BaseSettings):
     device_disconnected_hours: int = Field(default=6, ge=1, le=720)
     bootstrap_reseller_name: str = "Daticopy"
     bootstrap_admin_email: str = "admin@local"
+    # Releases assinadas (seção 5.2): chave PÚBLICA ed25519 em base64. Vazio = a do repositório
+    # (agent/internal/release/public.key, a mesma embutida no watchdog). A privada nunca vem para cá.
+    release_public_key: str = ""
+    # Atualização automática pelo worker; nunca oferece versão com falha acima disto no canary.
+    auto_update: bool = True
+    update_max_canary_failure_percent: float = Field(default=5.0, ge=0, le=100)
 
     @field_validator("master_key")
     @classmethod
@@ -77,6 +85,22 @@ class Settings(BaseSettings):
     @property
     def master_key_bytes(self) -> bytes:
         return base64.b64decode(self.master_key.get_secret_value())
+
+    @property
+    def release_public_key_bytes(self) -> bytes | None:
+        """Chave pública das releases (32 bytes), ou None se não houver nenhuma configurada."""
+        text = self.release_public_key.strip()
+        if not text and RELEASE_PUBLIC_KEY_FILE.exists():
+            text = RELEASE_PUBLIC_KEY_FILE.read_text(encoding="utf-8").strip()
+        if not text:
+            return None
+        try:
+            raw = base64.b64decode(text, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("RELEASE_PUBLIC_KEY precisa estar em base64") from exc
+        if len(raw) != 32:  # noqa: PLR2004 - ed25519
+            raise ValueError("RELEASE_PUBLIC_KEY precisa ter 32 bytes (ed25519) em base64")
+        return raw
 
     @property
     def agent_ws_url(self) -> str:

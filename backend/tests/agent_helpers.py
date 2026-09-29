@@ -56,6 +56,33 @@ class FakeAgent:
         data: dict[str, Any] = resp.json()
         return data
 
+    async def watchdog_heartbeat(self, **extra: Any) -> dict[str, Any]:
+        """What dm-watchdog sends every 60 s (same credential as the agent)."""
+        body = {
+            "v": 1,
+            "ts": datetime.now(UTC).isoformat(),
+            "version": "1.0.0-test",
+            "os": "windows",
+            "arch": "amd64",
+            "agent_state": "running",
+            "agent_healthy": True,
+            **extra,
+        }
+        resp = await self.client.post("/api/watchdog/heartbeat", json=body, headers=self.headers)
+        assert resp.status_code == 200, resp.text
+        data: dict[str, Any] = resp.json()
+        return data
+
+    async def report(self, command_id: str, state: str, **extra: Any) -> dict[str, Any]:
+        resp = await self.client.post(
+            f"/api/agent/commands/{command_id}/update",
+            json={"v": 1, "id": command_id, "state": state, **extra},
+            headers=self.headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data: dict[str, Any] = resp.json()
+        return data
+
     def item(
         self,
         kind: str,

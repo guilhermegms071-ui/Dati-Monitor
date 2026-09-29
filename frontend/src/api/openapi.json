@@ -634,6 +634,17 @@
             ],
             "title": "Version"
           },
+          "watchdog_alive": {
+            "default": false,
+            "description": "O dm-watchdog deu sinal nos últimos 3 min",
+            "title": "Watchdog Alive",
+            "type": "boolean"
+          },
+          "watchdog_status": {
+            "additionalProperties": true,
+            "title": "Watchdog Status",
+            "type": "object"
+          },
           "watchdog_version": {
             "anyOf": [
               {
@@ -683,6 +694,12 @@
           "last_error",
           "suggested_ranges",
           "paused",
+          "ws_connected",
+          "watchdog_status",
+          "watchdog_alive",
+          "customer_id",
+          "customer_name",
+          "site_name",
           "created_at",
           "updated_at"
         ],
@@ -1076,6 +1093,18 @@
             ],
             "title": "From Agent Id"
           },
+          "from_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nome do coletor (também de excluídos)",
+            "title": "From Name"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -1091,6 +1120,18 @@
               }
             ],
             "title": "To Agent Id"
+          },
+          "to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nome do coletor (também de excluídos)",
+            "title": "To Name"
           }
         },
         "required": [
@@ -1341,6 +1382,10 @@
           "type": {
             "enum": [
               "reconnect",
+              "restart_agent",
+              "update",
+              "rollback",
+              "uninstall",
               "restart_watchdog",
               "scan_now",
               "read_now",
@@ -3567,6 +3612,19 @@
             "title": "Version",
             "type": "string"
           },
+          "watchdog_state": {
+            "default": "unknown",
+            "description": "Serviço do dm-watchdog visto pelo coletor (vigilância mútua, seção 5.1)",
+            "enum": [
+              "running",
+              "stopped",
+              "starting",
+              "not_installed",
+              "unknown"
+            ],
+            "title": "Watchdog State",
+            "type": "string"
+          },
           "ws_connected": {
             "default": false,
             "title": "Ws Connected",
@@ -5049,6 +5107,28 @@
         "title": "PreferencesUpdate",
         "type": "object"
       },
+      "PreferredMasterIn": {
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Coletor fixado como MASTER do local; vazio = sem preferência",
+            "title": "Agent Id"
+          }
+        },
+        "required": [
+          "agent_id"
+        ],
+        "title": "PreferredMasterIn",
+        "type": "object"
+      },
       "Reactivation": {
         "properties": {
           "agent_id": {
@@ -5061,8 +5141,14 @@
             "type": "string"
           },
           "outcome": {
-            "description": "commands_sent | failover | nothing_online",
+            "description": "commands_sent | watchdog_restart | failover | nothing_online",
             "title": "Outcome",
+            "type": "string"
+          },
+          "requested_at": {
+            "description": "Horário do servidor no pedido (a volta do coletor é medida a partir dele)",
+            "format": "date-time",
+            "title": "Requested At",
             "type": "string"
           },
           "steps": {
@@ -5078,6 +5164,12 @@
             },
             "title": "Suggestions",
             "type": "array"
+          },
+          "wait_seconds": {
+            "default": 0,
+            "description": "Por quanto tempo o portal acompanha a volta do coletor",
+            "title": "Wait Seconds",
+            "type": "integer"
           }
         },
         "required": [
@@ -5085,7 +5177,9 @@
           "outcome",
           "message",
           "steps",
-          "suggestions"
+          "suggestions",
+          "wait_seconds",
+          "requested_at"
         ],
         "title": "Reactivation",
         "type": "object"
@@ -5508,6 +5602,174 @@
           "results"
         ],
         "title": "ReadingsResponse",
+        "type": "object"
+      },
+      "ReleaseOut": {
+        "properties": {
+          "arch": {
+            "title": "Arch",
+            "type": "string"
+          },
+          "auto_update_blocked": {
+            "default": false,
+            "description": "Taxa de falha no canary acima do limite: fora da atualização automática",
+            "title": "Auto Update Blocked",
+            "type": "boolean"
+          },
+          "canary_failure_percent": {
+            "default": 0,
+            "description": "Falhas de atualização em coletores canary",
+            "title": "Canary Failure Percent",
+            "type": "number"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "component": {
+            "title": "Component",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "os": {
+            "title": "Os",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "rollout_percent": {
+            "title": "Rollout Percent",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "updates_failed": {
+            "default": 0,
+            "title": "Updates Failed",
+            "type": "integer"
+          },
+          "updates_in_progress": {
+            "default": 0,
+            "title": "Updates In Progress",
+            "type": "integer"
+          },
+          "updates_succeeded": {
+            "default": 0,
+            "title": "Updates Succeeded",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "yanked": {
+            "title": "Yanked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "component",
+          "version",
+          "os",
+          "arch",
+          "size_bytes",
+          "sha256",
+          "channel",
+          "notes",
+          "rollout_percent",
+          "published_at",
+          "yanked",
+          "updates_succeeded",
+          "updates_failed",
+          "updates_in_progress",
+          "canary_failure_percent",
+          "auto_update_blocked"
+        ],
+        "title": "ReleaseOut",
+        "type": "object"
+      },
+      "ReleaseUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "canary",
+                  "stable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "rollout_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollout Percent"
+          },
+          "yanked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Retirar a versão (não é mais instalada)",
+            "title": "Yanked"
+          }
+        },
+        "title": "ReleaseUpdate",
         "type": "object"
       },
       "ResellerIn": {
@@ -7266,6 +7528,150 @@
         ],
         "title": "VersionSeen",
         "type": "object"
+      },
+      "WatchdogHeartbeatRequest": {
+        "description": "dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o\nmesmo token do coletor (mesma credencial do PC).",
+        "properties": {
+          "agent_healthy": {
+            "default": false,
+            "description": "/health do coletor respondeu saudável",
+            "title": "Agent Healthy",
+            "type": "boolean"
+          },
+          "agent_memory_bytes": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Agent Memory Bytes",
+            "type": "integer"
+          },
+          "agent_state": {
+            "default": "unknown",
+            "enum": [
+              "running",
+              "stopped",
+              "starting",
+              "not_installed",
+              "unknown"
+            ],
+            "title": "Agent State",
+            "type": "string"
+          },
+          "agent_version": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Agent Version",
+            "type": "string"
+          },
+          "arch": {
+            "default": "",
+            "description": "GOARCH (amd64/386/arm64/arm)",
+            "maxLength": 32,
+            "title": "Arch",
+            "type": "string"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Errors",
+            "type": "array"
+          },
+          "os": {
+            "default": "",
+            "description": "GOOS (windows/linux)",
+            "maxLength": 32,
+            "title": "Os",
+            "type": "string"
+          },
+          "previous_agent_version": {
+            "default": "",
+            "description": "Versão guardada para rollback (vazio = nenhuma)",
+            "maxLength": 64,
+            "title": "Previous Agent Version",
+            "type": "string"
+          },
+          "restarts": {
+            "description": "Reinícios do coletor desde o último heartbeat",
+            "items": {
+              "$ref": "#/components/schemas/WatchdogRestart"
+            },
+            "maxItems": 20,
+            "title": "Restarts",
+            "type": "array"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "version": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ts"
+        ],
+        "title": "WatchdogHeartbeatRequest",
+        "type": "object"
+      },
+      "WatchdogHeartbeatResponse": {
+        "properties": {
+          "commands": {
+            "description": "Comandos do watchdog (restart_agent, update, …)",
+            "items": {
+              "$ref": "#/components/schemas/CommandMessage"
+            },
+            "title": "Commands",
+            "type": "array"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "server_time",
+          "commands"
+        ],
+        "title": "WatchdogHeartbeatResponse",
+        "type": "object"
+      },
+      "WatchdogRestart": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "reason"
+        ],
+        "title": "WatchdogRestart",
+        "type": "object"
       }
     }
   },
@@ -7868,6 +8274,95 @@
           }
         },
         "summary": "Lote de leituras (gzip, até 500 itens, idempotente por chave)",
+        "tags": [
+          "coletores (protocolo)"
+        ]
+      }
+    },
+    "/api/agent/releases/{release_id}/file": {
+      "get": {
+        "operationId": "release_file_api_agent_releases__release_id__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Binário de uma versão (para o watchdog/coletor que executa um update)",
         "tags": [
           "coletores (protocolo)"
         ]
@@ -15768,6 +16263,363 @@
         ]
       }
     },
+    "/api/v1/releases": {
+      "get": {
+        "operationId": "list_releases_api_v1_releases_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseOut"
+                  },
+                  "title": "Response List Releases Api V1 Releases Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Versões publicadas (com taxa de falha)",
+        "tags": [
+          "versões"
+        ]
+      },
+      "post": {
+        "operationId": "publish_release_api_v1_releases_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "pattern": "^(agent|watchdog)$",
+              "title": "Component",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "os",
+            "required": true,
+            "schema": {
+              "pattern": "^(windows|linux)$",
+              "title": "Os",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "arch",
+            "required": true,
+            "schema": {
+              "pattern": "^(amd64|386|arm64|arm)$",
+              "title": "Arch",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "signature",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 20,
+              "title": "Signature",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "default": "canary",
+              "pattern": "^(canary|stable)$",
+              "title": "Channel",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rollout_percent",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 0,
+              "title": "Rollout Percent",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "notes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {}
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publicar versão (binário no corpo; assinatura ed25519 feita com dm-tool sign)",
+        "tags": [
+          "versões"
+        ]
+      }
+    },
+    "/api/v1/releases/{release_id}": {
+      "patch": {
+        "operationId": "update_release_api_v1_releases__release_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canal, liberação gradual, retirar",
+        "tags": [
+          "versões"
+        ]
+      }
+    },
     "/api/v1/resellers": {
       "get": {
         "operationId": "list_resellers_api_v1_resellers_get",
@@ -17193,6 +18045,109 @@
         ]
       }
     },
+    "/api/v1/sites/{site_id}/preferred-master": {
+      "put": {
+        "operationId": "set_preferred_master_api_v1_sites__site_id__preferred_master_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferredMasterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteCluster"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fixar o MASTER preferido do local (assume assim que estiver online)",
+        "tags": [
+          "versões"
+        ]
+      }
+    },
     "/api/v1/sites/{site_id}/snmp-credentials": {
       "get": {
         "operationId": "list_credentials_api_v1_sites__site_id__snmp_credentials_get",
@@ -18500,6 +19455,97 @@
         "summary": "Reset Totp",
         "tags": [
           "usuários"
+        ]
+      }
+    },
+    "/api/watchdog/heartbeat": {
+      "post": {
+        "operationId": "watchdog_heartbeat_api_watchdog_heartbeat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchdogHeartbeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogHeartbeatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Heartbeat do dm-watchdog (a cada 60 s); devolve os comandos do watchdog",
+        "tags": [
+          "watchdog (protocolo)"
         ]
       }
     }

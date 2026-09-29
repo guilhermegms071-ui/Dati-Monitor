@@ -66,10 +66,13 @@ async def test_scheduler_registers_jobs(engine: AsyncEngine, test_settings: Sett
     assert job is not None
     assert job.trigger.interval.total_seconds() == test_settings.db_check_interval_seconds
     assert scheduler.get_job("partitions") is not None
-    for job_id in ("commands", "presence"):
+    for job_id in ("commands", "presence", "cluster"):
         job = scheduler.get_job(job_id)
         assert job is not None
         assert job.trigger.interval.total_seconds() == 30
+    updates = scheduler.get_job("updates")
+    assert updates is not None
+    assert updates.trigger.interval.total_seconds() == 300
 
 
 @pytest.mark.usefixtures("clean_db")

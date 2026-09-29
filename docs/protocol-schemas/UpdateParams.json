@@ -1,0 +1,61 @@
+{
+  "description": "Parâmetros de `update` como chegam ao executor (watchdog para o coletor; coletor para o watchdog).\nA assinatura ed25519 cobre `release_message()`: componente, versão, SO, arquitetura e sha256.",
+  "properties": {
+    "arch": {
+      "title": "Arch",
+      "type": "string"
+    },
+    "component": {
+      "enum": [
+        "agent",
+        "watchdog"
+      ],
+      "title": "Component",
+      "type": "string"
+    },
+    "os": {
+      "title": "Os",
+      "type": "string"
+    },
+    "release_id": {
+      "title": "Release Id",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "signature": {
+      "description": "ed25519 em base64",
+      "title": "Signature",
+      "type": "string"
+    },
+    "size_bytes": {
+      "title": "Size Bytes",
+      "type": "integer"
+    },
+    "url": {
+      "description": "Caminho do download (GET, token do coletor)",
+      "title": "Url",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "release_id",
+    "component",
+    "version",
+    "os",
+    "arch",
+    "sha256",
+    "signature",
+    "size_bytes",
+    "url"
+  ],
+  "title": "UpdateParams",
+  "type": "object"
+}

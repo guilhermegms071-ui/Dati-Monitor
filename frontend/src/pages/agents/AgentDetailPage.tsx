@@ -16,7 +16,7 @@ import {
 import { AgentState, CommandState, CommandWatch, RoleBadge } from '../../components/domain';
 import { ReactivateButton } from '../../components/Reactivate';
 import { Button } from '../../components/ui/button';
-import { ConfirmButton, Dialog, Menu, MenuItem } from '../../components/ui/dialog';
+import { ConfirmButton, Dialog, Menu, MenuItem, MenuSeparator } from '../../components/ui/dialog';
 import { Field, Input, Select } from '../../components/ui/form';
 import {
   Badge,
@@ -39,7 +39,9 @@ import { useSendCommand, type CommandType } from '../../lib/commands';
 import { fmtBytes, fmtDateTime, fmtDayTime, fmtDec, fmtInt, fmtTime } from '../../lib/format';
 import { CLUSTER_REASON, FINAL_COMMAND_STATES } from '../../lib/labels';
 import { showError, showSuccess } from '../../lib/notify';
+import { watchdogStatus } from '../../lib/watchdog';
 import { EnrollmentInfo } from './AgentsPage';
+import { PreferredMasterButton, UninstallDialog, UpdateDialog, WatchdogBadge, WatchdogCard } from './WatchdogPanels';
 
 type Agent = Schemas['AgentOut'];
 
@@ -81,7 +83,7 @@ export function AgentDetailPage() {
             ['CPU / memória', `${fmtDec(a.cpu_percent)}% / ${fmtBytes(a.memory_bytes)}`],
             ['Latência média', a.avg_latency_ms !== null ? `${fmtDec(a.avg_latency_ms)} ms` : '—'],
             ['Configuração', `${String(a.applied_config_version)} de ${String(a.config_version)}`],
-            ['Watchdog', a.last_watchdog_seen_at ? fmtDateTime(a.last_watchdog_seen_at) : 'sem sinal'],
+            ['Watchdog', <WatchdogBadge key="wd" agent={a} />],
             ['Último erro', a.last_error ?? 'nenhum'],
           ]}
         />
@@ -98,7 +100,10 @@ export function AgentDetailPage() {
           <TabsTrigger value="versions">Versões</TabsTrigger>
         </TabsList>
         <TabsContent value="health">
-          <HealthCharts agentId={a.id} />
+          <div className="space-y-4">
+            <WatchdogCard agent={a} />
+            <HealthCharts agentId={a.id} />
+          </div>
         </TabsContent>
         <TabsContent value="commands">
           <CommandsTab agentId={a.id} />
@@ -107,7 +112,7 @@ export function AgentDetailPage() {
           <LogsTab agentId={a.id} canCommand={can('agents.command')} />
         </TabsContent>
         <TabsContent value="cluster">
-          <ClusterTab siteId={a.site_id} />
+          <ClusterTab siteId={a.site_id} canWrite={can('sites.write')} />
         </TabsContent>
         <TabsContent value="ranges">
           <RangesTab siteId={a.site_id} suggested={a.suggested_ranges as string[]} canWrite={can('sites.write')} />
@@ -143,7 +148,13 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
   const { send, watcher } = useSendCommand(a.id);
   const [code, setCode] = useState<Schemas['EnrollmentCodeOut'] | null>(null);
   const [editing, setEditing] = useState(false);
+  const [dialog, setDialog] = useState<'update' | 'uninstall' | null>(null);
+  const { user } = useAuth();
   const enrolled = Boolean(a.enrolled_at) && !a.revoked_at;
+  const watchdogSeen = Boolean(a.last_watchdog_seen_at);
+  const previous = watchdogStatus(a).previousAgentVersion;
+  // Seção 4.7: desinstalar exige papel admin (e confirmação dupla no diálogo).
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'reseller_admin';
   return (
     <>
       {canCommand && enrolled ? <ReactivateButton agentId={a.id} agentName={a.name} /> : null}
@@ -163,6 +174,38 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
           <MenuItem onSelect={() => void send(a.paused ? 'resume' : 'pause')}>
             {a.paused ? 'Retomar coletas' : 'Pausar coletas'}
           </MenuItem>
+          <MenuSeparator />
+          {watchdogSeen ? (
+            <>
+              <MenuItem onSelect={() => void send('restart_agent')}>Reiniciar o coletor (pelo watchdog)</MenuItem>
+              <MenuItem onSelect={() => void send('get_logs', { source: 'watchdog' })}>
+                Baixar logs do watchdog
+              </MenuItem>
+            </>
+          ) : null}
+          <MenuItem
+            onSelect={() => {
+              setDialog('update');
+            }}
+          >
+            Atualizar…
+          </MenuItem>
+          {previous ? (
+            <MenuItem onSelect={() => void send('rollback')}>Voltar para a versão {previous}</MenuItem>
+          ) : null}
+          {isAdmin && canWrite && watchdogSeen ? (
+            <>
+              <MenuSeparator />
+              <MenuItem
+                danger
+                onSelect={() => {
+                  setDialog('uninstall');
+                }}
+              >
+                Desinstalar do PC…
+              </MenuItem>
+            </>
+          ) : null}
         </Menu>
       ) : null}
       {canWrite ? (
@@ -226,6 +269,24 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
         </>
       ) : null}
       {watcher}
+      {dialog === 'update' ? (
+        <UpdateDialog
+          agent={a}
+          send={send}
+          onClose={() => {
+            setDialog(null);
+          }}
+        />
+      ) : null}
+      {dialog === 'uninstall' ? (
+        <UninstallDialog
+          agent={a}
+          send={send}
+          onClose={() => {
+            setDialog(null);
+          }}
+        />
+      ) : null}
       {code ? (
         <Dialog
           open
@@ -562,7 +623,7 @@ function LogsTab({ agentId, canCommand }: { agentId: string; canCommand: boolean
   );
 }
 
-function ClusterTab({ siteId }: { siteId: string }) {
+function ClusterTab({ siteId, canWrite }: { siteId: string; canWrite: boolean }) {
   const q = useQuery({
     queryKey: ['cluster', siteId],
     queryFn: () => unwrap(api.GET('/api/v1/sites/{site_id}/cluster', { params: { path: { site_id: siteId } } })),
@@ -584,10 +645,14 @@ function ClusterTab({ siteId }: { siteId: string }) {
         <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           {q.data.members.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-2 px-4 py-2">
-              <span className="font-medium">{m.name}</span>
+              <span className="flex items-center gap-2 font-medium">
+                {m.name}
+                {m.is_preferred ? <Badge tone="blue">preferido</Badge> : null}
+              </span>
               <span className="flex items-center gap-2">
                 <RoleBadge role={m.cluster_role} />
                 <AgentState state={m.state} wsConnected={m.ws_connected} />
+                {canWrite ? <PreferredMasterButton siteId={siteId} member={m} /> : null}
               </span>
             </li>
           ))}
@@ -601,8 +666,8 @@ function ClusterTab({ siteId }: { siteId: string }) {
               <li key={`${e.created_at}-${e.reason}`} className="px-4 py-2">
                 <p>
                   {CLUSTER_REASON[e.reason] ?? e.reason}:{' '}
-                  {e.from_agent_id ? (names.get(e.from_agent_id) ?? 'outro') : '—'} →{' '}
-                  {e.to_agent_id ? (names.get(e.to_agent_id) ?? 'outro') : '—'}
+                  {e.from_agent_id ? (e.from_name ?? names.get(e.from_agent_id) ?? 'coletor removido') : '—'} →{' '}
+                  {e.to_agent_id ? (e.to_name ?? names.get(e.to_agent_id) ?? 'coletor removido') : '—'}
                 </p>
                 <p className="text-xs text-slate-500">{fmtDateTime(e.created_at)}</p>
               </li>

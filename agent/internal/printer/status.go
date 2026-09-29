@@ -87,7 +87,7 @@ type Alert struct {
 type StatusResult struct {
 	Status        string   `json:"status"`
 	ErrorBits     int      `json:"error_bits"`
-	Reasons       []string `json:"reasons"`
+	Reasons       []string `json:"reasons,omitempty"`
 	PanelText     string   `json:"panel_text,omitempty"`
 	DeviceStatus  int      `json:"device_status,omitempty"`
 	PrinterStatus int      `json:"printer_status,omitempty"`

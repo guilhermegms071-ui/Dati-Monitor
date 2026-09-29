@@ -15,7 +15,10 @@ import (
 
 func main() {
 	app := cli.App{Binary: "dm-tool", Description: "ferramentas de suporte do coletor", Commands: map[string]cli.Command{
-		"walk": {Summary: "walk SNMP completo de uma impressora para arquivo .snmprec", Run: cmdWalk},
+		"walk":   {Summary: "walk SNMP completo de uma impressora para arquivo .snmprec", Run: cmdWalk},
+		"keygen": {Summary: "gera o par de chaves ed25519 de assinatura de versões", Run: cmdKeygen},
+		"sign":   {Summary: "assina um binário para publicar como versão (seção 5.2)", Run: cmdSign},
+		"verify": {Summary: "confere a assinatura de um binário", Run: cmdVerify},
 	}}
 	os.Exit(app.Main(os.Args[1:], os.Stdout, os.Stderr))
 }

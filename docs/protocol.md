@@ -64,6 +64,15 @@ por `POST /api/agent/commands/{id}/update`.
 - Tipos executados pelo coletor: `reconnect`, `restart_watchdog`, `scan_now`, `read_now`, `read_device`,
   `snmp_test`, `mib_walk` (envia o arquivo por `/uploads/mib-walk`), `set_config`, `get_logs` (envia por
   `/uploads/logs`), `diagnostics`, `pause`, `resume`, `promote_master`, `wake_host`, `ping_host`.
+- Tipos executados pelo **dm-watchdog** (entregues só no heartbeat dele, `POST /api/watchdog/heartbeat`,
+  a cada 60 s): `restart_agent`, `update` do coletor, `rollback`, `get_logs` com `source=watchdog` e
+  `uninstall`. O coletor executa o `update` do watchdog (processo inverso). O andamento de todos vai por
+  `POST /api/agent/commands/{id}/update`, com o mesmo token.
+- `update` leva [UpdateParams](protocol-schemas/UpdateParams.json). O executor baixa o binário de `url`,
+  confere o sha256 e a assinatura ed25519 da mensagem
+  `dati-monitor-release/v1\n<componente>\n<versão>\n<os>\n<arch>\n<sha256>` com a chave pública
+  embutida, guarda a versão atual como `previous`, troca, inicia e espera `/health` saudável e heartbeat
+  no servidor por até 2 min; se falhar, volta sozinho para `previous` e informa `failed`.
 - `output` é texto livre limitado a 1 MB; `result` é JSON; erros vão em `error`.
 
 ## Endpoints
@@ -80,4 +89,6 @@ por `POST /api/agent/commands/{id}/update`.
 | POST | `/api/agent/commands/{id}/update` | [CommandUpdate](protocol-schemas/CommandUpdate.json) | [CommandUpdateResponse](protocol-schemas/CommandUpdateResponse.json) | Bearer |
 | POST | `/api/agent/uploads/logs?command_id=` | — | [UploadResponse](protocol-schemas/UploadResponse.json) | Bearer; corpo .zip |
 | POST | `/api/agent/uploads/mib-walk?command_id=` | — | [UploadResponse](protocol-schemas/UploadResponse.json) | Bearer; .snmprec em gzip |
+| GET | `/api/agent/releases/{id}/file` | — | — | Bearer; binário de uma versão (update) |
+| POST | `/api/watchdog/heartbeat` | [WatchdogHeartbeatRequest](protocol-schemas/WatchdogHeartbeatRequest.json) | [WatchdogHeartbeatResponse](protocol-schemas/WatchdogHeartbeatResponse.json) | Bearer (mesmo token do coletor) |
 | WS | `/ws/agent` | [WsMessage](protocol-schemas/WsMessage.json) | [WsMessage](protocol-schemas/WsMessage.json) | Bearer no handshake |

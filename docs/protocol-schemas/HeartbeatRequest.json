@@ -155,6 +155,19 @@
       "title": "Version",
       "type": "string"
     },
+    "watchdog_state": {
+      "default": "unknown",
+      "description": "Serviço do dm-watchdog visto pelo coletor (vigilância mútua, seção 5.1)",
+      "enum": [
+        "running",
+        "stopped",
+        "starting",
+        "not_installed",
+        "unknown"
+      ],
+      "title": "Watchdog State",
+      "type": "string"
+    },
     "ws_connected": {
       "default": false,
       "title": "Ws Connected",

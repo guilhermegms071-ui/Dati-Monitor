@@ -5,6 +5,7 @@ import { RequireAuth } from './components/layout/RequireAuth';
 import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AccountPage, AuditPage, CompaniesPage, ResellersPage } from './pages/admin/AdminPages';
+import { ReleasesPage } from './pages/admin/ReleasesPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AgentDetailPage } from './pages/agents/AgentDetailPage';
 import { AgentsPage } from './pages/agents/AgentsPage';
@@ -54,6 +55,7 @@ export const routes: RouteObject[] = [
           { path: 'revendas', element: <ResellersPage />, handle: { crumb: 'Revendas' } },
           { path: 'empresas', element: <CompaniesPage />, handle: { crumb: 'Empresas' } },
           { path: 'auditoria', element: <AuditPage />, handle: { crumb: 'Auditoria' } },
+          { path: 'versoes', element: <ReleasesPage />, handle: { crumb: 'Versões' } },
           { path: 'conta', element: <AccountPage />, handle: { crumb: 'Minha conta' } },
           { path: '*', element: <NotFoundPage /> },
         ],

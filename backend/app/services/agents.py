@@ -510,6 +510,9 @@ async def heartbeat(
     agent.memory_bytes = req.memory_bytes
     agent.applied_config_version = req.applied_config_version
     agent.last_error = "; ".join(req.errors)[:2000] or None
+    if req.watchdog_state != "unknown":
+        # Vigilância mútua (5.1): o que o coletor vê do serviço do watchdog, ao lado do que o watchdog relata.
+        agent.watchdog_status = {**(agent.watchdog_status or {}), "service_state": req.watchdog_state}
     if req.latency_ms is not None:
         # Média móvel exponencial: desempate do failover prefere o coletor com menor latência (4.8).
         prev = agent.avg_latency_ms

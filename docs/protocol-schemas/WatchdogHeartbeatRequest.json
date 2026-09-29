@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "WatchdogRestart": {
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "reason"
+      ],
+      "title": "WatchdogRestart",
+      "type": "object"
+    }
+  },
+  "description": "dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o\nmesmo token do coletor (mesma credencial do PC).",
+  "properties": {
+    "agent_healthy": {
+      "default": false,
+      "description": "/health do coletor respondeu saudável",
+      "title": "Agent Healthy",
+      "type": "boolean"
+    },
+    "agent_memory_bytes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Agent Memory Bytes",
+      "type": "integer"
+    },
+    "agent_state": {
+      "default": "unknown",
+      "enum": [
+        "running",
+        "stopped",
+        "starting",
+        "not_installed",
+        "unknown"
+      ],
+      "title": "Agent State",
+      "type": "string"
+    },
+    "agent_version": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "arch": {
+      "default": "",
+      "description": "GOARCH (amd64/386/arm64/arm)",
+      "maxLength": 32,
+      "title": "Arch",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Errors",
+      "type": "array"
+    },
+    "os": {
+      "default": "",
+      "description": "GOOS (windows/linux)",
+      "maxLength": 32,
+      "title": "Os",
+      "type": "string"
+    },
+    "previous_agent_version": {
+      "default": "",
+      "description": "Versão guardada para rollback (vazio = nenhuma)",
+      "maxLength": 64,
+      "title": "Previous Agent Version",
+      "type": "string"
+    },
+    "restarts": {
+      "description": "Reinícios do coletor desde o último heartbeat",
+      "items": {
+        "$ref": "#/$defs/WatchdogRestart"
+      },
+      "maxItems": 20,
+      "title": "Restarts",
+      "type": "array"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "version": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ts"
+  ],
+  "title": "WatchdogHeartbeatRequest",
+  "type": "object"
+}

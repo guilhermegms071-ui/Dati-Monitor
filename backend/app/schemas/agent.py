@@ -48,6 +48,10 @@ class TokenResponse(Msg):
     server_time: datetime
 
 
+# Estado de um serviço do produto visto pelo outro (coletor ↔ watchdog).
+WatchdogServiceState = Literal["running", "stopped", "starting", "not_installed", "unknown"]
+
+
 class HeartbeatRequest(Msg):
     ts: datetime
     version: str = Field(default="", max_length=64)
@@ -70,6 +74,10 @@ class HeartbeatRequest(Msg):
     errors: list[str] = Field(default_factory=list, max_length=20)
     latency_ms: float | None = Field(default=None, ge=0, description="Ida e volta do ping no WebSocket")
     ws_connected: bool = False
+    watchdog_state: WatchdogServiceState = Field(
+        default="unknown",
+        description="Serviço do dm-watchdog visto pelo coletor (vigilância mútua, seção 5.1)",
+    )
 
 
 class HeartbeatResponse(Msg):
@@ -291,6 +299,60 @@ class WsMessage(Msg):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+# ----------------------------------------------------------------------------- watchdog e atualização
+
+
+class WatchdogRestart(BaseModel):
+    at: datetime
+    reason: str = Field(max_length=500)
+
+
+class WatchdogHeartbeatRequest(Msg):
+    """dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o
+    mesmo token do coletor (mesma credencial do PC)."""
+
+    ts: datetime
+    version: str = Field(default="", max_length=64)
+    os: str = Field(default="", max_length=32, description="GOOS (windows/linux)")
+    arch: str = Field(default="", max_length=32, description="GOARCH (amd64/386/arm64/arm)")
+    agent_state: WatchdogServiceState = "unknown"
+    agent_healthy: bool = Field(default=False, description="/health do coletor respondeu saudável")
+    agent_version: str = Field(default="", max_length=64)
+    agent_memory_bytes: int = Field(default=0, ge=0)
+    previous_agent_version: str = Field(
+        default="", max_length=64, description="Versão guardada para rollback (vazio = nenhuma)"
+    )
+    restarts: list[WatchdogRestart] = Field(
+        default_factory=list, max_length=20, description="Reinícios do coletor desde o último heartbeat"
+    )
+    errors: list[str] = Field(default_factory=list, max_length=20)
+
+
+class WatchdogHeartbeatResponse(Msg):
+    server_time: datetime
+    commands: list[CommandMessage] = Field(description="Comandos do watchdog (restart_agent, update, …)")
+
+
+class UpdateParams(BaseModel):
+    """Parâmetros de `update` como chegam ao executor (watchdog para o coletor; coletor para o watchdog).
+    A assinatura ed25519 cobre `release_message()`: componente, versão, SO, arquitetura e sha256."""
+
+    release_id: str
+    component: Literal["agent", "watchdog"]
+    version: str
+    os: str
+    arch: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    signature: str = Field(description="ed25519 em base64")
+    size_bytes: int
+    url: str = Field(description="Caminho do download (GET, token do coletor)")
+
+
+def release_message(component: str, version: str, os: str, arch: str, sha256: str) -> bytes:
+    """Mensagem assinada de uma release (a mesma que `dm-tool sign` e o watchdog montam)."""
+    return "\n".join(("dati-monitor-release/v1", component, version, os, arch, sha256)).encode()
+
+
 class Hello(Msg):
     version: str = Field(default="", max_length=64)
     capabilities: list[str] = Field(default_factory=list, max_length=64)
@@ -321,4 +383,11 @@ PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "WsMessage": WsMessage,
     "Hello": Hello,
     "Welcome": Welcome,
+    "WatchdogHeartbeatRequest": WatchdogHeartbeatRequest,
+    "WatchdogHeartbeatResponse": WatchdogHeartbeatResponse,
+}
+
+# Parâmetros de comandos (vão dentro de CommandMessage.params; não são mensagens e não levam "v").
+COMMAND_PARAMS: dict[str, type[BaseModel]] = {
+    "UpdateParams": UpdateParams,
 }

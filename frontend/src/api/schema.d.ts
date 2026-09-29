@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/releases/{release_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Binário de uma versão (para o watchdog/coletor que executa um update) */
+        get: operations["release_file_api_agent_releases__release_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent/token": {
         parameters: {
             query?: never;
@@ -1105,6 +1122,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Versões publicadas (com taxa de falha) */
+        get: operations["list_releases_api_v1_releases_get"];
+        put?: never;
+        /** Publicar versão (binário no corpo; assinatura ed25519 feita com dm-tool sign) */
+        post: operations["publish_release_api_v1_releases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/releases/{release_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Canal, liberação gradual, retirar */
+        patch: operations["update_release_api_v1_releases__release_id__patch"];
+        trace?: never;
+    };
     "/api/v1/resellers": {
         parameters: {
             query?: never;
@@ -1231,6 +1283,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sites/{site_id}/preferred-master": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Fixar o MASTER preferido do local (assume assim que estiver online) */
+        put: operations["set_preferred_master_api_v1_sites__site_id__preferred_master_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sites/{site_id}/snmp-credentials": {
         parameters: {
             query?: never;
@@ -1349,6 +1418,23 @@ export interface paths {
         put?: never;
         /** Reset Totp */
         post: operations["reset_totp_api_v1_users__user_id__reset_totp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/watchdog/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Heartbeat do dm-watchdog (a cada 60 s); devolve os comandos do watchdog */
+        post: operations["watchdog_heartbeat_api_watchdog_heartbeat_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1543,12 +1629,12 @@ export interface components {
              */
             created_at: string;
             /** Customer Id */
-            customer_id?: string | null;
+            customer_id: string | null;
             /**
              * Customer Name
              * @default
              */
-            customer_name?: string;
+            customer_name: string;
             /** Enrolled At */
             enrolled_at: string | null;
             /** Host Mac */
@@ -1598,7 +1684,7 @@ export interface components {
              * Site Name
              * @default
              */
-            site_name?: string;
+            site_name: string;
             /** State */
             state: string;
             /** Suggested Ranges */
@@ -1614,6 +1700,16 @@ export interface components {
             uptime_seconds: number | null;
             /** Version */
             version: string | null;
+            /**
+             * Watchdog Alive
+             * @description O dm-watchdog deu sinal nos últimos 3 min
+             * @default false
+             */
+            watchdog_alive: boolean;
+            /** Watchdog Status */
+            watchdog_status: {
+                [key: string]: unknown;
+            };
             /** Watchdog Version */
             watchdog_version: string | null;
             /**
@@ -1621,7 +1717,7 @@ export interface components {
              * @description Há conexão WebSocket viva agora
              * @default false
              */
-            ws_connected?: boolean;
+            ws_connected: boolean;
         };
         /** AgentUpdate */
         AgentUpdate: {
@@ -1749,10 +1845,20 @@ export interface components {
             created_at: string;
             /** From Agent Id */
             from_agent_id: string | null;
+            /**
+             * From Name
+             * @description Nome do coletor (também de excluídos)
+             */
+            from_name?: string | null;
             /** Reason */
             reason: string;
             /** To Agent Id */
             to_agent_id: string | null;
+            /**
+             * To Name
+             * @description Nome do coletor (também de excluídos)
+             */
+            to_name?: string | null;
         };
         /** ClusterMember */
         ClusterMember: {
@@ -1818,7 +1924,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "reconnect" | "restart_watchdog" | "scan_now" | "read_now" | "read_device" | "snmp_test" | "mib_walk" | "set_config" | "get_logs" | "diagnostics" | "pause" | "resume" | "promote_master" | "wake_host" | "ping_host";
+            type: "reconnect" | "restart_agent" | "update" | "rollback" | "uninstall" | "restart_watchdog" | "scan_now" | "read_now" | "read_device" | "snmp_test" | "mib_walk" | "set_config" | "get_logs" | "diagnostics" | "pause" | "resume" | "promote_master" | "wake_host" | "ping_host";
         };
         /**
          * CommandMessage
@@ -2629,6 +2735,13 @@ export interface components {
              */
             version?: string;
             /**
+             * Watchdog State
+             * @description Serviço do dm-watchdog visto pelo coletor (vigilância mútua, seção 5.1)
+             * @default unknown
+             * @enum {string}
+             */
+            watchdog_state?: "running" | "stopped" | "starting" | "not_installed" | "unknown";
+            /**
              * Ws Connected
              * @default false
              */
@@ -3104,6 +3217,14 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** PreferredMasterIn */
+        PreferredMasterIn: {
+            /**
+             * Agent Id
+             * @description Coletor fixado como MASTER do local; vazio = sem preferência
+             */
+            agent_id: string | null;
+        };
         /** Reactivation */
         Reactivation: {
             /**
@@ -3115,13 +3236,25 @@ export interface components {
             message: string;
             /**
              * Outcome
-             * @description commands_sent | failover | nothing_online
+             * @description commands_sent | watchdog_restart | failover | nothing_online
              */
             outcome: string;
+            /**
+             * Requested At
+             * Format: date-time
+             * @description Horário do servidor no pedido (a volta do coletor é medida a partir dele)
+             */
+            requested_at: string;
             /** Steps */
             steps: components["schemas"]["ReactivationStep"][];
             /** Suggestions */
             suggestions: string[];
+            /**
+             * Wait Seconds
+             * @description Por quanto tempo o portal acompanha a volta do coletor
+             * @default 0
+             */
+            wait_seconds: number;
         };
         /** ReactivationStep */
         ReactivationStep: {
@@ -3277,6 +3410,80 @@ export interface components {
              * @constant
              */
             v?: 1;
+        };
+        /** ReleaseOut */
+        ReleaseOut: {
+            /** Arch */
+            arch: string;
+            /**
+             * Auto Update Blocked
+             * @description Taxa de falha no canary acima do limite: fora da atualização automática
+             * @default false
+             */
+            auto_update_blocked: boolean;
+            /**
+             * Canary Failure Percent
+             * @description Falhas de atualização em coletores canary
+             * @default 0
+             */
+            canary_failure_percent: number;
+            /** Channel */
+            channel: string;
+            /** Component */
+            component: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notes */
+            notes: string | null;
+            /** Os */
+            os: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Rollout Percent */
+            rollout_percent: number;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Updates Failed
+             * @default 0
+             */
+            updates_failed: number;
+            /**
+             * Updates In Progress
+             * @default 0
+             */
+            updates_in_progress: number;
+            /**
+             * Updates Succeeded
+             * @default 0
+             */
+            updates_succeeded: number;
+            /** Version */
+            version: string;
+            /** Yanked */
+            yanked: boolean;
+        };
+        /** ReleaseUpdate */
+        ReleaseUpdate: {
+            /** Channel */
+            channel?: ("canary" | "stable") | null;
+            /** Notes */
+            notes?: string | null;
+            /** Rollout Percent */
+            rollout_percent?: number | null;
+            /**
+             * Yanked
+             * @description Retirar a versão (não é mais instalada)
+             */
+            yanked?: boolean | null;
         };
         /** ResellerIn */
         ResellerIn: {
@@ -3897,6 +4104,105 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * WatchdogHeartbeatRequest
+         * @description dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o
+         *     mesmo token do coletor (mesma credencial do PC).
+         */
+        WatchdogHeartbeatRequest: {
+            /**
+             * Agent Healthy
+             * @description /health do coletor respondeu saudável
+             * @default false
+             */
+            agent_healthy?: boolean;
+            /**
+             * Agent Memory Bytes
+             * @default 0
+             */
+            agent_memory_bytes?: number;
+            /**
+             * Agent State
+             * @default unknown
+             * @enum {string}
+             */
+            agent_state?: "running" | "stopped" | "starting" | "not_installed" | "unknown";
+            /**
+             * Agent Version
+             * @default
+             */
+            agent_version?: string;
+            /**
+             * Arch
+             * @description GOARCH (amd64/386/arm64/arm)
+             * @default
+             */
+            arch?: string;
+            /** Errors */
+            errors?: string[];
+            /**
+             * Os
+             * @description GOOS (windows/linux)
+             * @default
+             */
+            os?: string;
+            /**
+             * Previous Agent Version
+             * @description Versão guardada para rollback (vazio = nenhuma)
+             * @default
+             */
+            previous_agent_version?: string;
+            /**
+             * Restarts
+             * @description Reinícios do coletor desde o último heartbeat
+             */
+            restarts?: components["schemas"]["WatchdogRestart"][];
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /**
+             * V
+             * @default 1
+             * @constant
+             */
+            v?: 1;
+            /**
+             * Version
+             * @default
+             */
+            version?: string;
+        };
+        /** WatchdogHeartbeatResponse */
+        WatchdogHeartbeatResponse: {
+            /**
+             * Commands
+             * @description Comandos do watchdog (restart_agent, update, …)
+             */
+            commands: components["schemas"]["CommandMessage"][];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * V
+             * @default 1
+             * @constant
+             */
+            v?: 1;
+        };
+        /** WatchdogRestart */
+        WatchdogRestart: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Reason */
+            reason: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -4415,6 +4721,82 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    release_file_api_agent_releases__release_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                release_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9791,6 +10173,238 @@ export interface operations {
             };
         };
     };
+    list_releases_api_v1_releases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ReleaseOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publish_release_api_v1_releases_post: {
+        parameters: {
+            query: {
+                component: string;
+                version: string;
+                os: string;
+                arch: string;
+                signature: string;
+                channel?: string;
+                rollout_percent?: number;
+                notes?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": unknown;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ReleaseOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_release_api_v1_releases__release_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                release_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ReleaseOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_resellers_api_v1_resellers_get: {
         parameters: {
             query?: {
@@ -10867,6 +11481,86 @@ export interface operations {
             };
         };
     };
+    set_preferred_master_api_v1_sites__site_id__preferred_master_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferredMasterIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["SiteCluster"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_credentials_api_v1_sites__site_id__snmp_credentials_get: {
         parameters: {
             query?: never;
@@ -11746,6 +12440,84 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    watchdog_heartbeat_api_watchdog_heartbeat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchdogHeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["WatchdogHeartbeatResponse"];
                 };
             };
             /** @description Requisição inválida */
