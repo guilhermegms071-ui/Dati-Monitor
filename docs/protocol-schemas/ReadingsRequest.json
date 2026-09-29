@@ -1,6 +1,7 @@
 {
   "$defs": {
     "Alert": {
+      "description": "Linha da prtAlertTable (RFC 3805). `index` e `time` (TimeTicks) identificam cada alerta novo.",
       "properties": {
         "code": {
           "default": 0,
@@ -13,13 +14,251 @@
           "title": "Description",
           "type": "string"
         },
+        "group": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "group_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group Index"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Index"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
         "severity": {
           "default": 0,
           "title": "Severity",
           "type": "integer"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "prtAlertTime (sysUpTime no momento, centésimos de s)",
+          "title": "Time"
+        },
+        "training_level": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Training Level"
         }
       },
       "title": "Alert",
+      "type": "object"
+    },
+    "AttributesPayload": {
+      "description": "Atributos da leitura diária (seção 16.8).",
+      "properties": {
+        "firmware": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Firmware",
+          "type": "array"
+        },
+        "mac": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mac"
+        },
+        "memory_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory Bytes"
+        },
+        "panel_text": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Panel Text"
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/Part"
+          },
+          "maxItems": 64,
+          "title": "Parts",
+          "type": "array"
+        },
+        "ssid": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ssid"
+        },
+        "storage": {
+          "items": {
+            "$ref": "#/$defs/StorageInfo"
+          },
+          "maxItems": 20,
+          "title": "Storage",
+          "type": "array"
+        },
+        "subsystems": {
+          "items": {
+            "$ref": "#/$defs/Subsystem"
+          },
+          "maxItems": 32,
+          "title": "Subsystems",
+          "type": "array"
+        },
+        "sys_location": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sys Location"
+        },
+        "uptime_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uptime Seconds"
+        }
+      },
+      "title": "AttributesPayload",
+      "type": "object"
+    },
+    "CounterLine": {
+      "properties": {
+        "color_mode": {
+          "enum": [
+            "mono",
+            "full_color",
+            "single_color",
+            "two_color",
+            "any"
+          ],
+          "title": "Color Mode",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "total",
+            "print",
+            "copy",
+            "fax",
+            "scan",
+            "report",
+            "duplex",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "size": {
+          "enum": [
+            "a3",
+            "a4",
+            "letter",
+            "legal",
+            "other",
+            "any"
+          ],
+          "title": "Size",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "color_mode",
+        "size"
+      ],
+      "title": "CounterLine",
       "type": "object"
     },
     "DeviceRef": {
@@ -121,6 +360,19 @@
           "default": null,
           "title": "Sys Descr"
         },
+        "sys_location": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sys Location"
+        },
         "sys_object_id": {
           "anyOf": [
             {
@@ -159,6 +411,17 @@
     },
     "Item": {
       "properties": {
+        "attributes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributesPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "device": {
           "$ref": "#/$defs/DeviceRef"
         },
@@ -184,7 +447,8 @@
             "reading",
             "supplies",
             "status",
-            "event"
+            "event",
+            "attributes"
           ],
           "title": "Kind",
           "type": "string"
@@ -241,12 +505,78 @@
       "title": "Item",
       "type": "object"
     },
+    "Part": {
+      "description": "Peça com nível/contador (cilindro, fusor, transferência, kit de manutenção, roletes, resíduo).",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "name": {
+          "maxLength": 64,
+          "title": "Name",
+          "type": "string"
+        },
+        "part": {
+          "enum": [
+            "drum",
+            "fuser",
+            "transfer",
+            "maintenance_kit",
+            "rollers",
+            "waste_toner",
+            "developer",
+            "other"
+          ],
+          "title": "Part",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "percent",
+            "pages",
+            "count"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "part",
+        "unit",
+        "value"
+      ],
+      "title": "Part",
+      "type": "object"
+    },
     "ReadingPayload": {
       "properties": {
         "attempts": {
           "default": 0,
           "title": "Attempts",
           "type": "integer"
+        },
+        "counter_lines": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CounterLine"
+          },
+          "description": "`line` dos contadores no perfil (os nomes normalizados têm mapeamento padrão)",
+          "title": "Counter Lines",
+          "type": "object"
         },
         "counter_source": {
           "default": "",
@@ -410,8 +740,76 @@
       "title": "StatusPayload",
       "type": "object"
     },
+    "StorageInfo": {
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 255,
+          "title": "Description",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "used_bytes": {
+          "minimum": 0,
+          "title": "Used Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size_bytes",
+        "used_bytes"
+      ],
+      "title": "StorageInfo",
+      "type": "object"
+    },
+    "Subsystem": {
+      "description": "Subsistema do equipamento (hrDeviceTable ou `attributes.subsystems` do perfil).",
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 255,
+          "title": "Description",
+          "type": "string"
+        },
+        "name": {
+          "description": "printer | copier | scanner | ou o tipo do hrDevice",
+          "maxLength": 32,
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "description": "unknown | running | warning | testing | down ou texto do perfil",
+          "maxLength": 32,
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "Subsystem",
+      "type": "object"
+    },
     "Supply": {
       "properties": {
+        "cartridge_serial": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cartridge Serial"
+        },
         "class": {
           "default": "other",
           "enum": [

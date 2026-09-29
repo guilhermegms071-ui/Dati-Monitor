@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -87,6 +88,41 @@ class Reading(Base):
     profile_key: Mapped[str | None] = mapped_column(String(100))
     counter_source: Mapped[str | None] = mapped_column(String(64))
     flags: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_ARRAY, default=list)
+
+
+COUNTER_KINDS = ("total", "print", "copy", "fax", "scan", "report", "duplex", "other")
+COUNTER_COLOR_MODES = ("mono", "full_color", "single_color", "two_color", "any")
+COUNTER_SIZES = ("a3", "a4", "letter", "legal", "other", "any")
+
+
+class ReadingCounter(Base):
+    """Cada contador de uma leitura como linha (seção 16.2). Somente INSERT, particionada como `readings`.
+
+    `name` é o nome do contador no perfil (ex.: `print_color`); kind/color_mode/size vêm do mapeamento
+    padrão do servidor ou do `line` do perfil. Relatórios e ERP leem daqui. Sem FK para `readings`: a
+    manutenção de partições move linhas da default antes do ATTACH, e a FK barraria a movimentação; as
+    linhas nascem na mesma transação da leitura e nunca mudam.
+    """
+
+    __tablename__ = "reading_counters"
+    __table_args__ = (
+        PrimaryKeyConstraint("reading_id", "read_at", "kind", "color_mode", "size"),
+        one_of("kind", COUNTER_KINDS),
+        one_of("color_mode", COUNTER_COLOR_MODES),
+        one_of("size", COUNTER_SIZES),
+        Index("ix_reading_counters_device_id_read_at", "device_id", "read_at"),
+        {"postgresql_partition_by": "RANGE (read_at)"},
+    )
+
+    reading_id: Mapped[uuid.UUID]
+    read_at: Mapped[datetime]
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
+    kind: Mapped[str] = mapped_column(String(16))
+    color_mode: Mapped[str] = mapped_column(String(16))
+    size: Mapped[str] = mapped_column(String(8))
+    name: Mapped[str] = mapped_column(String(64))
+    value: Mapped[int] = mapped_column(BigInteger)
 
 
 class ReadingIdempotency(Base, CreatedMixin):
@@ -186,6 +222,7 @@ class SupplyReading(Base, CreatedMixin):
     percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     level_state: Mapped[str] = mapped_column(String(16))
     unit: Mapped[str | None] = mapped_column(String(32))
+    cartridge_serial: Mapped[str | None] = mapped_column(String(128))
 
 
 class SupplyCurrent(Base, TimestampMixin):
@@ -213,5 +250,54 @@ class SupplyCurrent(Base, TimestampMixin):
     percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     level_state: Mapped[str] = mapped_column(String(16))
     unit: Mapped[str | None] = mapped_column(String(32))
+    cartridge_serial: Mapped[str | None] = mapped_column(String(128))
+    # Previsão (seção 16.6): estimativa central + janela otimista/pessimista, páginas restantes,
+    # método (regression | direct) e confiança de 0 a 1. Confiança baixa nunca é exibida como certa.
     days_to_empty: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    days_to_empty_min: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    days_to_empty_max: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    pages_left: Mapped[int | None] = mapped_column(BigInteger)
+    forecast_method: Mapped[str | None] = mapped_column(String(16))
+    forecast_confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     forecast_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class SupplyReplacement(Base, IdMixin, CreatedMixin):
+    """Troca de suprimento detectada pelo nível que sobe (seção 16.3)."""
+
+    __tablename__ = "supply_replacements"
+    __table_args__ = (
+        Index("ix_supply_replacements_reseller_id_replaced_at", "reseller_id", "replaced_at"),
+        Index(
+            "ix_supply_replacements_device_id_supply_key_replaced_at",
+            "device_id",
+            "supply_key",
+            "replaced_at",
+        ),
+        one_of("yield_counter", ("total", "color"), name="yield_counter_valid"),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    supply_key: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(255))
+    supply_type: Mapped[str | None] = mapped_column(String(32))
+    color: Mapped[str | None] = mapped_column(String(32))
+    replaced_at: Mapped[datetime]  # leitura em que o nível novo apareceu
+    previous_read_at: Mapped[datetime]  # última leitura com o cartucho anterior
+    level_before: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    level_after: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    total_before: Mapped[int | None] = mapped_column(BigInteger)
+    mono_before: Mapped[int | None] = mapped_column(BigInteger)
+    color_before: Mapped[int | None] = mapped_column(BigInteger)
+    total_after: Mapped[int | None] = mapped_column(BigInteger)
+    mono_after: Mapped[int | None] = mapped_column(BigInteger)
+    color_after: Mapped[int | None] = mapped_column(BigInteger)
+    # Páginas impressas com o cartucho anterior (contador desta troca menos o da troca anterior).
+    yield_pages: Mapped[int | None] = mapped_column(BigInteger)
+    yield_counter: Mapped[str | None] = mapped_column(String(8))
+    previous_replacement_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("supply_replacements.id"))
+    nominal_capacity: Mapped[int | None] = mapped_column(Integer)
+    premature: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
+    cartridge_serial_before: Mapped[str | None] = mapped_column(String(128))
+    cartridge_serial_after: Mapped[str | None] = mapped_column(String(128))

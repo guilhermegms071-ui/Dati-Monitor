@@ -14,12 +14,16 @@ from app.schemas.collection import (
     AgentCreated,
     AgentIn,
     AgentOut,
+    AgentStats,
     AgentUpdate,
+    DeviceDetail,
     DeviceEventOut,
     DeviceOut,
     EnrollmentCodeOut,
     IpRangeIn,
     IpRangeOut,
+    RangeImportIn,
+    RangeImportOut,
     ReadingOut,
     SnmpCredentialIn,
     SnmpCredentialOut,
@@ -178,6 +182,20 @@ async def create_range(
     return IpRangeOut.model_validate(row)
 
 
+@router.post(
+    "/sites/{site_id}/ip-ranges/import",
+    response_model=RangeImportOut,
+    tags=["locais"],
+    summary="Importar faixas, IPs e hostnames de um arquivo .txt (uma entrada por linha)",
+)
+async def import_ranges(
+    site_id: uuid.UUID, body: RangeImportIn, p: PrincipalDep, session: SessionDep
+) -> RangeImportOut:
+    out = await site_svc.import_ranges(session, p, site_id, body.content, body.ports)
+    await session.commit()
+    return out
+
+
 @router.put("/ip-ranges/{range_id}", response_model=IpRangeOut, tags=["locais"])
 async def update_range(
     range_id: uuid.UUID, body: IpRangeIn, p: PrincipalDep, session: SessionDep
@@ -276,9 +294,24 @@ async def list_devices(
     return Page(items=[DeviceOut.model_validate(d) for d in page.items], next_cursor=page.next_cursor)
 
 
-@router.get("/devices/{device_id}", response_model=DeviceOut, tags=["equipamentos"])
-async def get_device(device_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> DeviceOut:
-    return DeviceOut.model_validate(await devices_svc.get_device(session, p, device_id))
+@router.get(
+    "/devices/{device_id}",
+    response_model=DeviceDetail,
+    tags=["equipamentos"],
+    summary="Cadastro completo e atributos do equipamento",
+)
+async def get_device(device_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> DeviceDetail:
+    return DeviceDetail.model_validate(await devices_svc.get_device(session, p, device_id))
+
+
+@router.get(
+    "/agents/{agent_id}/stats",
+    response_model=AgentStats,
+    tags=["coletores"],
+    summary="Leituras, falhas e equipamentos sem resposta nas últimas 24 h",
+)
+async def agent_stats(agent_id: uuid.UUID, p: PrincipalDep, session: SessionDep) -> AgentStats:
+    return await agents_svc.agent_stats(session, p, agent_id)
 
 
 @router.get("/devices/{device_id}/readings", response_model=Page[ReadingOut], tags=["equipamentos"])

@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 
 import { DeviceStatus, SupplyBars } from '../../components/domain';
+import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
 import { Dialog } from '../../components/ui/dialog';
 import { Field, Input, Select, Textarea } from '../../components/ui/form';
@@ -23,7 +24,6 @@ import {
   Badge,
   Card,
   CardHeader,
-  Checkbox,
   EmptyState,
   ErrorState,
   KeyValue,
@@ -40,7 +40,10 @@ import { useAuth } from '../../lib/auth-context';
 import { useSendCommand } from '../../lib/commands';
 import { dayKey, fmtCommunication, fmtDate, fmtDateTime, fmtInt, fmtPercent } from '../../lib/format';
 import { DEVICE_EVENT } from '../../lib/labels';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { showError, showSuccess } from '../../lib/notify';
+
+import { AttributesCard, DeviceForm } from './DeviceRegistration';
 
 type Row = Schemas['ParkRow'];
 
@@ -63,6 +66,8 @@ export function DeviceDetailPage() {
             <span className="font-mono">{d.serial}</span>· {d.ip ?? 'sem IP'} · {d.customer_name} / {d.site_name}
             <DeviceStatus status={d.last_status} disconnected={d.disconnected} />
             {!d.active ? <Badge>Desativado</Badge> : null}
+            {d.discovery_state === 'pending' ? <Badge tone="yellow">Pendente em Descobertas</Badge> : null}
+            {d.discovery_state === 'discarded' ? <Badge tone="red">Descartado</Badge> : null}
           </span>
         }
         actions={
@@ -105,6 +110,7 @@ export function DeviceDetailPage() {
           <TabsTrigger value="supplies">Suprimentos</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="adjustments">Ajustes</TabsTrigger>
+          <TabsTrigger value="attributes">Atributos</TabsTrigger>
           <TabsTrigger value="data">Dados cadastrais</TabsTrigger>
         </TabsList>
         <TabsContent value="counters">
@@ -122,12 +128,11 @@ export function DeviceDetailPage() {
         <TabsContent value="adjustments">
           <AdjustmentsTab deviceId={deviceId} />
         </TabsContent>
+        <TabsContent value="attributes">
+          <AttributesCard deviceId={deviceId} />
+        </TabsContent>
         <TabsContent value="data">
-          <DeviceForm
-            key={JSON.stringify([d.id, d.asset_tag, d.sector, d.notes, d.monitored, d.active])}
-            device={d}
-            editable={can('devices.write')}
-          />
+          <DeviceForm deviceId={d.id} editable={can('devices.update')} />
         </TabsContent>
       </Tabs>
     </div>
@@ -532,22 +537,20 @@ function SuppliesTab({ deviceId }: { deviceId: string }) {
 }
 
 function EventsTab({ deviceId }: { deviceId: string }) {
-  const q = useQuery({
-    queryKey: ['device', deviceId, 'events'],
-    queryFn: () =>
-      unwrap(
-        api.GET('/api/v1/devices/{device_id}/events', {
-          params: { path: { device_id: deviceId }, query: { limit: 200 } },
-        }),
-      ),
-  });
+  const { query: q, rows } = useCursorList<Schemas['DeviceEventOut']>(['device', deviceId, 'events'], (cursor) =>
+    unwrap(
+      api.GET('/api/v1/devices/{device_id}/events', {
+        params: { path: { device_id: deviceId }, query: { limit: PAGE_SIZE, cursor } },
+      }),
+    ),
+  );
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} />;
-  if (!q.data.items.length) return <EmptyState title="Nenhum evento" />;
+  if (!rows.length) return <EmptyState title="Nenhum evento" />;
   return (
     <Card className="p-4">
       <ol className="relative space-y-4 border-l border-slate-200 pl-5 dark:border-slate-700">
-        {q.data.items.map((e) => (
+        {rows.map((e) => (
           <li key={e.id}>
             <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-brand-500" aria-hidden />
             <p className="text-sm font-medium">{DEVICE_EVENT[e.type] ?? e.type}</p>
@@ -562,6 +565,7 @@ function EventsTab({ deviceId }: { deviceId: string }) {
           </li>
         ))}
       </ol>
+      <LoadMore query={q} shown={rows.length} />
     </Card>
   );
 }
@@ -601,99 +605,6 @@ function AdjustmentsTab({ deviceId }: { deviceId: string }) {
           ))}
         </tbody>
       </table>
-    </Card>
-  );
-}
-
-function DeviceForm({ device, editable }: { device: Row; editable: boolean }) {
-  const qc = useQueryClient();
-  const [form, setForm] = useState({
-    asset_tag: device.asset_tag ?? '',
-    sector: device.sector ?? '',
-    notes: device.notes ?? '',
-    monitored: device.monitored,
-    active: device.active,
-  });
-  const [busy, setBusy] = useState(false);
-  return (
-    <Card className="p-4">
-      <form
-        className="grid gap-3 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setBusy(true);
-          unwrap(api.PATCH('/api/v1/devices/{device_id}', { params: { path: { device_id: device.id } }, body: form }))
-            .then((row) => {
-              qc.setQueryData(['device', device.id], row);
-              void qc.invalidateQueries({ queryKey: ['park'] });
-              showSuccess('Equipamento atualizado');
-            })
-            .catch((err: unknown) => {
-              showError(err, 'Não foi possível salvar');
-            })
-            .finally(() => {
-              setBusy(false);
-            });
-        }}
-      >
-        <Field label="PAT (patrimônio)" htmlFor="d-pat">
-          <Input
-            id="d-pat"
-            disabled={!editable}
-            value={form.asset_tag}
-            onChange={(e) => {
-              setForm({ ...form, asset_tag: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="Setor" htmlFor="d-sector">
-          <Input
-            id="d-sector"
-            disabled={!editable}
-            value={form.sector}
-            onChange={(e) => {
-              setForm({ ...form, sector: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="Observação" htmlFor="d-notes" className="sm:col-span-2">
-          <Textarea
-            id="d-notes"
-            disabled={!editable}
-            value={form.notes}
-            onChange={(e) => {
-              setForm({ ...form, notes: e.target.value });
-            }}
-          />
-        </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={form.monitored}
-            onCheckedChange={(v) => {
-              if (editable) setForm({ ...form, monitored: v });
-            }}
-            label="Monitorar"
-          />{' '}
-          Monitorar (alertas e relatórios)
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={form.active}
-            onCheckedChange={(v) => {
-              if (editable) setForm({ ...form, active: v });
-            }}
-            label="Ativo"
-          />{' '}
-          Ativo no parque
-        </label>
-        {editable ? (
-          <div className="sm:col-span-2">
-            <Button type="submit" loading={busy}>
-              Salvar
-            </Button>
-          </div>
-        ) : null}
-      </form>
     </Card>
   );
 }

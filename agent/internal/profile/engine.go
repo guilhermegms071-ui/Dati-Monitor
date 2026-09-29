@@ -43,6 +43,8 @@ type Result struct {
 	Unresolved          []string         `json:"unresolved,omitempty"`
 	MonoOnly            bool             `json:"mono_only"`
 	SumTolerancePercent float64          `json:"sum_tolerance_percent"`
+	// Lines are the explicit `line` mappings of the resolved counters (PROMPT 16.2).
+	Lines map[string]Line `json:"counter_lines,omitempty"`
 }
 
 // ResolveIdentity returns serial/model/firmware using the profile's OID lists (in order of
@@ -139,6 +141,13 @@ func Evaluate(ctx context.Context, src snmp.Source, p *Profile, model string) (*
 	for _, name := range sortedKeys(countersOf(s)) {
 		if _, ok := res.Counters[name]; !ok {
 			res.Unresolved = append(res.Unresolved, name)
+			continue
+		}
+		if line := s.Counters[name].Line; line != nil {
+			if res.Lines == nil {
+				res.Lines = map[string]Line{}
+			}
+			res.Lines[name] = *line
 		}
 	}
 	return res, nil

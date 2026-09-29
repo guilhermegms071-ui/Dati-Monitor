@@ -105,11 +105,19 @@
           "title": "Rate Pps",
           "type": "integer"
         },
+        "read_timeout_ms": {
+          "default": 2000,
+          "description": "Timeout de cada consulta SNMP nas leituras",
+          "title": "Read Timeout Ms",
+          "type": "integer"
+        },
         "retries": {
+          "description": "Retentativas de cada consulta (tentativas = retries + 1, de 1 a 5)",
           "title": "Retries",
           "type": "integer"
         },
         "timeout_ms": {
+          "description": "Timeout de cada consulta SNMP na descoberta",
           "title": "Timeout Ms",
           "type": "integer"
         }
@@ -189,6 +197,19 @@
           "title": "Exclusions",
           "type": "array"
         },
+        "host": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "IP ou hostname avulso (resolvido a cada varredura)",
+          "title": "Host"
+        },
         "id": {
           "title": "Id",
           "type": "string"
@@ -243,12 +264,26 @@
     "discovery": {
       "$ref": "#/$defs/DiscoveryConfig"
     },
+    "ignored_serials": {
+      "description": "Equipamentos descartados em Descobertas: não ler (seção 16.1)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Ignored Serials",
+      "type": "array"
+    },
     "intervals": {
       "$ref": "#/$defs/Intervals"
     },
     "keep_awake": {
       "default": false,
       "title": "Keep Awake",
+      "type": "boolean"
+    },
+    "monitor_local_networks": {
+      "default": false,
+      "description": "Varrer também as /24 privadas das interfaces deste PC (seção 16.10)",
+      "title": "Monitor Local Networks",
       "type": "boolean"
     },
     "paused": {

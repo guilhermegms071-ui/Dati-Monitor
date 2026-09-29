@@ -203,7 +203,7 @@ func TestProbeAndIdentity(t *testing.T) {
 	}
 	want := Identity{
 		Serial: "SIMCAN0002", Model: "iR 1643i", SysObjectID: "1.3.6.1.4.1.1602.4.9", SysDescr: "Canon iR 1643i",
-		SysName: "CANON-PB-02", MAC: "00:AA:00:00:00:02", ProfileKey: "canon",
+		SysName: "CANON-PB-02", SysLocation: "Simulador Dati Monitor", MAC: "00:AA:00:00:00:02", ProfileKey: "canon",
 	}
 	if id != want || p.ID != "canon" {
 		t.Fatalf("got %+v", id)

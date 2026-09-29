@@ -33,6 +33,14 @@ Regras obrigatórias:
 10. **"Pronto" significa testado.** Uma fase só termina quando: (a) o código compila sem avisos de lint; (b) todos os testes unitários, de integração e E2E daquela fase passam; (c) você executou de verdade o fluxo manual descrito em `PROGRESS.md` (subindo os serviços locais e o agente) e registrou o resultado. Se um teste falhar, corrija o código — **nunca** desative, pule ou afrouxe um teste para passar.
 11. Proibido: stubs, `pass` em lugar de lógica, `NotImplementedError`, endpoints que retornam dados fixos, telas com dados de exemplo no lugar de chamadas reais à API.
 12. Use as versões estáveis mais recentes no momento da implementação: Go (≥ 1.25), Python 3.12+, Node LTS, PostgreSQL 16+. **Sem Redis.** Fixe versões em `go.mod`, `pyproject.toml`/lock e `package-lock.json`.
+13. **Não copiar estes defeitos do Datacount** (levantados na auditoria — seção 16):
+    - listas inteiras carregadas no navegador: toda lista é **paginada, filtrada e ordenada no servidor**;
+    - limite fixo de registros;
+    - status com escalas diferentes: um só status normalizado (6.3) e uma só escala de 0–100% para níveis;
+    - regras de alerta espalhadas pelas telas: todas ficam centralizadas em **Alertas > Regras**;
+    - código do ERP dentro da razão social: usar campo próprio (`erp_code`);
+    - chaves previsíveis: IDs `uuid4` e códigos/tokens com gerador criptográfico;
+    - senha ou hash de senha enviados ao navegador: nunca.
 
 ### 0.1 Ambiente de desenvolvimento (Windows 10 Pro, SEM Docker)
 Pasta do projeto: `C:\Projetos\dati-monitor`. Já instalados: Git, Node, **Go 1.27**, **Python 3.12** (use `py -3.12`; o `python` padrão da máquina é 3.11 — o venv do projeto deve ser criado com `py -3.12 -m venv .venv`). A virtualização está desativada, então **não use Docker nem WSL**.
@@ -123,23 +131,29 @@ Tabelas (todas com `id uuid`, `created_at`, `updated_at`; soft delete via `delet
 
 - `resellers` (revendas): nome, CNPJ, logo, configurações.
 - `companies` (empresas): reseller_id, razão social, CNPJ.
-- `customers` (clientes): company_id, nome, CNPJ, contato, telefone, e-mail, código no ERP (`erp_code`), ativo.
-- `sites` (locais): customer_id, nome, endereço, **cluster** de coletores deste local, fuso.
+- `customers` (clientes): company_id, nome, CNPJ, contato, telefone, e-mail, código no ERP (`erp_code`), ativo, **monitorar suprimentos** (liga/desliga) e **limiar de toner por cor** (`toner_thresholds`, padrão 10% em cada cor).
+- `sites` (locais): customer_id, nome, **endereço completo** (CEP, logradouro, número, complemento, bairro, cidade, UF — preenchido pelo ViaCEP), **latitude/longitude**, **cluster** de coletores deste local, fuso, **"ativar automaticamente equipamentos descobertos"** (padrão desligado).
 - `users`: reseller_id, nome, e-mail, hash argon2, papel, TOTP opcional, ativo, último login. Escopo opcional por cliente (usuário de cliente só vê o próprio parque).
-- `roles`: `superadmin`, `reseller_admin`, `operator`, `technician`, `customer_viewer`. Permissões por ação (tabela `role_permissions`).
-- `agents` (coletores): site_id, nome, tipo (`windows`/`linux`), hostname, SO, IPs locais, MAC do host, versão, canal de atualização (`canary`/`stable`), `cluster_role` (`master`/`standby`), prioridade, estado (`online`/`offline`/`degraded`/`paused`), `last_seen_at`, `last_watchdog_seen_at`, credencial (hash do segredo), `enrolled_at`, `revoked_at`, config atual (JSONB) e `config_version`.
+- `roles`: `superadmin`, `reseller_admin`, `operator`, `technician`, `customer_viewer`. Permissões por ação (tabela `role_permissions`), organizadas numa **matriz por módulo** — Clientes, Coletores, Equipamentos, Relatórios, Integração, Usuários — × **Consultar / Incluir / Alterar / Excluir**, mais **"Monitorar suprimentos"**. Cada revenda pode ajustar a matriz dos papéis operacionais (`reseller_role_permissions`); sem ajuste vale o padrão do sistema.
+- `agents` (coletores): site_id, nome, tipo (`windows`/`linux`), hostname, SO, IPs locais, **IP público** (visto pelo servidor), MAC do host, versão, **local de instalação**, canal de atualização (`canary`/`stable`), `cluster_role` (`master`/`standby`), prioridade, estado (`online`/`offline`/`degraded`/`paused`), `last_seen_at`, `last_watchdog_seen_at`, credencial (hash do segredo), `enrolled_at`, `revoked_at`, config atual (JSONB) e `config_version`, **"monitorar redes conectadas"** (padrão desligado).
 - `agent_enrollment_codes`: código de 8 caracteres, site_id, expira em (padrão 7 dias), uso único.
 - `agent_heartbeats`: agent_id, ts, cpu, memória, fila pendente, uptime, versão (reter 30 dias; particionar por mês).
-- `ip_ranges`: site_id, CIDR ou início–fim, exclusões, ativo.
+- `ip_ranges`: site_id, CIDR ou início–fim **ou IP/hostname avulso**, exclusões, ativo (importáveis de arquivo `.txt`, uma entrada por linha).
 - `snmp_credentials`: site_id, ordem, versão (`v1`/`v2c`/`v3`), community (criptografada), usuário v3, auth (SHA/SHA-256), priv (AES/AES-256), senhas criptografadas (AES-GCM com chave mestre em variável de ambiente).
 - `brands`, `models`: marca, modelo, `sys_object_id_prefix`, colorida (bool), formato máximo (A4/A3), `profile_id`.
 - `read_profiles`: nome, versão, conteúdo YAML validado, ativo. Distribuídos aos agentes.
-- `devices` (equipamentos): site_id, customer_id, **serial (identidade principal, único por revenda)**, MAC, IP atual, hostname, marca, modelo, sysObjectID, firmware, `asset_tag` (PAT), setor, observação, `first_seen_at` (Descoberta), `last_read_at` (Comunicação), `last_status`, ativo/desativado, monitorar (bool), `last_agent_id` (DCA).
+- `devices` (equipamentos): site_id, customer_id, **serial (identidade principal, único por revenda)**, **serial alternativo**, MAC, IP atual, hostname, marca, modelo, sysObjectID, firmware, `asset_tag` (patrimônio/PAT), setor (**padrão = sysLocation**, editável e alterável em lote; depois de editado à mão, a leitura não o sobrescreve), observação, **`discovery_state`** (`pending`/`approved`/`discarded` — seção 16.1), **franquia** (valor em R$, páginas PB e cor), **preço do excedente** PB e cor, **campos personalizados** (chave/valor definidos pela revenda em `custom_field_definitions`), **modo de limiar de toner** (`off`/`global` herda do cliente/`individual` com limiares próprios), **atributos** da leitura diária (JSONB, seção 16.8), `first_seen_at` (Descoberta), `last_read_at` (Comunicação), `last_status`, ativo/desativado, monitorar (bool), `last_agent_id` (DCA).
 - `device_events`: device_id, tipo (`discovered`, `ip_changed`, `moved_site`, `replaced`, `counter_regression`, `reactivated`, `deactivated`, `manual_adjust`), dados JSONB, ts, user_id.
 - `readings` (**particionada por mês em `read_at`**, somente INSERT; bloquear UPDATE/DELETE com trigger): device_id, agent_id, `read_at` (hora do agente), `received_at` (hora do servidor), `idempotency_key` (único: agent_id + sequência local), `total`, `mono`, `color`, `mono_large`, `color_large`, `copy_mono`, `copy_color`, `print_mono`, `print_color`, `scan`, `fax`, `extra` (JSONB com todos os contadores brutos), `status`, `error_bits`, `source` (`snmp`/`http`/`usb`/`manual`).
+- **`reading_counters`** (particionada por mês, somente INSERT): além das colunas principais de `readings`, **cada contador vira uma linha**: reading_id, `kind` (`total`, `print`, `copy`, `fax`, `scan`, `report`, `duplex`, `other`), `color_mode` (`mono`, `full_color`, `single_color`, `two_color`, `any`), `size` (`a3`, `a4`, `letter`, `legal`, `other`, `any`), `value`. Os perfis podem mapear qualquer combinação (seção 6.4). **Relatórios e ERP usam esta tabela.**
 - `reading_adjustments`: device_id, reading_id de referência, valores corrigidos, motivo, user_id, ts.
-- `supply_readings` (particionada por mês): device_id, read_at, supply_key, descrição, tipo, cor, nível, capacidade, percentual (nullable), `level_state` (`ok`/`unknown`/`some_remaining`).
-- `supplies_current`: último estado por device + supply (para a tela de parque ser rápida).
+- `supply_readings` (particionada por mês): device_id, read_at, supply_key, descrição, tipo, cor, nível, capacidade, percentual (nullable), `level_state` (`ok`/`unknown`/`some_remaining`), serial do cartucho (quando o perfil fornecer).
+- `supplies_current`: último estado por device + supply (para a tela de parque ser rápida) e a **previsão** (seção 16.6): dias otimista/pessimista, páginas restantes, método e confiança.
+- **`supply_replacements`** (trocas de suprimento, seção 16.3): nível antes/depois, contadores antes/depois, páginas impressas com o cartucho anterior (rendimento), capacidade nominal, `premature`, serial do cartucho.
+- **`printer_alerts`** (alertas da própria impressora, `prtAlertTable`, seção 16.4): severidade, nível de treinamento, grupo, código, descrição, categoria, contadores no momento, visto pela 1ª vez / última vez / encerrado.
+- **`device_attribute_snapshots`**: histórico dos atributos da leitura diária (só grava quando mudam).
+- **`custom_field_definitions`**: campos personalizados de equipamento por revenda (chave, rótulo, tipo).
+- **`erp_queue`** (Fase 7): fila do conector do ERP, com status por item (`pending`/`sent`/`error`), tentativas, último erro e reenvio (seção 16.11).
 - `alerts`: tipo, severidade, alvo (device/agent/site), estado (`open`/`acknowledged`/`resolved`), aberto em, resolvido em, dados, reconhecido por.
 - `alert_rules`: por revenda/cliente: toner abaixo de X%, dias para acabar < N, equipamento sem leitura há H horas, coletor offline há M minutos, contador regrediu, erro de hardware, atolamento, porta aberta.
 - `notification_channels`: e-mail (SMTP), WhatsApp (provedor via interface — seção 9), webhook genérico; destinatários por regra.
@@ -190,10 +204,12 @@ Tabelas (todas com `id uuid`, `created_at`, `updated_at`; soft delete via `delet
 - Tamanho da fila vai no heartbeat; o portal mostra "X leituras pendentes de envio".
 
 ### 4.5 Descoberta
-- Faixas vindas do servidor (`ip_ranges`). Se o Local não tiver faixa, o agente **sugere** as sub-redes das suas interfaces (/24 de cada IP privado) e envia ao portal para aprovação — não varre nada sem faixa aprovada.
+- Faixas vindas do servidor (`ip_ranges`): CIDR, início–fim ou **IP/hostname avulso** (o hostname é resolvido pelo agente a cada varredura). Se o Local não tiver faixa, o agente **sugere** as sub-redes das suas interfaces (/24 de cada IP privado) e envia ao portal para aprovação — não varre nada sem faixa aprovada.
+- Opção por coletor **"monitorar redes conectadas"** (padrão desligado): quando ligada pelo operador, o agente varre também as /24 privadas das suas interfaces, acompanhando mudanças de rede do PC. Ligar a opção é a aprovação explícita.
+- Impressora nova entra como **pendente** (seção 16.1): o agente a lê normalmente (nenhuma leitura se perde), mas ela só aparece no parque, relatórios e alertas depois de **ativada** em Equipamentos > Descobertas. Equipamento **descartado** vai numa lista de seriais ignorados na config do agente, que deixa de lê-lo.
 - Para cada IP: SNMP GET em `sysObjectID` + `hrDeviceType.1` + `prtGeneralSerialNumber.1`, testando as credenciais do Local em ordem até uma responder.
 - É impressora se `hrDeviceType.1 == 1.3.6.1.2.1.25.3.1.5` **ou** se existir `prtGeneralSerialNumber` ou `prtMarkerLifeCount`.
-- Concorrência configurável (padrão 64), limite de pacotes/s (padrão 200), timeout 1500 ms, 1 retentativa. Uma /24 deve terminar em menos de 30 s.
+- Concorrência configurável (padrão 64), limite de pacotes/s (padrão 200), timeout 1500 ms, 1 retentativa. Uma /24 deve terminar em menos de 30 s. **Tentativas SNMP (1–5) e timeouts de descoberta e de leitura configuráveis no portal**, por Local.
 - Guardar no agente qual credencial funcionou para cada IP (acelera as próximas leituras).
 - Intervalo padrão de descoberta: 6 h (configurável). Também sob demanda (comando).
 
@@ -201,7 +217,9 @@ Tabelas (todas com `id uuid`, `created_at`, `updated_at`; soft delete via `delet
 - Intervalos **independentes** e configuráveis por Local: contadores (padrão 60 min), suprimentos (padrão 60 min), status/erros (padrão 10 min), cadastro/atributos (padrão 24 h).
 - Equipamento conhecido que não responde: 3 tentativas com intervalo de 2 min antes de registrar falha (impressora em economia de energia costuma responder na 2ª). Registrar falha como evento, não como leitura.
 - **Identidade por serial.** Se o mesmo IP passar a responder com outro serial → evento `replaced`. Se um serial conhecido aparecer em outro IP → evento `ip_changed` e atualizar IP.
-- Aplicar o **perfil de leitura** correspondente (seção 6.4). Enviar sempre os valores brutos também (`extra`).
+- Aplicar o **perfil de leitura** correspondente (seção 6.4). Enviar sempre os valores brutos também (`extra`) e o mapeamento de cada contador para linha (`kind`/`color_mode`/`size`).
+- Leitura de **atributos** (padrão diária, seção 16.8): firmware(s), memória, disco, MAC, Wi-Fi/SSID, uptime, status por subsistema, mensagem do painel, `sysLocation` e peças (cilindros, fusor, transferência, kit de manutenção, roletes, reservatório de toner usado) quando a impressora ou o perfil fornecerem.
+- Status inclui a **`prtAlertTable` completa** (todas as colunas da RFC 3805) para o registro de alertas da impressora (seção 16.4).
 - Otimização: para status/erros, só enviar quando mudar (mais 1 envio por hora como confirmação).
 
 ### 4.7 Comandos remotos (R2) — todos devem existir e funcionar pelo portal
@@ -294,8 +312,12 @@ Recurso presente nos coletores mais atuais do mercado (MPS Monitor DCA 4). Permi
 | prtMarkerColorantValue (nome da cor) | 1.3.6.1.2.1.43.12.1.1.4 |
 | prtInputTable (bandejas) | 1.3.6.1.2.1.43.8.2.1 |
 | prtConsoleDisplayBufferText (texto do painel) | 1.3.6.1.2.1.43.16.5.1.2.1 |
-| prtAlertTable | 1.3.6.1.2.1.43.18.1.1 — .2 severity, .7 code, .8 description |
+| prtAlertTable | 1.3.6.1.2.1.43.18.1.1 — .2 severity, .3 trainingLevel, .4 group, .5 groupIndex, .6 location, .7 code, .8 description, .9 time |
 | ifPhysAddress (MAC) | 1.3.6.1.2.1.2.2.1.6 |
+| hrMemorySize (KB) | 1.3.6.1.2.1.25.2.2.0 |
+| hrStorageTable (disco) | 1.3.6.1.2.1.25.2.3.1 — .2 type (1.3.6.1.2.1.25.2.1.4 = disco fixo), .3 descr, .4 allocationUnits, .5 size, .6 used |
+| hrDeviceTable (subsistemas) | 1.3.6.1.2.1.25.3.2.1 — .2 type, .3 descr, .5 status |
+| entPhysicalFirmwareRev / SoftwareRev | 1.3.6.1.2.1.47.1.1.1.1.9 / .10 |
 
 Percentual de suprimento = `level / max * 100` quando ambos ≥ 0. Para receptáculo (classe 4, ex.: toner residual), o nível indica quanto está cheio — tratar invertido na exibição. Associar suprimento à cor via ColorantIndex → prtMarkerColorantValue; se vazio, inferir pela descrição (black/preto/cyan/magenta/yellow/amarelo…).
 
@@ -331,6 +353,11 @@ supplies: { use_standard: true }
 - `rules.mono_only_models_regex` (equipamento sem cor → `color = 0`) e `rules.validate_sum_tolerance_percent`.
 Crie perfis com `match` e estrutura prontos para os demais: HP, Ricoh, Kyocera, Xerox, Brother, Samsung, Lexmark, Sharp, Epson, OKI, Toshiba — mas com os OIDs proprietários marcados `PREENCHER_PELO_WALK` até existir gravação real. Enterprise IDs: Canon 1602, Konica Minolta 18334, HP 11, Ricoh 367, Kyocera 1347, Xerox 253, Brother 2435, Samsung 236, Lexmark 641, Sharp 2385, Epson 1248, OKI 2001, Toshiba 1129.
 
+Extensões levantadas na auditoria (opcionais em todo perfil; os OIDs dos perfis Canon/Konica **não mudam**):
+- `line: {kind, color_mode, size}` em qualquer contador, mapeando-o para `reading_counters`. Os nomes normalizados já têm mapeamento padrão no servidor (ex.: `mono` → total/mono/any, `print_color` → print/full_color/any, `mono_large` → total/mono/a3); `line` sobrescreve ou mapeia contadores novos.
+- `supplies.cartridge_serial_oid`: tabela indexada como a `prtMarkerSuppliesTable` com o serial de cada cartucho.
+- `attributes`: `ssid`, `subsystems` (`printer`/`copier`/`scanner` → OIDs) e `parts` (nome → OID, unidade `percent`/`pages`/`count` e tipo de peça). Proprietários ficam `PREENCHER_PELO_WALK` até existir walk real.
+
 Suporte a expressões simples (`total - mono`, `a + b`), e a leitor HTTP opcional no perfil (`http: {path, regex}` para modelos que só mostram contador na página web) — implementar a estrutura, desativado por padrão.
 
 ### 6.5 Validação de leituras (servidor)
@@ -353,6 +380,7 @@ Suporte a expressões simples (`total - mono`, `a + b`), e a leitor HTTP opciona
 - Rate limit em memória (por IP/agente) em login e endpoints de agente.
 - Paginação por cursor nas listas grandes; filtros e ordenação do lado do servidor (a tela de parque precisa aguentar 20.000 equipamentos).
 - Exportação CSV e XLSX (openpyxl) de toda lista/relatório, respeitando os filtros aplicados.
+- **Conector de ERP (`ErpConnector`)** para o Dataclassic da Databit — seção 16.11 (Fase 7).
 - **API para o ERP** (somente leitura, token por integração): `GET /api/erp/v1/readings?customer_erp_code=&from=&to=`, `GET /api/erp/v1/cutoff?date=` (leitura de cada equipamento mais próxima e anterior à data de corte), `GET /api/erp/v1/devices`. Documentada no OpenAPI.
 - Gateway WebSocket: mantém mapa `agent_id → conexão`; presença gravada em `agents.last_seen_at` a cada heartbeat; comandos criados pela API são gravados em `commands` e sinalizados com `NOTIFY commands` do PostgreSQL; o gateway que tem a conexão entrega; se nenhum tiver, ficam `pending` para o polling. O desenho deve funcionar com mais de uma instância do gateway (LISTEN/NOTIFY resolve isso).
 - Server-Sent Events ou WebSocket do portal para atualizações ao vivo (estado de coletores, progresso de comandos, novos alertas).
@@ -370,7 +398,8 @@ Suporte a expressões simples (`total - mono`, `a + b`), e a leitor HTTP opciona
 | equipamentos desconectados | 5 min | sem leitura há H horas (padrão 6 h) → estado desconectado + alerta conforme regra |
 | avaliação de alertas | 1 min | aplica `alert_rules`; deduplica; resolve automaticamente quando a condição some |
 | notificações | contínuo | envia e-mail/WhatsApp/webhook com retentativa e registro |
-| previsão de toner | 1 h | regressão linear do consumo dos últimos 30 dias → "dias até acabar" por suprimento |
+| previsão de toner | 1 h | regressão linear do consumo dos últimos 30 dias (ou consumo direto por página) → janela otimista/pessimista em dias e data, páginas restantes, método e confiança (seção 16.6) |
+| atolamento recorrente | 1 h | N atolamentos em X dias (padrão 5 em 3, configurável em Alertas > Regras) → alerta "atolamento recorrente" |
 | resumo diário | 07:00 | e-mail com coletores offline, equipamentos sem leitura, toners críticos |
 | partições | diário | cria partições dos próximos meses |
 | retenção | diário | heartbeats > 30 dias, supply_readings > 400 dias (configurável). **Nunca** apagar `readings` |
@@ -393,19 +422,21 @@ Layout igual em espírito ao Datacount: barra lateral à esquerda com menus, cab
 Menus e telas:
 
 1. **Login** (+ TOTP, esqueci a senha por e-mail).
-2. **Dashboard:** cards (equipamentos monitorados, online, desconectados, coletores online/offline, alertas abertos, toners críticos), gráfico de páginas por dia (30 dias, PB × cor), lista "Coletores offline agora" com botão Reativar, "Toners que acabam em até 7 dias".
-3. **Revendas** (superadmin), **Empresas**, **Usuários** (CRUD, papéis, escopo por cliente, reset de senha, TOTP).
-4. **Clientes:** lista; detalhe com abas Locais, Coletores, Equipamentos, Alertas, Relatórios, Contatos, Código ERP.
+2. **Dashboard (Visão geral):** cards (equipamentos monitorados, online, desconectados, coletores online/offline, alertas abertos, toners críticos), **produção do mês (PB, cor, total)**, gráfico de páginas por dia (30 dias, PB × cor), **gráfico de equipamentos comunicando por dia**, lista "Coletores offline agora" com botão Reativar, "Toners que acabam em até 7 dias" e **toners previstos para acabar em 30 dias, por cor**.
+3. **Revendas** (superadmin), **Empresas**, **Usuários** (CRUD, papéis, escopo por cliente, reset de senha, TOTP), **Permissões** (matriz módulo × Consultar/Incluir/Alterar/Excluir + Monitorar suprimentos, por papel), **Campos personalizados** de equipamento.
+4. **Clientes:** lista; detalhe com abas Locais, Coletores, Equipamentos, Alertas, Relatórios, Contatos, Código ERP, **limiares de toner por cor e monitorar suprimentos**. **Importação de clientes por CSV** (separador `;`) com validação linha a linha e relatório de erros. Locais com endereço completo (CEP pelo ViaCEP), latitude/longitude e **mapa dos locais** com o status de cada um.
 5. **Coletores (Collector):** lista com estado (online/offline/degraded/paused), papel (MASTER/STANDBY), cliente/local, hostname, IP, versão, último sinal, fila pendente, watchdog vivo. Ações por linha e em massa: **Reativar**, Reiniciar, Varrer agora, Ler agora, Logs, Diagnóstico, Atualizar, Pausar. Botão **"Novo coletor"** (gera código + link do instalador + instrução de 3 passos).
-   - Detalhe: status ao vivo, gráfico de heartbeat/CPU/memória, cluster do local, faixas de IP (editar, sugerir), credenciais SNMP, intervalos, proxy, histórico de comandos com saída, terminal de logs ao vivo (stream), histórico de versões.
+   - Detalhe: status ao vivo, gráfico de heartbeat/CPU/memória, **IP público, SO, versão, local de instalação e estatísticas (leituras, falhas, equipamentos offline)**, cluster do local, faixas de IP (editar, sugerir, **IPs/hostnames avulsos, importar `.txt`**, **monitorar redes conectadas**), credenciais SNMP, intervalos, **tentativas SNMP (1–5) e timeouts**, proxy, histórico de comandos com saída, terminal de logs ao vivo (stream), histórico de versões.
 6. **Equipamentos → Parque (tela principal, igual à imagem do Datacount):** colunas **Status** (IP + ícone + texto), **DCA** (coletor), **Descoberta**, **Comunicação** ("Hoje às 08:14"), **PAT**, **Serial**, **Marca**, **Modelo** (+ Setor abaixo), **Cliente**, **Medidor** (total grande; "PB: x CL: y" pequeno), **Monitor**, **Níveis** (barras verticais C/M/Y/K com % e "n/d"). Ordenação e filtro por coluna, **Pesquisa global**, checkboxes **Selecionar / Desconectados / Desativados**, botão limpar filtros, atualizar, filtro avançado (painel lateral), colunas configuráveis e salvas por usuário, ações em massa (ler agora, desativar, mover de cliente/local, editar setor/PAT, exportar). Virtualização da tabela para milhares de linhas.
-   - **Detalhe do equipamento:** dados cadastrais editáveis (PAT, setor, observação, cliente, local), status atual e erros, gráfico de contadores (diário/mensal, PB × cor), tabela de leituras com exportação, suprimentos com histórico e previsão de término, eventos (linha do tempo), alertas, ajustes manuais de leitura (com motivo), botões Ler agora, Testar SNMP, Walk, **Abrir página web da impressora** (seção 4.9, abre em nova aba).
+   - **Equipamentos → Descobertas:** equipamentos novos pendentes, com **Ativar / Descartar** individual e em lote (seção 16.1).
+   - **Equipamentos → Trocas de toner** e **Equipamentos → Alertas da impressora** (Peças/manutenção, Chamado técnico, Atolamento, Consumível, Outros), paginados no servidor, mais recentes primeiro.
+   - **Detalhe do equipamento:** dados cadastrais editáveis (patrimônio, serial alternativo, setor, observação, cliente, local, franquia, excedente, campos personalizados, modo de limiar de toner), atributos da leitura diária, status atual e erros, gráfico de contadores (diário/mensal, PB × cor), tabela de leituras com exportação, suprimentos com histórico e previsão de término, eventos (linha do tempo), alertas, ajustes manuais de leitura (com motivo), botões Ler agora, Testar SNMP, Walk, **Abrir página web da impressora** (seção 4.9, abre em nova aba).
 7. **Computadores:** PCs com agente (e impressoras USB — seção 11).
 8. **Alertas:** lista com filtros, reconhecer, resolver, regras (CRUD de `alert_rules`), canais de notificação.
-9. **Relatórios:** produção por período (por cliente, local, equipamento, PB/cor), **leitura de corte** (data de corte → leitura de cada equipamento), consumo de suprimentos, disponibilidade dos coletores (% do tempo online por cliente), equipamentos sem leitura, trocas de IP/equipamento, regressões de contador. Todos com exportação CSV/XLSX/PDF.
+9. **Relatórios:** produção por período (por cliente, local, equipamento, PB/cor), **leitura de corte** (data de corte → leitura de cada equipamento), consumo de suprimentos, disponibilidade dos coletores (% do tempo online por cliente), equipamentos sem leitura, trocas de IP/equipamento, regressões de contador, e os da seção 16.12 (Descobertas, Visão do parque, Online, Sem conexão, Desativados, Status do parque, Alertas de suprimento, Trocas de suprimento com rendimento, Status dos coletores, Contador diário com gráfico, Leitura de corte/cobrança por mês com franquia e excedente). Todos em HTML na tela + CSV/XLSX/PDF, com filtros de período, cliente e tipo de data.
 10. **Perfis de modelos:** editor e explorador de walk (seção 6.6).
 11. **Downloads:** instalador Windows (.exe), pacote Linux, versões publicadas, notas; publicar release (admin), canais e rollout.
-12. **Configurações:** notificações (SMTP, WhatsApp), regras padrão, intervalos padrão, limites de validação, integração ERP (tokens), tema/logo da revenda.
+12. **Configurações:** notificações (SMTP, WhatsApp), regras padrão, intervalos padrão, limites de validação, limiar de troca de toner, integração ERP (tokens e parâmetros do Dataclassic — seção 16.11), tema/logo da revenda.
 13. **Auditoria:** quem fez o quê e quando, com filtro.
 
 Padrões de UX: toda ação com confirmação quando destrutiva; toasts de resultado; estados de carregamento e vazio; datas relativas ("há 5 min") com tooltip da data completa; números com separador de milhar pt-BR.
@@ -465,8 +496,9 @@ Cada fase termina com: testes passando, commit, `PROGRESS.md` atualizado e instr
 - **Fase 3 — Tempo real e comandos:** gateway WebSocket, presença em tabela + LISTEN/NOTIFY, polling de contingência, todos os comandos da tabela 4.7 (exceto `update`/`rollback`, que entram na Fase 5), ciclo de vida dos comandos.
 - **Fase 4 — Portal:** layout, login, dashboard, clientes, coletores (com Reativar e comandos ao vivo), **tela de parque completa**, detalhe do equipamento, usuários, auditoria.
 - **Fase 5 — Confiabilidade:** watchdog, vigilância mútua, cluster com lease e failover, Wake-on-LAN, atualização assinada com canais/rollout/rollback, fluxo completo do botão Reativar (4.7), teste de caos.
-- **Fase 6 — Alertas e notificações:** regras, worker, e-mail, WhatsApp, webhook, resumo diário, previsão de toner.
-- **Fase 7 — Perfis, relatórios e acesso web:** motor de perfis completo validado com os perfis Canon/Konica fornecidos, editor de perfis com explorador de walk, perfis-base dos demais fabricantes, relatórios completos, exportações, API do ERP, **acesso remoto à página web da impressora (4.9)**.
+- **Fase 5.1 — Auditoria do Datacount (ajustes nas fases concluídas):** migrações e ajustes de modelo, agente, ingestão, API e telas já existentes dos itens da seção 16 marcados "agora": descobertas pendentes com Ativar/Descartar (16.1), `reading_counters` (16.2), detecção e registro de troca de toner (16.3), registro e classificação da `prtAlertTable` (16.4), limiares de toner no modelo/API (16.5), colunas da previsão (16.6), cadastro do equipamento (16.7), atributos diários (16.8), endereço completo com ViaCEP e coordenadas (16.9), opções do coletor (16.10) e matriz de permissões (16.14). Com testes.
+- **Fase 6 — Alertas e notificações:** regras (centralizadas em Alertas > Regras, incluindo limiares de toner e atolamento recorrente), worker, e-mail, WhatsApp, webhook, resumo diário, previsão de toner com janela otimista/pessimista e confiança (16.6), telas de Trocas de toner (16.3) e Alertas da impressora (16.4), telas de limiar de toner por cliente/equipamento (16.5), dashboard com toners previstos para 30 dias por cor (16.13).
+- **Fase 7 — Perfis, relatórios e acesso web:** motor de perfis completo validado com os perfis Canon/Konica fornecidos, editor de perfis com explorador de walk, perfis-base dos demais fabricantes, relatórios completos (incluindo os da seção 16.12 e o de rendimento de toner), exportações, API do ERP, **conector Dataclassic com fila (16.11)**, importação de clientes por CSV e mapa dos locais (16.9), produção do mês e equipamentos comunicando por dia na Visão geral (16.13), **acesso remoto à página web da impressora (4.9)**.
 - **Fase 8 — Instaladores:** Inno Setup (setup.exe com tela de código de cadastro e modo silencioso `/CODE=XXXX /SERVER=URL`, instala os 2 serviços, configura recuperação do SCM, desinstalador limpo), pacote Linux (.deb + script `install.sh`), página de Downloads. Deixar pronto o passo de assinatura de código (certificado a ser comprado depois).
 - **Fase 9 — USB e acabamento:** agente USB, Computadores, tema escuro, responsividade, teste de carga e de resistência, documentação final (`docs/operacao.md`: como instalar em cliente, como cadastrar modelo novo com walk, como publicar versão, como restaurar backup; `docs/piloto.md`: roteiro para validar em 3–5 clientes reais comparando com o Datacount) e script de backup/restauração do Postgres.
 - **Fase 10 — Teste com impressoras reais da rede local:** o computador onde você (Claude Code) roda está na mesma rede que impressoras reais da Daticopy. Nesta fase:
@@ -502,3 +534,67 @@ Cada fase termina com: testes passando, commit, `PROGRESS.md` atualizado e instr
 17. Soak de 30 min sem crescimento de memória; carga de 20.000 equipamentos com tela de parque < 1 s.
 18. Todos os testes (unitários, integração, E2E, Windows, caos, soak, carga) passam no CI e `scripts\acceptance.ps1` mostra todos os itens OK.
 19. Na rede local real (Fase 10), o sistema descobriu as impressoras, e os contadores PB/cor de cada modelo foram conferidos com a folha de contadores e aprovados pelo usuário.
+20. Equipamento novo aparece em Descobertas como pendente e só entra no parque depois de ativado (ou automaticamente, com a opção do Local ligada); descartado deixa de ser lido.
+21. Uma troca de toner simulada (nível sobe ≥ limiar) gera o registro em Trocas de toner com rendimento correto; 5 atolamentos em 3 dias geram o alerta "atolamento recorrente".
+22. Toda lista do portal é paginada no servidor (nenhuma tela baixa a lista inteira) e nenhuma resposta da API contém senha ou hash.
+
+---
+
+## 16. FUNCIONALIDADES DA AUDITORIA DO DATACOUNT
+
+Levantadas na auditoria do Datacount em uso. A coluna "Fase" diz onde cada parte entra; "5.1" são ajustes nas fases já concluídas (seção 14). **Fora do escopo por enquanto:** inventário de computadores (módulo Inventory do Datacount).
+
+### 16.1 Descobertas (5.1)
+- Equipamento novo entra com `discovery_state = pending` e aparece em **Equipamentos > Descobertas**, com **Ativar / Descartar** individual e em lote (auditado).
+- Configuração por Local: **"ativar automaticamente"** (padrão desligado).
+- Pendente: as leituras são gravadas normalmente (leituras nunca se perdem), mas o equipamento não aparece no parque, nos relatórios nem nos alertas até ser ativado. Descartado: o serial vai para `ignored_serials` na config do agente, que para de lê-lo; itens que ainda chegarem são respondidos como `discarded`. Um descartado pode voltar para pendente.
+
+### 16.2 Contadores como linhas (5.1; relatórios e ERP na Fase 7)
+- Tabela `reading_counters` (seção 3), gravada na ingestão a partir de cada contador da leitura: mapeamento padrão do servidor para os nomes normalizados + `line` do perfil. Contadores sem significado inequívoco (ex.: "pequeno" da Canon, "Total 2") ficam só no `extra` até o perfil mapeá-los.
+- Leituras existentes ganham as linhas na migração (a partir das colunas principais).
+
+### 16.3 Troca de toner (5.1 detecção; tela e relatório na Fase 6/7)
+- Na ingestão de suprimentos, quando o percentual de um suprimento consumível **sobe** ≥ limiar (configurável por revenda, padrão **+20 pontos**) → registro em `supply_replacements`: nível antes/depois, contadores antes/depois, **páginas impressas com o cartucho anterior** (contador na troca − contador na troca anterior do mesmo suprimento; total para preto, cor para C/M/Y quando houver), capacidade nominal (quando a unidade é páginas/impressões), `premature` (nível anterior > 20%), serial do cartucho quando o perfil fornecer.
+- Tela **Trocas de toner** + relatório de rendimento por modelo/cartucho.
+
+### 16.4 Alertas da impressora — prtAlertTable, RFC 3805 (5.1 registro; telas e regra na Fase 6)
+- Cada alerta novo da tabela é gravado em `printer_alerts` com severidade, nível de treinamento, grupo, código, descrição e os contadores no momento; quando some da tabela, é marcado encerrado.
+- Classificação: **Atolamento** (código `jam`), **Chamado técnico** (nível de treinamento `fieldService` ou falhas irrecuperáveis/motor/fusor/temperatura), **Consumível** (toner/tinta/revelador vazio ou quase, reservatório de resíduo), **Peças/manutenção** (vida útil de peça quase no fim/no fim, OPC, limites), **Outros**.
+- Regra configurável: **N atolamentos em X dias** (padrão 5 em 3) → alerta "atolamento recorrente".
+- Telas separadas por categoria, paginação no servidor, mais recentes primeiro.
+
+### 16.5 Limiar de toner (5.1 modelo/API; telas e alertas na Fase 6)
+- Por cliente: um limiar por cor (padrão 10%) e liga/desliga do monitoramento.
+- Por equipamento: modo **Desligado / Global** (herda do cliente) **/ Individual** (limiares próprios).
+
+### 16.6 Previsão de toner (5.1 colunas; cálculo e telas na Fase 6)
+- Mostrar janela **otimista e pessimista** (dias e data), **páginas restantes**, **método** (regressão linear ou consumo direto por página) e **indicador de confiança**. Previsão com confiança baixa nunca é exibida como certa ("estimativa incerta").
+
+### 16.7 Cadastro do equipamento (5.1)
+- Patrimônio, serial alternativo, setor (padrão = sysLocation, editável, alteração em lote), valor da franquia (R$), franquia de páginas PB e cor, preço do excedente PB e cor, campos personalizados definidos pela revenda (chave/valor).
+
+### 16.8 Atributos do equipamento — leitura diária (5.1)
+- Firmware(s), memória, disco, MAC, Wi-Fi/SSID, uptime, status por subsistema (impressora/cópia/scanner), mensagem do painel, e níveis/contadores de peças quando o perfil fornecer (cilindros, fusor, unidade de transferência, kit de manutenção, roletes, reservatório de toner usado). OIDs padrão na seção 6.2; proprietários só pelo perfil.
+
+### 16.9 Locais (5.1 endereço e coordenadas; mapa e importação CSV na Fase 7)
+- Endereço completo com CEP (preenchimento via ViaCEP), latitude/longitude, tela de **mapa** dos locais com status. **Importação de clientes por CSV** (separador `;`) com validação e relatório de erros.
+
+### 16.10 Coletor (5.1)
+- "Monitorar redes conectadas", IPs e hostnames avulsos, importação de faixas por `.txt`, tentativas SNMP (1–5) e timeouts configuráveis no portal; mostrar IP público, SO, versão, local de instalação e estatísticas (leituras, falhas, equipamentos offline).
+
+### 16.11 Integração Dataclassic — `ErpConnector` (Fase 7)
+- Parâmetros por revenda: habilitar; enviar contadores; **requisição de suprimento** (operação, tipo desc, status, situação, condição de pagamento, vendedor, tipo de frete, e-mail de notificação, opção "apenas enviar e-mail"); **ordem de serviço** (código do técnico, motivo, tipo de intervenção, status, quais tipos de alerta viram OS: chamado técnico, consumíveis, atolamento recorrente, outros; lista de códigos prtAlert importáveis); código da empresa e operador.
+- **Fila** (`erp_queue`) com status por item (pendente/enviado/erro), reenvio e log visível — nada de flags soltas.
+- Transporte (arquivo/API/banco) **plugável** até a Databit informar o layout.
+
+### 16.12 Relatórios (Fase 7)
+HTML na tela + CSV/XLSX/PDF, filtros por período, cliente e tipo de data: Descobertas, Visão do parque, Online, Sem conexão, Desativados, Status do parque, Alertas de suprimento, Trocas de suprimento (com rendimento), Status dos coletores, Contador diário com gráfico por período, Leitura de corte/cobrança por mês (franquia, excedente).
+
+### 16.13 Visão geral (Fase 6: toners em 30 dias; Fase 7: o resto)
+Produção do mês (PB, cor, total), gráfico de equipamentos comunicando por dia e toners previstos para acabar em 30 dias por cor.
+
+### 16.14 Permissões (5.1)
+Matriz por módulo (Clientes, Coletores, Equipamentos, Relatórios, Integração, Usuários) × Consultar/Incluir/Alterar/Excluir, mais "Monitorar suprimentos". Permissões especiais continuam (comandos, acesso web, ajuste de leitura, auditoria, perfis, versões, configurações).
+
+### 16.15 Defeitos do Datacount que não devem ser copiados
+Regra 13 da seção 0.

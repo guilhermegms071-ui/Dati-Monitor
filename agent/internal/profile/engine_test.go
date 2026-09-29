@@ -345,3 +345,37 @@ func TestProfileHelpers(t *testing.T) {
 		t.Fatal("regex inválida deveria falhar")
 	}
 }
+
+func TestCounterLinesFromProfile(t *testing.T) {
+	src := snmp.NewMemSource([]snmp.PDU{
+		{OID: "1.2.1", Kind: snmp.KindCounter32, Int: 100},
+		{OID: "1.2.2", Kind: snmp.KindCounter32, Int: 7},
+	})
+	p := &Profile{ID: "t", Version: 1, Counters: map[string]Counter{
+		"total":      {OID: "1.2.1"},
+		"a3_color":   {OID: "1.2.2", Line: &Line{Kind: "print", ColorMode: "full_color", Size: "a3"}},
+		"not_read":   {OID: "1.2.9", Line: &Line{Kind: "copy", ColorMode: "mono", Size: "a4"}},
+		"no_mapping": {OID: "1.2.2"},
+	}}
+	if err := p.Compile(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Evaluate(context.Background(), src, p, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Só contadores lidos e com `line` explícito; os nomes normalizados usam o padrão do servidor.
+	if len(res.Lines) != 1 || res.Lines["a3_color"] != (Line{Kind: "print", ColorMode: "full_color", Size: "a3"}) {
+		t.Fatalf("linhas: %+v", res.Lines)
+	}
+	raw := []byte(`{"id":"x","version":1,"counters":{"t":{"oid":"1.2.1","line":{"kind":"print","color_mode":"mono","size":"a5"}}}}`)
+	if _, err := FromJSON(raw); err == nil || !strings.Contains(err.Error(), "size") {
+		t.Fatalf("tamanho inválido deveria ser recusado pelo schema: %v", err)
+	}
+	raw = []byte(`{"id":"x","version":1,"counters":{"t":{"oid":"1.2.1"}},` +
+		`"supplies":{"cartridge_serial_oid":"1.3.6.1.4.1.9.9"},` +
+		`"attributes":{"ssid":[{"oid":"1.2.3"}],"parts":{"drum_k":{"oid":"1.2.4","part":"drum","unit":"percent","color":"black"}}}}`)
+	if _, err := FromJSON(raw); err != nil {
+		t.Fatalf("atributos do perfil: %v", err)
+	}
+}

@@ -179,5 +179,5 @@ async def test_sync_roles_mirrors_permission_matrix(sessionmaker: async_sessionm
             ).scalars()
         )
     assert "permissao.obsoleta" not in perms
-    assert "customers.write" in perms
+    assert {"customers.create", "customers.update", "customers.delete"} <= perms
     assert "users.write" not in perms

@@ -1,8 +1,10 @@
 """IP ranges and SNMP credentials of a site (PROMPT 3/4.5). Secrets are AES-GCM encrypted and never
 returned by the API; every change bumps the configuration version of the site's agents."""
 
+import ipaddress
 import uuid
 
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +13,14 @@ from app.core.config import Settings
 from app.core.errors import bad_request, not_found
 from app.core.principal import Principal
 from app.models import IpRange, Site, SnmpCredential
-from app.schemas.collection import IpRangeIn, SnmpCredentialIn, SnmpCredentialOut, SnmpCredentialUpdate
+from app.schemas.collection import (
+    IpRangeIn,
+    RangeImportLineError,
+    RangeImportOut,
+    SnmpCredentialIn,
+    SnmpCredentialOut,
+    SnmpCredentialUpdate,
+)
 from app.services import audit
 from app.services.agents import bump_site_config, snmp_aad
 
@@ -19,7 +28,7 @@ DEFAULT_COMMUNITY = "public"
 
 
 async def _site(session: AsyncSession, p: Principal, site_id: uuid.UUID, *, write: bool) -> Site:
-    p.require("sites.write" if write else "sites.read")
+    p.require("agents.update" if write else "agents.read")
     site = await session.get(Site, site_id)
     if (
         site is None
@@ -57,6 +66,81 @@ async def create_range(session: AsyncSession, p: Principal, site_id: uuid.UUID, 
         after=audit.snapshot(row),
     )
     return row
+
+
+MAX_IMPORT_LINES = 1000
+
+
+def parse_range_line(line: str) -> IpRangeIn:
+    """One line of a .txt import: CIDR, start-end, single IP or hostname (PROMPT 16.10)."""
+    text = line.strip()
+    if "/" in text:
+        return IpRangeIn(cidr=text)
+    if "-" in text:
+        start, _, end = (part.strip() for part in text.partition("-"))
+        try:
+            ipaddress.IPv4Address(start)
+            ipaddress.IPv4Address(end)
+        except ValueError:
+            return IpRangeIn(host=text)  # hostname com hífen (ex.: impressora-rh)
+        return IpRangeIn(start_ip=start, end_ip=end)
+    return IpRangeIn(host=text)
+
+
+def _range_key(r: IpRange | IpRangeIn) -> tuple[str | None, str | None, str | None, str | None]:
+    return (r.cidr, r.start_ip, r.end_ip, r.host)
+
+
+async def import_ranges(
+    session: AsyncSession, p: Principal, site_id: uuid.UUID, content: str, ports: list[int]
+) -> RangeImportOut:
+    """Imports one entry per line; `#` starts a comment. Valid lines are created even if others fail;
+    each error is reported with its line number."""
+    site = await _site(session, p, site_id, write=True)
+    lines = content.splitlines()
+    if len(lines) > MAX_IMPORT_LINES:
+        raise bad_request("too_many_lines", f"O arquivo pode ter no máximo {MAX_IMPORT_LINES} linhas")
+    existing = {
+        _range_key(r)
+        for r in (await session.execute(select(IpRange).where(IpRange.site_id == site.id))).scalars()
+    }
+    out = RangeImportOut(created=0, duplicates=0, errors=[])
+    for number, raw in enumerate(lines, start=1):
+        text = raw.split("#", 1)[0].strip()
+        if not text:
+            continue
+        try:
+            data = parse_range_line(text).model_copy(update={"ports": ports})
+        except ValidationError as exc:
+            msg = "; ".join(str(e["msg"]).removeprefix("Value error, ") for e in exc.errors())
+            out.errors.append(RangeImportLineError(line=number, content=text[:200], error=msg))
+            continue
+        if _range_key(data) in existing:
+            out.duplicates += 1
+            continue
+        existing.add(_range_key(data))
+        session.add(
+            IpRange(reseller_id=site.reseller_id, site_id=site.id, status="approved", **data.model_dump())
+        )
+        out.created += 1
+    if out.created:
+        await session.flush()
+        await bump_site_config(session, site.id)
+    await audit.record(
+        session,
+        p,
+        action="import",
+        entity="ip_range",
+        entity_id=None,
+        reseller_id=site.reseller_id,
+        after={
+            "site_id": str(site.id),
+            "created": out.created,
+            "duplicates": out.duplicates,
+            "errors": len(out.errors),
+        },
+    )
+    return out
 
 
 async def _range(session: AsyncSession, p: Principal, range_id: uuid.UUID) -> tuple[IpRange, Site]:

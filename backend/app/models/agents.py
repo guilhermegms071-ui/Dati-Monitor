@@ -83,6 +83,10 @@ class Agent(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     # Pausa decidida no portal (comandos pause/resume); o servidor é a autoridade e a devolve em todo
     # heartbeat e na configuração, então sobrevive a reinícios do coletor.
     paused: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
+    # Seção 16.10: varrer também as /24 privadas das interfaces do PC (ligar = aprovação explícita).
+    monitor_local_networks: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
+    public_ip: Mapped[str | None] = mapped_column(String(64))  # visto pelo servidor
+    install_path: Mapped[str | None] = mapped_column(Text)
 
 
 class AgentPresence(Base):
@@ -151,6 +155,8 @@ class IpRange(Base, IdMixin, TimestampMixin):
     cidr: Mapped[str | None] = mapped_column(String(64))
     start_ip: Mapped[str | None] = mapped_column(String(64))
     end_ip: Mapped[str | None] = mapped_column(String(64))
+    # IP ou hostname avulso (seção 16.10); o hostname é resolvido pelo agente a cada varredura.
+    host: Mapped[str | None] = mapped_column(String(255))
     exclusions: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_ARRAY, default=list)
     # Portas SNMP a sondar (padrão 161; o simulador de desenvolvimento usa 1161 a 1168 no mesmo IP).
     ports: Mapped[list[Any]] = mapped_column(server_default=text("'[161]'::jsonb"), default=lambda: [161])

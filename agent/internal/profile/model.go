@@ -32,6 +32,7 @@ type Profile struct {
 	Rules          *Rules             `json:"rules,omitempty"`
 	Status         *Status            `json:"status,omitempty"`
 	Supplies       *Supplies          `json:"supplies,omitempty"`
+	Attributes     *Attributes        `json:"attributes,omitempty"`
 	HTTP           *HTTPReader        `json:"http,omitempty"`
 	compiled       map[string]*regexp2.Regexp
 }
@@ -64,6 +65,16 @@ type Counter struct {
 	NameRegex string    `json:"name_regex,omitempty"`
 	SumNames  []string  `json:"sum_names,omitempty"`
 	Note      string    `json:"note,omitempty"`
+	// Line maps the counter to a reading_counters row (PROMPT 16.2); normalized names have a default
+	// mapping on the server, so it is only needed for new counters or to override the default.
+	Line *Line `json:"line,omitempty"`
+}
+
+// Line is one row of reading_counters: kind × color mode × paper size.
+type Line struct {
+	Kind      string `json:"kind"`
+	ColorMode string `json:"color_mode"`
+	Size      string `json:"size"`
 }
 
 // NamedTable is a table of counter names + values sharing the same index.
@@ -96,6 +107,31 @@ type Status struct {
 // Supplies controls supply reading.
 type Supplies struct {
 	UseStandard *bool `json:"use_standard,omitempty"`
+	// CartridgeSerialOID is a table indexed like prtMarkerSuppliesTable with each cartridge's serial.
+	CartridgeSerialOID string `json:"cartridge_serial_oid,omitempty"`
+}
+
+// Attributes are proprietary daily attributes (PROMPT 16.8); the standard ones are always read.
+type Attributes struct {
+	SSID       []OIDRef        `json:"ssid,omitempty"`
+	Subsystems *Subsystems     `json:"subsystems,omitempty"`
+	Parts      map[string]Part `json:"parts,omitempty"`
+}
+
+// Subsystems lists, in order of preference, the OIDs of each subsystem's status text.
+type Subsystems struct {
+	Printer []OIDRef `json:"printer,omitempty"`
+	Copier  []OIDRef `json:"copier,omitempty"`
+	Scanner []OIDRef `json:"scanner,omitempty"`
+}
+
+// Part is a part level/counter (drum, fuser, transfer unit, maintenance kit, rollers, waste toner…).
+type Part struct {
+	OID   string `json:"oid"`
+	Part  string `json:"part"`
+	Unit  string `json:"unit"` // percent | pages | count
+	Color string `json:"color,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 // HTTPReader reads counters from the printer web page (disabled by default).

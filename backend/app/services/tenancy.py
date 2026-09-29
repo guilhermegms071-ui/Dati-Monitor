@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import bad_request, conflict, forbidden, not_found
+from app.core.permissions import CUSTOMER_VIEWER
 from app.core.principal import Principal, customer_scope, reseller_scope
 from app.models import Agent, Company, Customer, Device, Reseller, Site, User
 from app.schemas.tenancy import (
@@ -37,7 +38,19 @@ def _like(q: str) -> str:
     return f"%{escaped}%"
 
 
-_REQUIRED = frozenset({"name", "legal_name", "timezone", "collection_config", "company_id", "active"})
+_REQUIRED = frozenset(
+    {
+        "name",
+        "legal_name",
+        "timezone",
+        "collection_config",
+        "company_id",
+        "active",
+        "auto_activate_devices",
+        "toner_monitoring",
+        "toner_thresholds",
+    }
+)
 
 
 def _apply(obj: object, data: dict[str, Any]) -> None:
@@ -164,6 +177,13 @@ def _target_reseller(p: Principal, requested: uuid.UUID | None) -> uuid.UUID:
     return requested
 
 
+def _require_companies(p: Principal) -> None:
+    """Empresas são do módulo Clientes (16.14); o papel Cliente (somente leitura) não as consulta."""
+    p.require("customers.read")
+    if p.role == CUSTOMER_VIEWER:
+        raise forbidden("O papel Cliente não consulta empresas")
+
+
 async def list_companies(
     session: AsyncSession,
     p: Principal,
@@ -175,7 +195,7 @@ async def list_companies(
     limit: int,
     cursor: str | None,
 ) -> PageResult[Company]:
-    p.require("companies.read")
+    _require_companies(p)
     stmt = select(Company).where(Company.deleted_at.is_(None), reseller_scope(p, Company.reseller_id))
     if p.customer_id is not None:
         stmt = stmt.where(Company.id.in_(select(Customer.company_id).where(Customer.id == p.customer_id)))
@@ -196,7 +216,7 @@ async def list_companies(
 
 
 async def get_company(session: AsyncSession, p: Principal, company_id: uuid.UUID) -> Company:
-    p.require("companies.read")
+    _require_companies(p)
     obj = await session.get(Company, company_id)
     if obj is None or obj.deleted_at is not None or not p.can_access_reseller(obj.reseller_id):
         raise not_found("Empresa")
@@ -208,7 +228,7 @@ async def get_company(session: AsyncSession, p: Principal, company_id: uuid.UUID
 
 
 async def create_company(session: AsyncSession, p: Principal, data: CompanyIn) -> Company:
-    p.require("companies.write")
+    p.require("customers.create")
     reseller_id = _target_reseller(p, data.reseller_id)
     if await session.get(Reseller, reseller_id) is None:
         raise not_found("Revenda")
@@ -230,7 +250,7 @@ async def create_company(session: AsyncSession, p: Principal, data: CompanyIn) -
 async def update_company(
     session: AsyncSession, p: Principal, company_id: uuid.UUID, data: CompanyUpdate
 ) -> Company:
-    p.require("companies.write")
+    p.require("customers.update")
     obj = await get_company(session, p, company_id)
     before = audit.snapshot(obj)
     _apply(obj, data.model_dump(exclude_unset=True))
@@ -250,7 +270,7 @@ async def update_company(
 
 
 async def delete_company(session: AsyncSession, p: Principal, company_id: uuid.UUID) -> None:
-    p.require("companies.write")
+    p.require("customers.delete")
     obj = await get_company(session, p, company_id)
     customers = (
         await session.execute(
@@ -353,7 +373,7 @@ async def _flush_unique(session: AsyncSession) -> None:
 
 
 async def create_customer(session: AsyncSession, p: Principal, data: CustomerIn) -> Customer:
-    p.require("customers.write")
+    p.require("customers.create")
     if p.customer_id is not None:
         raise forbidden("Usuários com escopo de cliente não criam clientes")
     company = await _company_in_scope(session, p, data.company_id)
@@ -375,10 +395,12 @@ async def create_customer(session: AsyncSession, p: Principal, data: CustomerIn)
 async def update_customer(
     session: AsyncSession, p: Principal, customer_id: uuid.UUID, data: CustomerUpdate
 ) -> Customer:
-    p.require("customers.write")
+    p.require("customers.update")
     obj = await get_customer(session, p, customer_id)
     before = audit.snapshot(obj)
     changes = data.model_dump(exclude_unset=True)
+    if {"toner_monitoring", "toner_thresholds"} & changes.keys():
+        p.require("supplies.monitor")  # limiares de toner (seção 16.5)
     if changes.get("company_id") is not None:
         company = await _company_in_scope(session, p, changes["company_id"])
         if company.reseller_id != obj.reseller_id:
@@ -400,7 +422,7 @@ async def update_customer(
 
 
 async def delete_customer(session: AsyncSession, p: Principal, customer_id: uuid.UUID) -> None:
-    p.require("customers.write")
+    p.require("customers.delete")
     obj = await get_customer(session, p, customer_id)
     for model, label in ((Site, "locais"), (Device, "equipamentos")):
         count = (
@@ -447,14 +469,22 @@ async def list_sites(
     limit: int,
     cursor: str | None,
 ) -> PageResult[Site]:
-    p.require("sites.read")
+    p.require("customers.read")
     stmt = select(Site).where(
         Site.deleted_at.is_(None), reseller_scope(p, Site.reseller_id), customer_scope(p, Site.customer_id)
     )
     if customer_id:
         stmt = stmt.where(Site.customer_id == customer_id)
     if q:
-        stmt = stmt.where(or_(Site.name.ilike(_like(q)), Site.address.ilike(_like(q))))
+        stmt = stmt.where(
+            or_(
+                Site.name.ilike(_like(q)),
+                Site.street.ilike(_like(q)),
+                Site.district.ilike(_like(q)),
+                Site.city.ilike(_like(q)),
+                Site.cep.ilike(_like(q)),
+            )
+        )
     return await paginate(
         session,
         stmt,
@@ -468,7 +498,7 @@ async def list_sites(
 
 
 async def get_site(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> Site:
-    p.require("sites.read")
+    p.require("customers.read")
     obj = await session.get(Site, site_id)
     if (
         obj is None
@@ -480,7 +510,7 @@ async def get_site(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> S
 
 
 async def create_site(session: AsyncSession, settings: Settings, p: Principal, data: SiteIn) -> Site:
-    p.require("sites.write")
+    p.require("customers.create")
     customer = await get_customer(session, p, data.customer_id)
     fields = data.model_dump(exclude={"collection_config"})
     obj = Site(
@@ -504,7 +534,7 @@ async def create_site(session: AsyncSession, settings: Settings, p: Principal, d
 
 
 async def update_site(session: AsyncSession, p: Principal, site_id: uuid.UUID, data: SiteUpdate) -> Site:
-    p.require("sites.write")
+    p.require("customers.update")
     obj = await get_site(session, p, site_id)
     before = audit.snapshot(obj)
     changes = data.model_dump(exclude_unset=True)
@@ -529,7 +559,7 @@ async def update_site(session: AsyncSession, p: Principal, site_id: uuid.UUID, d
 
 
 async def delete_site(session: AsyncSession, p: Principal, site_id: uuid.UUID) -> None:
-    p.require("sites.write")
+    p.require("customers.delete")
     obj = await get_site(session, p, site_id)
     for model, label in ((Agent, "coletores"), (Device, "equipamentos")):
         count = (

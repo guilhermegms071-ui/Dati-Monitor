@@ -96,8 +96,11 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Coletores' }).click();
   await page.getByRole('button', { name: 'Novo coletor' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Cliente').selectOption({ label: env('DM_E2E_CUSTOMER') });
-  await dialog.getByLabel('Local').selectOption(env('DM_E2E_REAL_SITE'));
+  // Seletores com busca no servidor (nada de lista inteira no navegador).
+  await dialog.getByLabel('Cliente').fill(env('DM_E2E_CUSTOMER'));
+  await page.getByRole('option', { name: env('DM_E2E_CUSTOMER'), exact: true }).click();
+  await dialog.getByLabel('Local').fill(env('DM_E2E_REAL_SITE_NAME'));
+  await page.getByRole('option', { name: env('DM_E2E_REAL_SITE_NAME'), exact: true }).click();
   await dialog.getByLabel('Nome do coletor').fill(AGENT_NAME);
   await dialog.getByRole('button', { name: 'Gerar código' }).click();
   const code = ((await dialog.getByTestId('enrollment-code').textContent()) ?? '').trim();
@@ -155,16 +158,25 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
 
   // 4. Faixa de IP das impressoras simuladas, aplicada e varrida pelos comandos ao vivo.
   await page.getByRole('tab', { name: 'Faixas de IP' }).click();
-  await page.getByLabel('Nova faixa (CIDR)').fill('127.0.0.1/32');
+  await page.getByLabel('Faixa, IP ou hostname').fill('127.0.0.1/32');
   await page.getByLabel('Portas SNMP').fill(SIM_PORTS.join(', '));
   await page.getByRole('button', { name: 'Adicionar' }).click();
-  await expect(page.getByText('Faixa adicionada')).toBeVisible();
+  await expect(page.getByText('Adicionado', { exact: true })).toBeVisible();
   const applied = await runCommand(page, 'Aplicar configuração', 60_000);
   expect(applied).toContain('"ranges": 1');
   const scan = await runCommand(page, 'Varrer agora', 180_000);
   expect(scan).toContain('"printers_found": 8');
 
-  // 5. Parque do local: as 8 impressoras com contadores e níveis (leituras chegam pela fila do agente).
+  // 5. Descobertas: as 8 impressoras chegam pendentes (o local não ativa sozinho) e são ativadas em lote.
+  await page.goto('/descobertas');
+  const pending = page.getByRole('row').filter({ hasText: env('DM_E2E_REAL_SITE_NAME') });
+  await expect(pending).toHaveCount(8, { timeout: 120_000 });
+  for (const row of await pending.all()) await row.getByRole('checkbox').click();
+  await page.getByRole('button', { name: 'Ativar selecionados' }).click();
+  await expect(page.getByText(/^8 equipamento\(s\) ativado\(s\)/)).toBeVisible();
+  await expect(pending).toHaveCount(0);
+
+  // 6. Parque do local: as 8 impressoras com contadores e níveis (leituras chegam pela fila do agente).
   await page.goto(`/parque?site=${env('DM_E2E_REAL_SITE')}`);
   const rows = page.getByTestId('park-row');
   await expect(rows).toHaveCount(8, { timeout: 120_000 });
@@ -174,14 +186,17 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await expect(konica).toContainText(AGENT_NAME);
   for (const pct of ['25%', '55%', '66%', '5%']) await expect(konica.getByText(pct, { exact: true })).toBeVisible();
 
-  // 6. Detalhe do equipamento com gráfico de contadores.
+  // 7. Detalhe do equipamento com gráfico de contadores e atributos da leitura diária.
   await konica.getByRole('link', { name: 'A797019500624' }).click();
   await expect(page).toHaveURL(/\/parque\/[0-9a-f-]{36}$/);
   await expect(page.getByText('217.031').first()).toBeVisible();
   await page.getByRole('tab', { name: 'Contadores' }).click();
   await expect(page.locator('.recharts-surface').first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Atributos' }).click();
+  await expect(page.getByText('Controller 1.20')).toBeVisible();
+  await expect(page.getByText('HDD: ')).toBeVisible();
 
-  // 7. Reiniciar o coletor pelo watchdog: comando entregue no canal do vigia, coletor volta saudável.
+  // 8. Reiniciar o coletor pelo watchdog: comando entregue no canal do vigia, coletor volta saudável.
   await page.goto('/coletores');
   await page.getByRole('link', { name: AGENT_NAME }).first().click();
   const restarted = await runCommand(page, 'Reiniciar o coletor (pelo watchdog)', 90_000);

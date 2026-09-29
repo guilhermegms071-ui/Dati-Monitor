@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.core.errors import forbidden, unauthorized
-from app.core.permissions import ROLE_PERMISSIONS
 from app.core.principal import Principal
 from app.core.security import InvalidTokenError, decode_access_token, password_version
 from app.models import Reseller, User
+from app.services.permissions import effective_permissions
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -64,7 +64,7 @@ async def _authenticate(
         reseller_id=user.reseller_id,
         role=user.role_code,
         customer_id=user.customer_id,
-        permissions=ROLE_PERMISSIONS[user.role_code],
+        permissions=await effective_permissions(session, user.reseller_id, user.role_code),
         limited=claims.limited,
         email=user.email,
         ip=client_ip(request),

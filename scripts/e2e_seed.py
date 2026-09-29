@@ -31,13 +31,13 @@ import httpx
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "backend"))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select, update  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.db import make_engine, make_sessionmaker  # noqa: E402
 from app.core.permissions import RESELLER_ADMIN  # noqa: E402
 from app.core.security import agent_signature, derive_agent_key, hash_password  # noqa: E402
-from app.models import Reseller, User  # noqa: E402
+from app.models import Device, Reseller, User  # noqa: E402
 from app.services.bootstrap import ensure_bootstrap  # noqa: E402
 
 E2E_EMAIL = "e2e@dati.local"
@@ -118,7 +118,9 @@ def supply(color: str, percent: float, key: str) -> dict[str, Any]:
     }
 
 
-async def ensure_site(client: httpx.AsyncClient, customer_id: str, name: str) -> dict[str, Any]:
+async def ensure_site(
+    client: httpx.AsyncClient, customer_id: str, name: str, *, auto_activate: bool
+) -> dict[str, Any]:
     sites = check(await client.get("/api/v1/sites", params={"customer_id": customer_id, "limit": 50}))[
         "items"
     ]
@@ -127,10 +129,40 @@ async def ensure_site(client: httpx.AsyncClient, customer_id: str, name: str) ->
         site = check(
             await client.post(
                 "/api/v1/sites",
-                json={"customer_id": customer_id, "name": name, "timezone": "America/Sao_Paulo"},
+                json={
+                    "customer_id": customer_id,
+                    "name": name,
+                    "timezone": "America/Sao_Paulo",
+                },
+            )
+        )
+    if site.get("auto_activate_devices") != auto_activate:
+        site = check(
+            await client.patch(
+                f"/api/v1/sites/{site['id']}",
+                json={"auto_activate_devices": auto_activate},
             )
         )
     return dict(site)
+
+
+async def reset_discoveries(site_id: str) -> None:
+    """Impressoras simuladas de execuções anteriores voltam a ser pendentes (banco de desenvolvimento)."""
+    engine = make_engine(get_settings().database_url)
+    try:
+        async with make_sessionmaker(engine)() as session:
+            await session.execute(
+                update(Device)
+                .where(Device.site_id == uuid.UUID(site_id))
+                .values(
+                    discovery_state="pending",
+                    discovery_decided_at=None,
+                    discovery_decided_by=None,
+                )
+            )
+            await session.commit()
+    finally:
+        await engine.dispose()
 
 
 async def prepare_real_site(client: httpx.AsyncClient, customer_id: str) -> dict[str, Any]:
@@ -139,7 +171,9 @@ async def prepare_real_site(client: httpx.AsyncClient, customer_id: str) -> dict
     Leituras de 5 em 5 min: a janela do anti-duplicidade (metade do intervalo) fica em 2,5 min, então a
     leitura do coletor novo não é descartada por causa do coletor da execução anterior.
     """
-    site = await ensure_site(client, customer_id, REAL_SITE)
+    # Descobertas (seção 16.1): o teste ativa as impressoras pela tela, então elas voltam a ser pendentes.
+    site = await ensure_site(client, customer_id, REAL_SITE, auto_activate=False)
+    await reset_discoveries(site["id"])
     check(
         await client.patch(
             f"/api/v1/sites/{site['id']}",
@@ -169,15 +203,22 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
             if company is None:
                 company = check(await client.post("/api/v1/companies", json={"legal_name": COMPANY}))
             customer = check(
-                await client.post("/api/v1/customers", json={"name": CUSTOMER, "company_id": company["id"]})
+                await client.post(
+                    "/api/v1/customers",
+                    json={"name": CUSTOMER, "company_id": company["id"]},
+                )
             )
-        site = await ensure_site(client, customer["id"], SITE)
+        site = await ensure_site(client, customer["id"], SITE, auto_activate=True)
         real_site = await prepare_real_site(client, customer["id"])
 
         park = check(await client.get("/api/v1/park", params={"q": SERIAL, "limit": 5}))["items"]
         row = next((r for r in park if r["serial"] == SERIAL), None)
         last = (
-            {"total": row["last_total"], "mono": row["last_mono"], "color": row["last_color"]}
+            {
+                "total": row["last_total"],
+                "mono": row["last_mono"],
+                "color": row["last_color"],
+            }
             if row and row["last_total"] is not None
             else None
         )
@@ -192,7 +233,12 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
             code = check(
                 await client.post(
                     "/api/v1/agents",
-                    json={"site_id": site["id"], "name": AGENT, "kind": "windows", "priority": 100},
+                    json={
+                        "site_id": site["id"],
+                        "name": AGENT,
+                        "kind": "windows",
+                        "priority": 100,
+                    },
                 )
             )["enrollment"]["code"]
         else:
@@ -288,7 +334,12 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
             base = last
         items += [
             reading(
-                {"total": base["total"] + 450, "mono": base["mono"] + 300, "color": base["color"] + 150}, now
+                {
+                    "total": base["total"] + 450,
+                    "mono": base["mono"] + 300,
+                    "color": base["color"] + 150,
+                },
+                now,
             ),
             item(
                 "supplies",
@@ -313,6 +364,7 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
         "customer": CUSTOMER,
         "customer_id": customer["id"],
         "real_site_id": real_site["id"],
+        "real_site_name": real_site["name"],
         "total": base["total"] + 450,
     }
 

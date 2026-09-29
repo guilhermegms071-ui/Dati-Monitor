@@ -185,12 +185,26 @@
           "discovery": {
             "$ref": "#/components/schemas/DiscoveryConfig"
           },
+          "ignored_serials": {
+            "description": "Equipamentos descartados em Descobertas: não ler (seção 16.1)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Ignored Serials",
+            "type": "array"
+          },
           "intervals": {
             "$ref": "#/components/schemas/Intervals"
           },
           "keep_awake": {
             "default": false,
             "title": "Keep Awake",
+            "type": "boolean"
+          },
+          "monitor_local_networks": {
+            "default": false,
+            "description": "Varrer também as /24 privadas das interfaces deste PC (seção 16.10)",
+            "title": "Monitor Local Networks",
             "type": "boolean"
           },
           "paused": {
@@ -485,6 +499,17 @@
             "title": "Id",
             "type": "string"
           },
+          "install_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Path"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -540,6 +565,10 @@
             ],
             "title": "Memory Bytes"
           },
+          "monitor_local_networks": {
+            "title": "Monitor Local Networks",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -562,6 +591,17 @@
           "priority": {
             "title": "Priority",
             "type": "integer"
+          },
+          "public_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Ip"
           },
           "queue_pending": {
             "title": "Queue Pending",
@@ -694,6 +734,9 @@
           "last_error",
           "suggested_ranges",
           "paused",
+          "monitor_local_networks",
+          "public_ip",
+          "install_path",
           "ws_connected",
           "watchdog_status",
           "watchdog_alive",
@@ -706,8 +749,72 @@
         "title": "AgentOut",
         "type": "object"
       },
+      "AgentStats": {
+        "description": "Estatísticas do coletor nas últimas 24 h (seção 16.10).",
+        "properties": {
+          "devices_offline": {
+            "description": "Desses, sem resposta ou desconectados",
+            "title": "Devices Offline",
+            "type": "integer"
+          },
+          "devices_total": {
+            "description": "Equipamentos ativos lidos por este coletor",
+            "title": "Devices Total",
+            "type": "integer"
+          },
+          "failures_24h": {
+            "description": "Falhas de leitura (equipamento não respondeu após as tentativas)",
+            "title": "Failures 24H",
+            "type": "integer"
+          },
+          "items_24h": {
+            "description": "Todos os itens aceitos (leituras, suprimentos, status, atributos)",
+            "title": "Items 24H",
+            "type": "integer"
+          },
+          "last_item_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Item At"
+          },
+          "readings_24h": {
+            "description": "Leituras de contadores aceitas",
+            "title": "Readings 24H",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "readings_24h",
+          "items_24h",
+          "failures_24h",
+          "devices_total",
+          "devices_offline",
+          "last_item_at"
+        ],
+        "title": "AgentStats",
+        "type": "object"
+      },
       "AgentUpdate": {
         "properties": {
+          "monitor_local_networks": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Varrer também as redes do PC do coletor (ligar = aprovação explícita)",
+            "title": "Monitor Local Networks"
+          },
           "name": {
             "anyOf": [
               {
@@ -754,6 +861,7 @@
         "type": "object"
       },
       "Alert": {
+        "description": "Linha da prtAlertTable (RFC 3805). `index` e `time` (TimeTicks) identificam cada alerta novo.",
         "properties": {
           "code": {
             "default": 0,
@@ -766,13 +874,203 @@
             "title": "Description",
             "type": "string"
           },
+          "group": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group"
+          },
+          "group_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Index"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Index"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Location"
+          },
           "severity": {
             "default": 0,
             "title": "Severity",
             "type": "integer"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "prtAlertTime (sysUpTime no momento, centésimos de s)",
+            "title": "Time"
+          },
+          "training_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Training Level"
           }
         },
         "title": "Alert",
+        "type": "object"
+      },
+      "AttributesPayload": {
+        "description": "Atributos da leitura diária (seção 16.8).",
+        "properties": {
+          "firmware": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Firmware",
+            "type": "array"
+          },
+          "mac": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mac"
+          },
+          "memory_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Memory Bytes"
+          },
+          "panel_text": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Panel Text"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/Part"
+            },
+            "maxItems": 64,
+            "title": "Parts",
+            "type": "array"
+          },
+          "ssid": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ssid"
+          },
+          "storage": {
+            "items": {
+              "$ref": "#/components/schemas/StorageInfo"
+            },
+            "maxItems": 20,
+            "title": "Storage",
+            "type": "array"
+          },
+          "subsystems": {
+            "items": {
+              "$ref": "#/components/schemas/Subsystem"
+            },
+            "maxItems": 32,
+            "title": "Subsystems",
+            "type": "array"
+          },
+          "sys_location": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sys Location"
+          },
+          "uptime_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Uptime Seconds"
+          }
+        },
+        "title": "AttributesPayload",
         "type": "object"
       },
       "AuditOut": {
@@ -1303,10 +1601,24 @@
             ],
             "title": "Proxy Url"
           },
+          "snmp_read_timeout_ms": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 500.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Timeout nas leituras",
+            "title": "Snmp Read Timeout Ms"
+          },
           "snmp_retries": {
             "anyOf": [
               {
-                "maximum": 5.0,
+                "maximum": 4.0,
                 "minimum": 0.0,
                 "type": "integer"
               },
@@ -1314,6 +1626,7 @@
                 "type": "null"
               }
             ],
+            "description": "Retentativas por consulta (tentativas SNMP = 1 a 5)",
             "title": "Snmp Retries"
           },
           "snmp_timeout_ms": {
@@ -1327,6 +1640,7 @@
                 "type": "null"
               }
             ],
+            "description": "Timeout na descoberta",
             "title": "Snmp Timeout Ms"
           },
           "status_minutes": {
@@ -1847,6 +2161,54 @@
         "title": "CompanyUpdate",
         "type": "object"
       },
+      "CounterLine": {
+        "properties": {
+          "color_mode": {
+            "enum": [
+              "mono",
+              "full_color",
+              "single_color",
+              "two_color",
+              "any"
+            ],
+            "title": "Color Mode",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "total",
+              "print",
+              "copy",
+              "fax",
+              "scan",
+              "report",
+              "duplex",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "size": {
+            "enum": [
+              "a3",
+              "a4",
+              "letter",
+              "legal",
+              "other",
+              "any"
+            ],
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "color_mode",
+          "size"
+        ],
+        "title": "CounterLine",
+        "type": "object"
+      },
       "CounterPoint": {
         "properties": {
           "color": {
@@ -2109,6 +2471,145 @@
         "title": "CriticalSupply",
         "type": "object"
       },
+      "CustomFieldIn": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "field_type": {
+            "default": "text",
+            "enum": [
+              "text",
+              "number",
+              "date"
+            ],
+            "title": "Field Type",
+            "type": "string"
+          },
+          "key": {
+            "description": "Minúsculas, números e _ (ex.: contrato)",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "position": {
+            "default": 0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "CustomFieldIn",
+        "type": "object"
+      },
+      "CustomFieldOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "field_type": {
+            "title": "Field Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "field_type",
+          "position",
+          "active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CustomFieldOut",
+        "type": "object"
+      },
+      "CustomFieldUpdate": {
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "title": "CustomFieldUpdate",
+        "type": "object"
+      },
       "CustomerIn": {
         "properties": {
           "active": {
@@ -2184,6 +2685,14 @@
               }
             ],
             "title": "Phone"
+          },
+          "toner_monitoring": {
+            "default": true,
+            "title": "Toner Monitoring",
+            "type": "boolean"
+          },
+          "toner_thresholds": {
+            "$ref": "#/components/schemas/TonerThresholds"
           }
         },
         "required": [
@@ -2278,6 +2787,15 @@
             "title": "Reseller Id",
             "type": "string"
           },
+          "toner_monitoring": {
+            "title": "Toner Monitoring",
+            "type": "boolean"
+          },
+          "toner_thresholds": {
+            "additionalProperties": true,
+            "title": "Toner Thresholds",
+            "type": "object"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2295,6 +2813,8 @@
           "email",
           "erp_code",
           "active",
+          "toner_monitoring",
+          "toner_thresholds",
           "created_at",
           "updated_at"
         ],
@@ -2396,6 +2916,27 @@
               }
             ],
             "title": "Phone"
+          },
+          "toner_monitoring": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toner Monitoring"
+          },
+          "toner_thresholds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TonerThresholds"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "CustomerUpdate",
@@ -2529,6 +3070,539 @@
         "title": "DatabaseHealth",
         "type": "object"
       },
+      "DecisionIn": {
+        "properties": {
+          "action": {
+            "description": "approve = Ativar; discard = Descartar; restore = voltar descartado para pendente",
+            "enum": [
+              "approve",
+              "discard",
+              "restore"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "device_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Device Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "device_ids",
+          "action"
+        ],
+        "title": "DecisionIn",
+        "type": "object"
+      },
+      "DecisionOut": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "skipped": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changed",
+          "skipped"
+        ],
+        "title": "DecisionOut",
+        "type": "object"
+      },
+      "DeviceDetail": {
+        "description": "Cadastro completo (16.7) e atributos da leitura diária (16.8).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "alt_serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Serial"
+          },
+          "asset_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Tag"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "attributes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes At"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "counter_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counter Source"
+          },
+          "custom_fields": {
+            "additionalProperties": true,
+            "title": "Custom Fields",
+            "type": "object"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "disconnected": {
+            "title": "Disconnected",
+            "type": "boolean"
+          },
+          "discovery_decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discovery Decided At"
+          },
+          "discovery_state": {
+            "title": "Discovery State",
+            "type": "string"
+          },
+          "firmware": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "franchise_pages_color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Color"
+          },
+          "franchise_pages_mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Mono"
+          },
+          "franchise_value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Value"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "is_color": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Color"
+          },
+          "last_agent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Agent Id"
+          },
+          "last_color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Color"
+          },
+          "last_error_bits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Bits"
+          },
+          "last_error_reasons": {
+            "items": {},
+            "title": "Last Error Reasons",
+            "type": "array"
+          },
+          "last_mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Mono"
+          },
+          "last_panel_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Panel Text"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Read At"
+          },
+          "last_status": {
+            "title": "Last Status",
+            "type": "string"
+          },
+          "last_status_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status At"
+          },
+          "last_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Total"
+          },
+          "mac": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mac"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "monitored": {
+            "title": "Monitored",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "overage_price_color": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Color"
+          },
+          "overage_price_mono": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Mono"
+          },
+          "profile_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Key"
+          },
+          "reseller_id": {
+            "format": "uuid",
+            "title": "Reseller Id",
+            "type": "string"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector"
+          },
+          "sector_from_snmp": {
+            "title": "Sector From Snmp",
+            "type": "boolean"
+          },
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "site_id": {
+            "format": "uuid",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "snmp_port": {
+            "title": "Snmp Port",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "sys_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sys Location"
+          },
+          "sys_object_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sys Object Id"
+          },
+          "toner_mode": {
+            "title": "Toner Mode",
+            "type": "string"
+          },
+          "toner_thresholds": {
+            "additionalProperties": true,
+            "title": "Toner Thresholds",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "reseller_id",
+          "site_id",
+          "customer_id",
+          "serial",
+          "mac",
+          "ip",
+          "snmp_port",
+          "hostname",
+          "brand",
+          "model",
+          "sys_object_id",
+          "firmware",
+          "asset_tag",
+          "sector",
+          "notes",
+          "is_color",
+          "profile_key",
+          "counter_source",
+          "source",
+          "first_seen_at",
+          "last_read_at",
+          "last_status",
+          "last_status_at",
+          "last_error_bits",
+          "last_error_reasons",
+          "last_panel_text",
+          "last_total",
+          "last_mono",
+          "last_color",
+          "disconnected",
+          "active",
+          "monitored",
+          "last_agent_id",
+          "discovery_state",
+          "alt_serial",
+          "sys_location",
+          "discovery_decided_at",
+          "sector_from_snmp",
+          "franchise_value",
+          "franchise_pages_mono",
+          "franchise_pages_color",
+          "overage_price_mono",
+          "overage_price_color",
+          "custom_fields",
+          "toner_mode",
+          "toner_thresholds",
+          "attributes",
+          "attributes_at"
+        ],
+        "title": "DeviceDetail",
+        "type": "object"
+      },
       "DeviceEventOut": {
         "properties": {
           "created_at": {
@@ -2585,6 +3659,17 @@
             "title": "Active",
             "type": "boolean"
           },
+          "alt_serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Serial"
+          },
           "asset_tag": {
             "anyOf": [
               {
@@ -2626,6 +3711,10 @@
           "disconnected": {
             "title": "Disconnected",
             "type": "boolean"
+          },
+          "discovery_state": {
+            "title": "Discovery State",
+            "type": "string"
           },
           "firmware": {
             "anyOf": [
@@ -2862,6 +3951,17 @@
             "title": "Source",
             "type": "string"
           },
+          "sys_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sys Location"
+          },
           "sys_object_id": {
             "anyOf": [
               {
@@ -2908,7 +4008,10 @@
           "disconnected",
           "active",
           "monitored",
-          "last_agent_id"
+          "last_agent_id",
+          "discovery_state",
+          "alt_serial",
+          "sys_location"
         ],
         "title": "DeviceOut",
         "type": "object"
@@ -3012,6 +4115,19 @@
             "default": null,
             "title": "Sys Descr"
           },
+          "sys_location": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sys Location"
+          },
           "sys_object_id": {
             "anyOf": [
               {
@@ -3042,6 +4158,18 @@
             ],
             "title": "Active"
           },
+          "alt_serial": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Serial"
+          },
           "asset_tag": {
             "anyOf": [
               {
@@ -3053,6 +4181,71 @@
               }
             ],
             "title": "Asset Tag"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Valores dos campos personalizados (chave → valor; vazio remove)",
+            "title": "Custom Fields"
+          },
+          "franchise_pages_color": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Color"
+          },
+          "franchise_pages_mono": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Mono"
+          },
+          "franchise_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Value"
           },
           "monitored": {
             "anyOf": [
@@ -3077,6 +4270,38 @@
             ],
             "title": "Notes"
           },
+          "overage_price_color": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,11}0*$)\\d{0,6}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Color"
+          },
+          "overage_price_mono": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,11}0*$)\\d{0,6}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Mono"
+          },
           "sector": {
             "anyOf": [
               {
@@ -3087,6 +4312,7 @@
                 "type": "null"
               }
             ],
+            "description": "Vazio volta a seguir o sysLocation da impressora",
             "title": "Sector"
           },
           "site_id": {
@@ -3101,6 +4327,32 @@
             ],
             "description": "Mover para outro local (o cliente acompanha)",
             "title": "Site Id"
+          },
+          "toner_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "global",
+                  "individual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toner Mode"
+          },
+          "toner_thresholds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TonerThresholds"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "DeviceUpdate",
@@ -3116,11 +4368,19 @@
             "title": "Rate Pps",
             "type": "integer"
           },
+          "read_timeout_ms": {
+            "default": 2000,
+            "description": "Timeout de cada consulta SNMP nas leituras",
+            "title": "Read Timeout Ms",
+            "type": "integer"
+          },
           "retries": {
+            "description": "Retentativas de cada consulta (tentativas = retries + 1, de 1 a 5)",
             "title": "Retries",
             "type": "integer"
           },
           "timeout_ms": {
+            "description": "Timeout de cada consulta SNMP na descoberta",
             "title": "Timeout Ms",
             "type": "integer"
           }
@@ -3132,6 +4392,57 @@
           "retries"
         ],
         "title": "DiscoveryConfig",
+        "type": "object"
+      },
+      "DiscoveryCounts": {
+        "properties": {
+          "discarded": {
+            "title": "Discarded",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "discarded"
+        ],
+        "title": "DiscoveryCounts",
+        "type": "object"
+      },
+      "DiscoveryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ParkRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "title": "DiscoveryPage",
         "type": "object"
       },
       "EnrollRequest": {
@@ -3515,6 +4826,13 @@
             "title": "Hostname",
             "type": "string"
           },
+          "install_path": {
+            "default": "",
+            "description": "Pasta do executável do coletor",
+            "maxLength": 1000,
+            "title": "Install Path",
+            "type": "string"
+          },
           "last_read_at": {
             "anyOf": [
               {
@@ -3740,6 +5058,18 @@
             "title": "Exclusions",
             "type": "array"
           },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IP ou hostname avulso (resolvido a cada varredura)",
+            "title": "Host"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -3806,6 +5136,19 @@
             "title": "Exclusions",
             "type": "array"
           },
+          "host": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IP ou hostname avulso",
+            "title": "Host"
+          },
           "ports": {
             "items": {
               "type": "integer"
@@ -3868,6 +5211,17 @@
             "title": "Exclusions",
             "type": "array"
           },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -3922,6 +5276,7 @@
           "cidr",
           "start_ip",
           "end_ip",
+          "host",
           "exclusions",
           "ports",
           "active",
@@ -3935,6 +5290,17 @@
       },
       "Item": {
         "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttributesPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "device": {
             "$ref": "#/components/schemas/DeviceRef"
           },
@@ -3960,7 +5326,8 @@
               "reading",
               "supplies",
               "status",
-              "event"
+              "event",
+              "attributes"
             ],
             "title": "Kind",
             "type": "string"
@@ -4084,6 +5451,24 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MatrixModule": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "MatrixModule",
         "type": "object"
       },
       "MeResponse": {
@@ -4723,6 +6108,17 @@
             ],
             "title": "Agent Name"
           },
+          "alt_serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Serial"
+          },
           "asset_tag": {
             "anyOf": [
               {
@@ -4768,6 +6164,10 @@
           "disconnected": {
             "title": "Disconnected",
             "type": "boolean"
+          },
+          "discovery_state": {
+            "title": "Discovery State",
+            "type": "string"
           },
           "firmware": {
             "anyOf": [
@@ -5015,6 +6415,17 @@
             "title": "Supplies",
             "type": "array"
           },
+          "sys_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sys Location"
+          },
           "sys_object_id": {
             "anyOf": [
               {
@@ -5062,12 +6473,73 @@
           "active",
           "monitored",
           "last_agent_id",
+          "discovery_state",
+          "alt_serial",
+          "sys_location",
           "customer_name",
           "site_name",
           "agent_name",
           "supplies"
         ],
         "title": "ParkRow",
+        "type": "object"
+      },
+      "Part": {
+        "description": "Peça com nível/contador (cilindro, fusor, transferência, kit de manutenção, roletes, resíduo).",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Color"
+          },
+          "name": {
+            "maxLength": 64,
+            "title": "Name",
+            "type": "string"
+          },
+          "part": {
+            "enum": [
+              "drum",
+              "fuser",
+              "transfer",
+              "maintenance_kit",
+              "rollers",
+              "waste_toner",
+              "developer",
+              "other"
+            ],
+            "title": "Part",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "percent",
+              "pages",
+              "count"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "part",
+          "unit",
+          "value"
+        ],
+        "title": "Part",
         "type": "object"
       },
       "PendingCommandsResponse": {
@@ -5090,6 +6562,50 @@
           "commands"
         ],
         "title": "PendingCommandsResponse",
+        "type": "object"
+      },
+      "PermissionMatrix": {
+        "properties": {
+          "actions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "read/create/update/delete → Consultar/Incluir/Alterar/Excluir",
+            "title": "Actions",
+            "type": "object"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixModule"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "reseller_id": {
+            "format": "uuid",
+            "title": "Reseller Id",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleMatrix"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "supplies_permission": {
+            "title": "Supplies Permission",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reseller_id",
+          "modules",
+          "actions",
+          "supplies_permission",
+          "roles"
+        ],
+        "title": "PermissionMatrix",
         "type": "object"
       },
       "PreferencesUpdate": {
@@ -5127,6 +6643,79 @@
           "agent_id"
         ],
         "title": "PreferredMasterIn",
+        "type": "object"
+      },
+      "RangeImportIn": {
+        "properties": {
+          "content": {
+            "description": "Conteúdo do .txt: uma faixa, IP ou hostname por linha",
+            "maxLength": 200000,
+            "title": "Content",
+            "type": "string"
+          },
+          "ports": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Ports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "RangeImportIn",
+        "type": "object"
+      },
+      "RangeImportLineError": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "content",
+          "error"
+        ],
+        "title": "RangeImportLineError",
+        "type": "object"
+      },
+      "RangeImportOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "duplicates": {
+            "title": "Duplicates",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/RangeImportLineError"
+            },
+            "title": "Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "duplicates",
+          "errors"
+        ],
+        "title": "RangeImportOut",
         "type": "object"
       },
       "Reactivation": {
@@ -5474,6 +7063,14 @@
             "default": 0,
             "title": "Attempts",
             "type": "integer"
+          },
+          "counter_lines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CounterLine"
+            },
+            "description": "`line` dos contadores no perfil (os nomes normalizados têm mapeamento padrão)",
+            "title": "Counter Lines",
+            "type": "object"
           },
           "counter_source": {
             "default": "",
@@ -5971,6 +7568,73 @@
         "title": "ResetPasswordRequest",
         "type": "object"
       },
+      "RoleMatrix": {
+        "properties": {
+          "customized": {
+            "description": "A revenda ajustou este papel (senão vale o padrão do sistema)",
+            "title": "Customized",
+            "type": "boolean"
+          },
+          "grantable": {
+            "description": "Permissões da matriz que este papel pode receber",
+            "items": {
+              "type": "string"
+            },
+            "title": "Grantable",
+            "type": "array"
+          },
+          "permissions": {
+            "description": "Permissões da matriz que o papel tem nesta revenda",
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "role_name": {
+            "title": "Role Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "role_name",
+          "permissions",
+          "grantable",
+          "customized"
+        ],
+        "title": "RoleMatrix",
+        "type": "object"
+      },
+      "RoleMatrixIn": {
+        "properties": {
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Permissões da matriz; null volta ao padrão do sistema",
+            "title": "Permissions"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "title": "RoleMatrixIn",
+        "type": "object"
+      },
       "RoleOut": {
         "properties": {
           "code": {
@@ -6104,31 +7768,140 @@
       },
       "SiteIn": {
         "properties": {
-          "address": {
+          "auto_activate_devices": {
+            "default": false,
+            "title": "Auto Activate Devices",
+            "type": "boolean"
+          },
+          "cep": {
             "anyOf": [
               {
-                "maxLength": 2000,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Address"
+            "title": "Cep"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
           },
           "collection_config": {
             "$ref": "#/components/schemas/CollectionConfig"
+          },
+          "complement": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complement"
           },
           "customer_id": {
             "format": "uuid",
             "title": "Customer Id",
             "type": "string"
           },
+          "district": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
           "name": {
             "maxLength": 200,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
           },
           "timezone": {
             "default": "America/Sao_Paulo",
@@ -6145,7 +7918,11 @@
       },
       "SiteOut": {
         "properties": {
-          "address": {
+          "auto_activate_devices": {
+            "title": "Auto Activate Devices",
+            "type": "boolean"
+          },
+          "cep": {
             "anyOf": [
               {
                 "type": "string"
@@ -6154,12 +7931,34 @@
                 "type": "null"
               }
             ],
-            "title": "Address"
+            "title": "Cep"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
           },
           "collection_config": {
             "additionalProperties": true,
             "title": "Collection Config",
             "type": "object"
+          },
+          "complement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complement"
           },
           "created_at": {
             "format": "date-time",
@@ -6171,10 +7970,45 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
           },
           "master_agent_id": {
             "anyOf": [
@@ -6204,6 +8038,17 @@
             "title": "Name",
             "type": "string"
           },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
           "preferred_master_agent_id": {
             "anyOf": [
               {
@@ -6221,6 +8066,28 @@
             "title": "Reseller Id",
             "type": "string"
           },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -6236,8 +8103,17 @@
           "reseller_id",
           "customer_id",
           "name",
-          "address",
+          "cep",
+          "street",
+          "number",
+          "complement",
+          "district",
+          "city",
+          "state",
+          "latitude",
+          "longitude",
           "timezone",
+          "auto_activate_devices",
           "collection_config",
           "master_agent_id",
           "preferred_master_agent_id",
@@ -6250,17 +8126,39 @@
       },
       "SiteUpdate": {
         "properties": {
-          "address": {
+          "auto_activate_devices": {
             "anyOf": [
               {
-                "maxLength": 2000,
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Activate Devices"
+          },
+          "cep": {
+            "anyOf": [
+              {
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Address"
+            "title": "Cep"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
           },
           "collection_config": {
             "anyOf": [
@@ -6271,6 +8169,64 @@
                 "type": "null"
               }
             ]
+          },
+          "complement": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complement"
+          },
+          "district": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
           },
           "name": {
             "anyOf": [
@@ -6284,6 +8240,41 @@
               }
             ],
             "title": "Name"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
           },
           "timezone": {
             "anyOf": [
@@ -6698,6 +8689,61 @@
         "title": "StatusPayload",
         "type": "object"
       },
+      "StorageInfo": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Description",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "used_bytes": {
+            "minimum": 0,
+            "title": "Used Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "size_bytes",
+          "used_bytes"
+        ],
+        "title": "StorageInfo",
+        "type": "object"
+      },
+      "Subsystem": {
+        "description": "Subsistema do equipamento (hrDeviceTable ou `attributes.subsystems` do perfil).",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "description": "printer | copier | scanner | ou o tipo do hrDevice",
+            "maxLength": 32,
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "description": "unknown | running | warning | testing | down ou texto do perfil",
+            "maxLength": 32,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "Subsystem",
+        "type": "object"
+      },
       "SuggestRangesRequest": {
         "properties": {
           "ranges": {
@@ -6723,6 +8769,19 @@
       },
       "Supply": {
         "properties": {
+          "cartridge_serial": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cartridge Serial"
+          },
           "class": {
             "default": "other",
             "enum": [
@@ -7118,6 +9177,41 @@
           "server_time"
         ],
         "title": "TokenResponse",
+        "type": "object"
+      },
+      "TonerThresholds": {
+        "description": "Limiar de toner por cor, em % (seção 16.5).",
+        "properties": {
+          "black": {
+            "default": 10,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Black",
+            "type": "integer"
+          },
+          "cyan": {
+            "default": 10,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Cyan",
+            "type": "integer"
+          },
+          "magenta": {
+            "default": 10,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Magenta",
+            "type": "integer"
+          },
+          "yellow": {
+            "default": 10,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Yellow",
+            "type": "integer"
+          }
+        },
+        "title": "TonerThresholds",
         "type": "object"
       },
       "TotpCodeRequest": {
@@ -10268,6 +12362,99 @@
         ]
       }
     },
+    "/api/v1/agents/{agent_id}/stats": {
+      "get": {
+        "operationId": "agent_stats_api_v1_agents__agent_id__stats_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leituras, falhas e equipamentos sem resposta nas últimas 24 h",
+        "tags": [
+          "coletores"
+        ]
+      }
+    },
     "/api/v1/agents/{agent_id}/versions": {
       "get": {
         "operationId": "versions_api_v1_agents__agent_id__versions_get",
@@ -12663,6 +14850,357 @@
         ]
       }
     },
+    "/api/v1/custom-fields": {
+      "get": {
+        "operationId": "list_custom_fields_api_v1_custom_fields_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CustomFieldOut"
+                  },
+                  "title": "Response List Custom Fields Api V1 Custom Fields Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "List Custom Fields",
+        "tags": [
+          "configurações"
+        ]
+      },
+      "post": {
+        "operationId": "create_custom_field_api_v1_custom_fields_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFieldIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Custom Field",
+        "tags": [
+          "configurações"
+        ]
+      }
+    },
+    "/api/v1/custom-fields/{field_id}": {
+      "delete": {
+        "operationId": "delete_custom_field_api_v1_custom_fields__field_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "field_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Field Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Custom Field",
+        "tags": [
+          "configurações"
+        ]
+      },
+      "patch": {
+        "operationId": "update_custom_field_api_v1_custom_fields__field_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "field_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Field Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFieldUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Custom Field",
+        "tags": [
+          "configurações"
+        ]
+      }
+    },
     "/api/v1/customers": {
       "get": {
         "operationId": "list_customers_api_v1_customers_get",
@@ -13756,7 +16294,7 @@
             "content": {
               "application/json; charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceOut"
+                  "$ref": "#/components/schemas/DeviceDetail"
                 }
               }
             },
@@ -13823,7 +16361,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Device",
+        "summary": "Cadastro completo e atributos do equipamento",
         "tags": [
           "equipamentos"
         ]
@@ -14964,6 +17502,367 @@
           }
         },
         "summary": "Device Supply History",
+        "tags": [
+          "equipamentos"
+        ]
+      }
+    },
+    "/api/v1/discoveries": {
+      "get": {
+        "operationId": "list_discoveries_api_v1_discoveries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "pending",
+              "enum": [
+                "pending",
+                "discarded"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "first_seen_at",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Direction",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Equipamentos descobertos aguardando decisão (ou descartados)",
+        "tags": [
+          "equipamentos"
+        ]
+      }
+    },
+    "/api/v1/discoveries/counts": {
+      "get": {
+        "operationId": "discovery_counts_api_v1_discoveries_counts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryCounts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Discovery Counts",
+        "tags": [
+          "equipamentos"
+        ]
+      }
+    },
+    "/api/v1/discoveries/decide": {
+      "post": {
+        "operationId": "decide_api_v1_discoveries_decide_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ativar, descartar ou restaurar (individual ou em lote)",
         "tags": [
           "equipamentos"
         ]
@@ -16260,6 +19159,225 @@
         "summary": "Exportar o parque com os filtros aplicados",
         "tags": [
           "equipamentos"
+        ]
+      }
+    },
+    "/api/v1/permissions/matrix": {
+      "get": {
+        "operationId": "permission_matrix_api_v1_permissions_matrix_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "reseller_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reseller Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionMatrix"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Permission Matrix",
+        "tags": [
+          "usuários"
+        ]
+      }
+    },
+    "/api/v1/permissions/matrix/{role}": {
+      "put": {
+        "operationId": "set_role_matrix_api_v1_permissions_matrix__role__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "title": "Role",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reseller_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reseller Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMatrixIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionMatrix"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ajustar a matriz de um papel (null volta ao padrão)",
+        "tags": [
+          "usuários"
         ]
       }
     },
@@ -18040,6 +21158,109 @@
           }
         },
         "summary": "Create Range",
+        "tags": [
+          "locais"
+        ]
+      }
+    },
+    "/api/v1/sites/{site_id}/ip-ranges/import": {
+      "post": {
+        "operationId": "import_ranges_api_v1_sites__site_id__ip_ranges_import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RangeImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/RangeImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Importar faixas, IPs e hostnames de um arquivo .txt (uma entrada por linha)",
         "tags": [
           "locais"
         ]

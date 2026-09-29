@@ -224,7 +224,7 @@ class AgentSession:
             if agent is None or agent.deleted_at is not None or agent.revoked_at is not None:
                 await self.ws.close(code=CLOSE_REVOKED, reason="agent_revoked")
                 raise WebSocketDisconnect(CLOSE_REVOKED)
-            resp = await agents_svc.heartbeat(session, agent, req, channel="ws")
+            resp = await agents_svc.heartbeat(session, agent, req, channel="ws", ip=self.conn.remote_addr)
             await presence_svc.touch(session, agent.id, self.hub.gateway_id, req.latency_ms)
             await session.commit()
         await self.conn.send(ws_message("heartbeat_ack", resp.model_dump(mode="json")))

@@ -23,6 +23,28 @@ type Supply struct {
 	Percent     *float64 `json:"percent"`
 	LevelState  string   `json:"level_state"` // ok | unknown | some_remaining
 	Unit        string   `json:"unit,omitempty"`
+	// CartridgeSerial comes from the profile's supplies.cartridge_serial_oid (PROMPT 16.3).
+	CartridgeSerial string `json:"cartridge_serial,omitempty"`
+}
+
+// AttachCartridgeSerials walks a table indexed like prtMarkerSuppliesTable (hrDeviceIndex.supplyIndex)
+// and sets each supply's cartridge serial.
+func AttachCartridgeSerials(ctx context.Context, src snmp.Source, tableOID string, supplies []Supply) error {
+	tableOID = snmp.NormalizeOID(tableOID)
+	serials := map[string]string{}
+	err := src.Walk(ctx, tableOID, func(pdu snmp.PDU) error {
+		if v := strings.TrimSpace(pdu.String()); v != "" {
+			serials[strings.TrimPrefix(pdu.OID, tableOID+".")] = v
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for i := range supplies {
+		supplies[i].CartridgeSerial = serials[supplies[i].Key]
+	}
+	return nil
 }
 
 var supplyTypes = map[int64]string{

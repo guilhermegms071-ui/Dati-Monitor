@@ -503,11 +503,12 @@ class Chaos:
         self.p.patch(
             f"/api/v1/sites/{self.site_id}",
             {
+                "auto_activate_devices": True,  # o caos mede leituras, não a tela de Descobertas
                 "collection_config": {
                     "counters_minutes": COUNTERS_MINUTES,
                     "supplies_minutes": 5,
                     "status_minutes": 1,
-                }
+                },
             },
         )
         for a in self.p.get("/api/v1/agents", site_id=self.site_id, limit=50)["items"]:

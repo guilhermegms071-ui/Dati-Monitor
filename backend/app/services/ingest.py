@@ -1,6 +1,10 @@
 """Ingestion of agent batches (POST /api/agent/readings): per-item idempotency, identity by serial,
-reading validations (PROMPT 6.5), cluster anti-duplication (4.8), supplies and status."""
+discovery state (16.1), reading validations (PROMPT 6.5), counters as rows (16.2), cluster
+anti-duplication (4.8), supplies with replacement detection (16.3), status with printer alerts (16.4)
+and daily attributes (16.8)."""
 
+import hashlib
+import json
 import logging
 import uuid
 from dataclasses import dataclass
@@ -17,8 +21,10 @@ from app.models import (
     Agent,
     Brand,
     Device,
+    DeviceAttributeSnapshot,
     DeviceEvent,
     Reading,
+    ReadingCounter,
     ReadingDiscard,
     ReadingIdempotency,
     Setting,
@@ -31,6 +37,10 @@ from app.schemas import agent as proto
 from app.services.agents import collection_settings
 from app.services.alerts import open_alert
 from app.services.catalog import brand_name
+from app.services.counter_lines import Line, resolve_lines
+from app.services.printer_alerts import sync_alerts
+from app.services.supply_replacements import detect as detect_replacement
+from app.services.supply_replacements import threshold_points
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +53,11 @@ class ItemRejectedError(Exception):
     pass
 
 
+class DeviceDiscardedError(Exception):
+    """The device was discarded in Descobertas (16.1): the agent drops the item (it stops reading it once
+    its configuration arrives with the serial in `ignored_serials`)."""
+
+
 @dataclass
 class IngestContext:
     agent: Agent
@@ -50,6 +65,7 @@ class IngestContext:
     now: datetime
     max_pages_per_day: int
     counters_interval: timedelta
+    replacement_threshold: int
 
 
 async def build_context(session: AsyncSession, agent: Agent) -> IngestContext:
@@ -65,7 +81,8 @@ async def build_context(session: AsyncSession, agent: Agent) -> IngestContext:
     ).scalar_one_or_none()
     max_pages = int(setting["value"]) if setting and "value" in setting else DEFAULT_MAX_PAGES_PER_DAY
     minutes = int(collection_settings(site)["counters_minutes"])
-    return IngestContext(agent, site, datetime.now(UTC), max_pages, timedelta(minutes=minutes))
+    threshold = await threshold_points(session, agent.reseller_id)
+    return IngestContext(agent, site, datetime.now(UTC), max_pages, timedelta(minutes=minutes), threshold)
 
 
 async def ingest_batch(
@@ -81,6 +98,8 @@ async def ingest_batch(
         except ItemRejectedError as exc:
             logger.warning("item %s do coletor %s rejeitado: %s", item.key, agent.id, exc)
             results.append(proto.ItemResult(key=item.key, status="rejected", reason=str(exc)))
+        except DeviceDiscardedError:
+            results.append(proto.ItemResult(key=item.key, status="discarded", reason="device_discarded"))
     accepted = sum(1 for r in results if r.status == "accepted")
     if accepted:
         # Portal ao vivo: parque e dashboard do cliente atualizam sozinhos.
@@ -132,12 +151,17 @@ async def _ingest_item(session: AsyncSession, ctx: IngestContext, item: proto.It
         if item.supplies is None:
             raise missing
         device = await resolve_device(session, ctx, item.device, read_at)
-        await _supplies(session, device, item.supplies, read_at)
+        await _supplies(session, ctx, device, item.supplies, read_at)
     elif item.kind == "status":
         if item.status is None:
             raise missing
         device = await resolve_device(session, ctx, item.device, read_at)
-        _status(device, item.status, read_at)
+        await _status(session, device, item.status, read_at)
+    elif item.kind == "attributes":
+        if item.attributes is None:
+            raise missing
+        device = await resolve_device(session, ctx, item.device, read_at)
+        await _attributes(session, device, item.attributes, read_at)
     else:
         if item.event is None:
             raise missing
@@ -204,7 +228,10 @@ async def resolve_device(
         )
     ).scalar_one_or_none()
     brand = brand_name(ref.sys_object_id)
+    if device is not None and device.discovery_state == "discarded":
+        raise DeviceDiscardedError
     if device is None:
+        auto = ctx.site.auto_activate_devices
         device = Device(
             id=uuid.uuid4(),
             reseller_id=ctx.agent.reseller_id,
@@ -225,7 +252,10 @@ async def resolve_device(
             first_seen_at=min(read_at, ctx.now),
             last_agent_id=ctx.agent.id,
             source="snmp",
+            discovery_state="approved" if auto else "pending",
+            discovery_decided_at=ctx.now if auto else None,
         )
+        _set_location(device, ref.sys_location)
         session.add(device)
         await session.flush()
         await _event_row(
@@ -263,10 +293,21 @@ async def resolve_device(
         value = getattr(ref, attr)
         if value:
             setattr(device, attr, value)
+    _set_location(device, ref.sys_location)
     if brand and device.brand != brand:
         device.brand, device.brand_id = brand, await _brand_id(session, brand)
     device.last_agent_id = ctx.agent.id
     return device
+
+
+def _set_location(device: Device, location: str | None) -> None:
+    """sysLocation is kept as read; the sector follows it until someone edits the sector (16.7)."""
+    location = (location or "").strip()
+    if not location:
+        return
+    device.sys_location = location[:255]
+    if device.sector_from_snmp:
+        device.sector = location[:200]
 
 
 # ----------------------------------------------------------------------------- readings
@@ -407,6 +448,8 @@ async def _reading(
         "mono_only": payload.mono_only,
         "unresolved": payload.unresolved,
     }
+    if payload.counter_lines:
+        extra["counter_lines"] = {k: v.model_dump() for k, v in payload.counter_lines.items()}
     prev = await _previous(session, device.id, read_at)
     flags, alert_data = _validate(ctx, prev, values, payload.sum_tolerance_percent, read_at)
     if clamped:
@@ -432,6 +475,7 @@ async def _reading(
     )
     session.add(reading)
     await session.flush()
+    await _counter_rows(session, reading, payload)
     await session.execute(
         update(ReadingIdempotency)
         .where(ReadingIdempotency.idempotency_key == item.key)
@@ -452,6 +496,34 @@ async def _reading(
     elif color is not None and color > 0:
         device.is_color = True
     return "accepted"
+
+
+async def _counter_rows(session: AsyncSession, reading: Reading, payload: proto.ReadingPayload) -> None:
+    """Every mapped counter becomes a reading_counters row (16.2), in the same transaction as the reading."""
+    overrides = {k: Line(v.kind, v.color_mode, v.size) for k, v in payload.counter_lines.items()}
+    rows, conflicts = resolve_lines(payload.counters, overrides)
+    if conflicts:
+        logger.warning(
+            "leitura %s: contadores %s caem na mesma linha de outro contador; revisar o perfil %s",
+            reading.id,
+            conflicts,
+            payload.profile_key,
+        )
+        reading.extra = {**reading.extra, "counter_line_conflicts": conflicts}
+    for name, line, value in rows:
+        session.add(
+            ReadingCounter(
+                reading_id=reading.id,
+                read_at=reading.read_at,
+                reseller_id=reading.reseller_id,
+                device_id=reading.device_id,
+                kind=line.kind,
+                color_mode=line.color_mode,
+                size=line.size,
+                name=name[:64],
+                value=value,
+            )
+        )
 
 
 async def _flag_side_effects(
@@ -521,9 +593,18 @@ async def _flag_side_effects(
 
 
 async def _supplies(
-    session: AsyncSession, device: Device, supplies: list[proto.Supply], read_at: datetime
+    session: AsyncSession, ctx: IngestContext, device: Device, supplies: list[proto.Supply], read_at: datetime
 ) -> None:
+    current = {
+        c.supply_key: c
+        for c in (
+            await session.execute(select(SupplyCurrent).where(SupplyCurrent.device_id == device.id))
+        ).scalars()
+    }
     for s in supplies:
+        await detect_replacement(
+            session, device, s, current.get(s.key), read_at=read_at, threshold=ctx.replacement_threshold
+        )
         percent = Decimal(str(round(s.percent, 2))) if s.percent is not None else None
         fields = {
             "description": s.description or None,
@@ -535,6 +616,7 @@ async def _supplies(
             "percent": percent,
             "level_state": s.level_state,
             "unit": s.unit,
+            "cartridge_serial": s.cartridge_serial,
         }
         session.add(
             SupplyReading(
@@ -558,9 +640,10 @@ async def _supplies(
         device.last_read_at = read_at
 
 
-def _status(device: Device, st: proto.StatusPayload, read_at: datetime) -> None:
+async def _status(session: AsyncSession, device: Device, st: proto.StatusPayload, read_at: datetime) -> None:
     if device.last_status_at is not None and read_at < device.last_status_at:
         return  # status antigo chegando depois (fila): não sobrescreve o atual
+    await sync_alerts(session, device, st.alerts, read_at)
     device.last_status, device.last_status_at = st.status, read_at
     device.last_error_bits = st.error_bits
     device.last_error_reasons = st.reasons
@@ -568,6 +651,44 @@ def _status(device: Device, st: proto.StatusPayload, read_at: datetime) -> None:
     device.disconnected = False
     if device.last_read_at is None or read_at > device.last_read_at:
         device.last_read_at = read_at
+
+
+# Muda a cada leitura sem significar mudança de atributo: fora do hash do histórico.
+_VOLATILE_ATTRIBUTES = ("uptime_seconds",)
+
+
+async def _attributes(
+    session: AsyncSession, device: Device, attrs: proto.AttributesPayload, read_at: datetime
+) -> None:
+    if device.attributes_at is not None and read_at < device.attributes_at:
+        return  # atributos antigos chegando depois (fila)
+    data = attrs.model_dump(exclude_none=True)
+    stable = {k: v for k, v in data.items() if k not in _VOLATILE_ATTRIBUTES}
+    digest = hashlib.sha256(json.dumps(stable, sort_keys=True, default=str).encode()).hexdigest()
+    last_hash = (
+        await session.execute(
+            select(DeviceAttributeSnapshot.content_hash)
+            .where(DeviceAttributeSnapshot.device_id == device.id)
+            .order_by(DeviceAttributeSnapshot.read_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if last_hash != digest:
+        session.add(
+            DeviceAttributeSnapshot(
+                reseller_id=device.reseller_id,
+                device_id=device.id,
+                read_at=read_at,
+                attributes=data,
+                content_hash=digest,
+            )
+        )
+    device.attributes, device.attributes_at = data, read_at
+    if attrs.mac and not device.mac:
+        device.mac = attrs.mac
+    if attrs.panel_text is not None:
+        device.last_panel_text = attrs.panel_text
+    _set_location(device, attrs.sys_location)
 
 
 async def _event(

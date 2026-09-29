@@ -165,13 +165,17 @@ async def seed_dev(session: AsyncSession, settings: Settings) -> SeedResult:
             reseller_id=reseller.id,
             customer_id=customers[0].id,
             name="Matriz",
-            address="Centro, Rio de Janeiro",
+            district="Centro",
+            city="Rio de Janeiro",
+            state="RJ",
         ),
         Site(
             reseller_id=reseller.id,
             customer_id=customers[1].id,
             name="Filial",
-            address="Barra, Rio de Janeiro",
+            district="Barra da Tijuca",
+            city="Rio de Janeiro",
+            state="RJ",
         ),
     ]
     session.add_all(sites)

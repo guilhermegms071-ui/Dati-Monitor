@@ -272,7 +272,7 @@ async def _prep_uninstall(
     # Seção 4.7: confirmação dupla no portal e papel admin.
     if p.level < role_level(RESELLER_ADMIN):
         raise forbidden("Só administradores desinstalam o coletor do PC do cliente")
-    p.require("agents.write")
+    p.require("agents.delete")
     if params["confirm_name"].strip() != agent.name:
         raise bad_request(
             "confirmation_mismatch", "Digite o nome do coletor exatamente como aparece no portal"

@@ -42,6 +42,7 @@ from app.schemas.park import (
 )
 from app.services import audit
 from app.services import commands as commands_svc
+from app.services import custom_fields as custom_fields_svc
 from app.services import devices as devices_svc
 from app.services.pagination import Direction, PageResult, SortOption, paginate
 
@@ -81,6 +82,7 @@ def _base(p: Principal) -> Select[tuple[Device]]:
         .outerjoin(LastAgent, LastAgent.id == Device.last_agent_id)
         .where(
             Device.deleted_at.is_(None),
+            Device.discovery_state == "approved",  # pendentes e descartados ficam em Descobertas (16.1)
             reseller_scope(p, Device.reseller_id),
             customer_scope(p, Device.customer_id),
         )
@@ -245,7 +247,8 @@ async def export_rows(
         raise bad_request("invalid_sort", f"Ordenação inválida: {sort}")
     expr = PARK_SORTS[sort].expression
     order = (expr.asc(), Device.id.asc()) if direction == "asc" else (expr.desc(), Device.id.desc())
-    devices = list((await session.execute(_filtered(p, f).order_by(*order).limit(100_000))).scalars())
+    # Sem limite fixo de linhas (seção 0, regra 13): a exportação respeita só os filtros.
+    devices = list((await session.execute(_filtered(p, f).order_by(*order))).scalars())
     return await enrich(session, devices)
 
 
@@ -267,7 +270,7 @@ async def _site_for_move(session: AsyncSession, p: Principal, device: Device, si
 async def update_device(
     session: AsyncSession, p: Principal, device_id: uuid.UUID, data: DeviceUpdate
 ) -> Device:
-    p.require("devices.write")
+    p.require("devices.update")
     device = await devices_svc.get_device(session, p, device_id)
     before = audit.snapshot(device)
     await _apply(session, p, device, data.model_dump(exclude_unset=True))
@@ -287,14 +290,57 @@ async def update_device(
     return device
 
 
+# Campos de cobrança e limiar de toner: numéricos/estruturados, gravados como vieram (já validados).
+_PLAIN_FIELDS = (
+    "franchise_value",
+    "franchise_pages_mono",
+    "franchise_pages_color",
+    "overage_price_mono",
+    "overage_price_color",
+)
+
+
 async def _apply(session: AsyncSession, p: Principal, device: Device, values: dict[str, Any]) -> None:
     site_id = values.pop("site_id", None)
-    for key in ("asset_tag", "sector", "notes"):
+    for key in ("asset_tag", "notes", "alt_serial"):
         if key in values:
             v = values[key]
             setattr(device, key, v.strip() or None if isinstance(v, str) else v)
+    if "sector" in values:
+        sector = (values["sector"] or "").strip()
+        # Setor digitado deixa de seguir o sysLocation; vazio volta a segui-lo (seção 16.7).
+        device.sector_from_snmp = not sector
+        device.sector = sector or device.sys_location
+    await _apply_contract(session, p, device, values)
     if values.get("monitored") is not None:
         device.monitored = bool(values["monitored"])
+    await _apply_state(session, p, device, values, site_id)
+
+
+async def _apply_contract(
+    session: AsyncSession, p: Principal, device: Device, values: dict[str, Any]
+) -> None:
+    """Franquia, excedente, campos personalizados e limiar de toner (16.5/16.7)."""
+    for key in _PLAIN_FIELDS:
+        if key in values:
+            setattr(device, key, values[key])
+    if values.get("custom_fields") is not None:
+        device.custom_fields = await custom_fields_svc.validate_values(
+            session, device.reseller_id, device.custom_fields or {}, values["custom_fields"]
+        )
+    if values.get("toner_mode") is not None or values.get("toner_thresholds") is not None:
+        p.require("supplies.monitor")
+        if values.get("toner_mode") is not None:
+            device.toner_mode = values["toner_mode"]
+        if values.get("toner_thresholds") is not None:
+            device.toner_thresholds = dict(values["toner_thresholds"])
+        if device.toner_mode == "individual" and not device.toner_thresholds:
+            raise bad_request("toner_thresholds_required", "Informe os limiares próprios do equipamento")
+
+
+async def _apply_state(
+    session: AsyncSession, p: Principal, device: Device, values: dict[str, Any], site_id: uuid.UUID | None
+) -> None:
     if values.get("active") is not None and bool(values["active"]) != device.active:
         device.active = bool(values["active"])
         session.add(
@@ -345,7 +391,7 @@ async def bulk(
     )
     if data.action == "read_now":
         return await _bulk_read(session, settings, p, rows, out)
-    p.require("devices.write")
+    p.require("devices.update")
     values: dict[str, Any] = {}
     match data.action:
         case "activate" | "deactivate":

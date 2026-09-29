@@ -134,7 +134,7 @@ async def get_user(session: AsyncSession, p: Principal, user_id: uuid.UUID) -> U
 
 
 async def create_user(session: AsyncSession, p: Principal, data: UserIn) -> tuple[User, str | None]:
-    p.require("users.write")
+    p.require("users.create")
     reseller_id = data.reseller_id or p.reseller_id
     if reseller_id != p.reseller_id and not p.is_superadmin:
         raise forbidden("Somente o superadmin cria usuários em outra revenda")
@@ -177,7 +177,7 @@ async def create_user(session: AsyncSession, p: Principal, data: UserIn) -> tupl
 
 
 async def update_user(session: AsyncSession, p: Principal, user_id: uuid.UUID, data: UserUpdate) -> User:
-    p.require("users.write")
+    p.require("users.update")
     obj = await get_user(session, p, user_id)
     _check_can_manage(p, obj)
     before = audit.snapshot(obj)
@@ -239,7 +239,7 @@ async def _revoke_sessions(session: AsyncSession, user_id: uuid.UUID) -> None:
 
 
 async def delete_user(session: AsyncSession, p: Principal, user_id: uuid.UUID) -> None:
-    p.require("users.write")
+    p.require("users.delete")
     obj = await get_user(session, p, user_id)
     _check_can_manage(p, obj)
     if obj.id == p.user_id:
@@ -255,7 +255,7 @@ async def delete_user(session: AsyncSession, p: Principal, user_id: uuid.UUID) -
 async def admin_reset_password(
     session: AsyncSession, settings: Settings, p: Principal, user_id: uuid.UUID, *, mode: str
 ) -> str | None:
-    p.require("users.write")
+    p.require("users.update")
     obj = await get_user(session, p, user_id)
     _check_can_manage(p, obj)
     temporary: str | None = None
@@ -282,7 +282,7 @@ async def admin_reset_password(
 
 
 async def admin_reset_totp(session: AsyncSession, p: Principal, user_id: uuid.UUID) -> None:
-    p.require("users.write")
+    p.require("users.update")
     obj = await get_user(session, p, user_id)
     _check_can_manage(p, obj)
     obj.totp_enabled = False

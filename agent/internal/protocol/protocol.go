@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/daticopy/dati-monitor/agent/internal/printer"
+	"github.com/daticopy/dati-monitor/agent/internal/profile"
 	"github.com/daticopy/dati-monitor/agent/internal/snmp"
 )
 
@@ -17,10 +18,11 @@ const Version = 1
 
 // Item kinds sent to /api/agent/readings.
 const (
-	KindReading  = "reading"
-	KindSupplies = "supplies"
-	KindStatus   = "status"
-	KindEvent    = "event"
+	KindReading    = "reading"
+	KindSupplies   = "supplies"
+	KindStatus     = "status"
+	KindEvent      = "event"
+	KindAttributes = "attributes"
 )
 
 // Item result statuses returned by the server.
@@ -96,6 +98,7 @@ type HeartbeatRequest struct {
 	Errors               []string   `json:"errors,omitempty"`
 	LatencyMS            *float64   `json:"latency_ms,omitempty"`
 	WSConnected          bool       `json:"ws_connected"`
+	InstallPath          string     `json:"install_path,omitempty"`
 	// WatchdogState is the dm-watchdog service as the agent sees it (mutual watch, PROMPT 5.1).
 	WatchdogState string `json:"watchdog_state,omitempty"`
 }
@@ -124,6 +127,8 @@ type DiscoveryConfig struct {
 	RatePPS     int `json:"rate_pps"`
 	TimeoutMS   int `json:"timeout_ms"`
 	Retries     int `json:"retries"`
+	// ReadTimeoutMS is the per-query timeout of the readings (the discovery uses TimeoutMS).
+	ReadTimeoutMS int `json:"read_timeout_ms"`
 }
 
 // IPRange is an approved discovery range (CIDR or start–end), with exclusions and SNMP ports.
@@ -132,6 +137,7 @@ type IPRange struct {
 	CIDR       string   `json:"cidr,omitempty"`
 	Start      string   `json:"start_ip,omitempty"`
 	End        string   `json:"end_ip,omitempty"`
+	Host       string   `json:"host,omitempty"` // IP or hostname of a single device (PROMPT 16.10)
 	Exclusions []string `json:"exclusions,omitempty"`
 	Ports      []int    `json:"ports,omitempty"`
 }
@@ -151,6 +157,10 @@ type AgentConfig struct {
 	ProxyURL      string            `json:"proxy_url,omitempty"`
 	KeepAwake     bool              `json:"keep_awake"`
 	WSURL         string            `json:"ws_url"`
+	// MonitorLocalNetworks also scans the private /24 of this PC's interfaces (PROMPT 16.10).
+	MonitorLocalNetworks bool `json:"monitor_local_networks"`
+	// IgnoredSerials were discarded in Descobertas: never read them (PROMPT 16.1).
+	IgnoredSerials []string `json:"ignored_serials"`
 }
 
 // SuggestRangesRequest sends the /24 of the agent's private interfaces when the site has no range.
@@ -171,23 +181,26 @@ type DeviceRef struct {
 	Model       string `json:"model,omitempty"`
 	Firmware    string `json:"firmware,omitempty"`
 	ProfileKey  string `json:"profile_key,omitempty"`
+	SysLocation string `json:"sys_location,omitempty"`
 }
 
 // ReadingPayload is a counter reading. Counters holds every resolved counter; the server maps the
 // normalized names to columns and keeps the rest (and Extra) in readings.extra.
 type ReadingPayload struct {
-	Counters            map[string]int64 `json:"counters"`
-	Extra               map[string]any   `json:"extra,omitempty"`
-	CounterSource       string           `json:"counter_source"`
-	ProfileKey          string           `json:"profile_key"`
-	ProfileVersion      int              `json:"profile_version"`
-	MonoOnly            bool             `json:"mono_only"`
-	SumTolerancePercent float64          `json:"sum_tolerance_percent"`
-	Unresolved          []string         `json:"unresolved,omitempty"`
-	Status              string           `json:"status,omitempty"`
-	ErrorBits           int              `json:"error_bits"`
-	Source              string           `json:"source"` // snmp | http
-	Attempts            int              `json:"attempts"`
+	Counters map[string]int64 `json:"counters"`
+	// CounterLines are the profile's explicit `line` mappings (PROMPT 16.2).
+	CounterLines        map[string]profile.Line `json:"counter_lines,omitempty"`
+	Extra               map[string]any          `json:"extra,omitempty"`
+	CounterSource       string                  `json:"counter_source"`
+	ProfileKey          string                  `json:"profile_key"`
+	ProfileVersion      int                     `json:"profile_version"`
+	MonoOnly            bool                    `json:"mono_only"`
+	SumTolerancePercent float64                 `json:"sum_tolerance_percent"`
+	Unresolved          []string                `json:"unresolved,omitempty"`
+	Status              string                  `json:"status,omitempty"`
+	ErrorBits           int                     `json:"error_bits"`
+	Source              string                  `json:"source"` // snmp | http
+	Attempts            int                     `json:"attempts"`
 }
 
 // EventPayload is a device event observed by the agent (e.g. read_failed).
@@ -206,6 +219,8 @@ type Item struct {
 	Supplies []printer.Supply      `json:"supplies,omitempty"`
 	Status   *printer.StatusResult `json:"status,omitempty"`
 	Event    *EventPayload         `json:"event,omitempty"`
+	// Attributes of the daily read (PROMPT 16.8).
+	Attributes *printer.Attributes `json:"attributes,omitempty"`
 }
 
 // ReadingsRequest is a batch of up to 500 items (gzip).

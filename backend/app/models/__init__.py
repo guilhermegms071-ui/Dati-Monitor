@@ -12,28 +12,47 @@ from app.models.agents import (
 )
 from app.models.alerts import Alert, AlertRule, Notification, NotificationChannel
 from app.models.base import Base
-from app.models.devices import Brand, Device, DeviceEvent, DeviceModel, ReadProfile
+from app.models.devices import (
+    Brand,
+    CustomFieldDefinition,
+    Device,
+    DeviceAttributeSnapshot,
+    DeviceEvent,
+    DeviceModel,
+    PrinterAlert,
+    ReadProfile,
+)
 from app.models.operations import AgentRelease, AuditLog, Command, ErpToken, MibWalk, Setting
 from app.models.readings import (
     Reading,
     ReadingAdjustment,
+    ReadingCounter,
     ReadingDiscard,
     ReadingIdempotency,
     ReadingReview,
     SupplyCurrent,
     SupplyReading,
+    SupplyReplacement,
 )
 from app.models.tenancy import Company, Customer, Reseller, Site
-from app.models.users import PasswordResetToken, RefreshToken, Role, RolePermission, User
+from app.models.users import (
+    PasswordResetToken,
+    RefreshToken,
+    ResellerRolePermission,
+    Role,
+    RolePermission,
+    User,
+)
 
 # Tabelas particionadas por mês: (tabela, coluna da partição).
 PARTITIONED_TABLES: tuple[tuple[str, str], ...] = (
     ("readings", "read_at"),
+    ("reading_counters", "read_at"),
     ("supply_readings", "read_at"),
     ("agent_heartbeats", "ts"),
 )
 # Tabelas somente-inserção (trigger bloqueia UPDATE/DELETE/TRUNCATE).
-APPEND_ONLY_TABLES: tuple[str, ...] = ("readings", "audit_log")
+APPEND_ONLY_TABLES: tuple[str, ...] = ("readings", "reading_counters", "audit_log")
 
 __all__ = [
     "APPEND_ONLY_TABLES",
@@ -52,8 +71,10 @@ __all__ = [
     "ClusterEvent",
     "Command",
     "Company",
+    "CustomFieldDefinition",
     "Customer",
     "Device",
+    "DeviceAttributeSnapshot",
     "DeviceEvent",
     "DeviceModel",
     "ErpToken",
@@ -62,14 +83,17 @@ __all__ = [
     "Notification",
     "NotificationChannel",
     "PasswordResetToken",
+    "PrinterAlert",
     "ReadProfile",
     "Reading",
     "ReadingAdjustment",
+    "ReadingCounter",
     "ReadingDiscard",
     "ReadingIdempotency",
     "ReadingReview",
     "RefreshToken",
     "Reseller",
+    "ResellerRolePermission",
     "Role",
     "RolePermission",
     "Setting",
@@ -77,5 +101,6 @@ __all__ = [
     "SnmpCredential",
     "SupplyCurrent",
     "SupplyReading",
+    "SupplyReplacement",
     "User",
 ]

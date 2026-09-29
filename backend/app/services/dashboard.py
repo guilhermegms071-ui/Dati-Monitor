@@ -19,6 +19,7 @@ async def build(session: AsyncSession, p: Principal, days: int = 30) -> Dashboar
     p.require("devices.read")
     dev_scope = and_(
         Device.deleted_at.is_(None),
+        Device.discovery_state == "approved",  # pendentes/descartados não contam (16.1)
         reseller_scope(p, Device.reseller_id),
         customer_scope(p, Device.customer_id),
     )
@@ -152,7 +153,8 @@ async def pages_per_day(session: AsyncSession, p: Principal, days: int) -> list[
                    max(r.mono) AS mono,
                    max(r.color) AS color
             FROM readings r
-            JOIN devices d ON d.id = r.device_id AND d.deleted_at IS NULL{cust}
+            JOIN devices d ON d.id = r.device_id AND d.deleted_at IS NULL
+                AND d.discovery_state = 'approved'{cust}
             WHERE r.read_at >= :since AND {scope}
             GROUP BY r.device_id, day
         ), deltas AS (

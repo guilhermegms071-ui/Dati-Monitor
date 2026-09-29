@@ -1,9 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { MoreHorizontal, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
 import { AgentState, RoleBadge } from '../../components/domain';
+import { LoadMore } from '../../components/paging';
+import { CustomerPicker, SitePicker } from '../../components/pickers';
 import { ReactivateButton } from '../../components/Reactivate';
 import { Button } from '../../components/ui/button';
 import { Dialog, Menu, MenuItem, MenuSeparator } from '../../components/ui/dialog';
@@ -22,6 +24,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useSendCommand, type CommandType } from '../../lib/commands';
 import { fmtDateTime, fmtInt } from '../../lib/format';
 import { AGENT_STATE } from '../../lib/labels';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { showError, showSuccess } from '../../lib/notify';
 import { WatchdogBadge } from './WatchdogPanels';
 
@@ -43,12 +46,13 @@ export function AgentsPage() {
   const [state, setState] = useState(params.get('estado') ?? '');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
-  const list = useQuery({
-    queryKey: ['agents', q, state],
-    queryFn: () =>
-      unwrap(api.GET('/api/v1/agents', { params: { query: { q: q || null, state: state || null, limit: 500 } } })),
-  });
-  const agents = list.data?.items ?? [];
+  const { query: list, rows: agents } = useCursorList<Schemas['AgentOut']>(['agents', q, state], (cursor) =>
+    unwrap(
+      api.GET('/api/v1/agents', {
+        params: { query: { q: q || null, state: state || null, limit: PAGE_SIZE, cursor } },
+      }),
+    ),
+  );
 
   async function bulk(type: CommandType, label: string) {
     try {
@@ -73,7 +77,7 @@ export function AgentsPage() {
         title="Coletores"
         subtitle="PCs com o dm-agent instalado nos clientes"
         actions={
-          can('agents.write') ? (
+          can('agents.create') ? (
             <Button
               onClick={() => {
                 setCreating(true);
@@ -179,6 +183,7 @@ export function AgentsPage() {
             </table>
           </div>
         )}
+        <LoadMore query={list} shown={agents.length} />
       </Card>
       {creating ? (
         <NewAgentDialog
@@ -310,15 +315,6 @@ function NewAgentDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Schemas['AgentCreated'] | null>(null);
-  const customers = useQuery({
-    queryKey: ['customers', 'all'],
-    queryFn: () => unwrap(api.GET('/api/v1/customers', { params: { query: { limit: 500 } } })),
-  });
-  const sites = useQuery({
-    queryKey: ['sites', customer],
-    queryFn: () => unwrap(api.GET('/api/v1/sites', { params: { query: { customer_id: customer, limit: 500 } } })),
-    enabled: Boolean(customer),
-  });
   return (
     <Dialog
       open
@@ -361,38 +357,24 @@ function NewAgentDialog({ onClose }: { onClose: () => void }) {
       ) : (
         <div className="grid gap-3">
           <Field label="Cliente" htmlFor="n-customer">
-            <Select
+            <CustomerPicker
               id="n-customer"
               value={customer}
-              onChange={(e) => {
-                setCustomer(e.target.value);
+              onChange={(id) => {
+                setCustomer(id);
                 setSite('');
               }}
-            >
-              <option value="">Escolha…</option>
-              {(customers.data?.items ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Field label="Local" htmlFor="n-site">
-            <Select
+            <SitePicker
               id="n-site"
+              customerId={customer}
               value={site}
-              onChange={(e) => {
-                setSite(e.target.value);
+              onChange={(id) => {
+                setSite(id);
               }}
-              disabled={!customer}
-            >
-              <option value="">Escolha…</option>
-              {(sites.data?.items ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Field label="Nome do coletor" htmlFor="n-name" hint="Ex.: PC da recepção">
             <Input

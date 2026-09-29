@@ -34,18 +34,63 @@ type Target struct {
 
 func (t Target) String() string { return net.JoinHostPort(t.IP, fmt.Sprint(t.Port)) }
 
-// Expand turns ranges into a sorted, de-duplicated list of targets.
+// LookupFunc resolves a hostname to IPv4 addresses.
+type LookupFunc func(ctx context.Context, host string) ([]string, error)
+
+// DefaultLookup uses the system resolver (5 s per name).
+func DefaultLookup(ctx context.Context, host string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, a := range addrs {
+		if v4 := a.IP.To4(); v4 != nil {
+			out = append(out, v4.String())
+		}
+	}
+	if len(out) == 0 {
+		return nil, errors.New("o nome não tem endereço IPv4")
+	}
+	return out, nil
+}
+
+// Expand turns ranges into a sorted, de-duplicated list of targets. Hostnames are resolved with the
+// system resolver; see ExpandWith.
 func Expand(ranges []protocol.IPRange) ([]Target, error) {
+	targets, unresolved, err := ExpandWith(context.Background(), ranges, DefaultLookup)
+	if err == nil && len(unresolved) > 0 {
+		return targets, fmt.Errorf("hostnames sem resolução: %s", strings.Join(unresolved, "; "))
+	}
+	return targets, err
+}
+
+// ExpandWith expands ranges resolving single hostnames with `lookup`. A hostname that does not resolve
+// does not stop the scan: it is returned in `unresolved` ("nome: motivo") so the caller can log it.
+func ExpandWith(ctx context.Context, ranges []protocol.IPRange, lookup LookupFunc) ([]Target, []string, error) {
 	seen := map[Target]bool{}
 	var out []Target
+	var unresolved []string
 	for _, r := range ranges {
-		ips, err := expandRange(r)
+		var ips []net.IP
+		var err error
+		if host := strings.TrimSpace(r.Host); host != "" {
+			ips, err = resolveHost(ctx, host, lookup)
+			if err != nil {
+				unresolved = append(unresolved, host+": "+err.Error())
+				continue
+			}
+		} else {
+			ips, err = expandRange(r)
+		}
 		if err != nil {
-			return nil, fmt.Errorf("faixa %s: %w", describe(r), err)
+			return nil, nil, fmt.Errorf("faixa %s: %w", describe(r), err)
 		}
 		excl, err := exclusions(r.Exclusions)
 		if err != nil {
-			return nil, fmt.Errorf("faixa %s: %w", describe(r), err)
+			return nil, nil, fmt.Errorf("faixa %s: %w", describe(r), err)
 		}
 		ports := r.Ports
 		if len(ports) == 0 {
@@ -57,7 +102,7 @@ func Expand(ranges []protocol.IPRange) ([]Target, error) {
 			}
 			for _, p := range ports {
 				if p < 1 || p > 65535 {
-					return nil, fmt.Errorf("faixa %s: porta inválida %d", describe(r), p)
+					return nil, nil, fmt.Errorf("faixa %s: porta inválida %d", describe(r), p)
 				}
 				t := Target{IP: ip.String(), Port: p}
 				if !seen[t] {
@@ -66,7 +111,7 @@ func Expand(ranges []protocol.IPRange) ([]Target, error) {
 				}
 			}
 			if len(out) > MaxTargets {
-				return nil, fmt.Errorf("faixas somam mais de %d endereços; divida em faixas menores", MaxTargets)
+				return nil, nil, fmt.Errorf("faixas somam mais de %d endereços; divida em faixas menores", MaxTargets)
 			}
 		}
 	}
@@ -77,12 +122,35 @@ func Expand(ranges []protocol.IPRange) ([]Target, error) {
 		}
 		return out[i].Port < out[j].Port
 	})
+	return out, unresolved, nil
+}
+
+func resolveHost(ctx context.Context, host string, lookup LookupFunc) ([]net.IP, error) {
+	if ip := net.ParseIP(host).To4(); ip != nil {
+		return []net.IP{ip}, nil
+	}
+	addrs, err := lookup(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	var out []net.IP
+	for _, a := range addrs {
+		if ip := net.ParseIP(a).To4(); ip != nil {
+			out = append(out, ip)
+		}
+	}
+	if len(out) == 0 {
+		return nil, errors.New("o nome não tem endereço IPv4")
+	}
 	return out, nil
 }
 
 func describe(r protocol.IPRange) string {
-	if r.CIDR != "" {
+	switch {
+	case r.CIDR != "":
 		return r.CIDR
+	case r.Host != "":
+		return r.Host
 	}
 	return r.Start + "-" + r.End
 }

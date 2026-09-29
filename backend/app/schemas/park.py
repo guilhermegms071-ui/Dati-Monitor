@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.collection import DeviceOut
+from app.schemas.tenancy import TonerThresholds
 
 
 class SupplyLevel(BaseModel):
@@ -48,8 +49,21 @@ DeviceStatus = Literal[
 
 class DeviceUpdate(BaseModel):
     asset_tag: str | None = Field(default=None, max_length=100)
-    sector: str | None = Field(default=None, max_length=200)
+    sector: str | None = Field(
+        default=None, max_length=200, description="Vazio volta a seguir o sysLocation da impressora"
+    )
     notes: str | None = Field(default=None, max_length=4000)
+    alt_serial: str | None = Field(default=None, max_length=128)
+    franchise_value: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    franchise_pages_mono: int | None = Field(default=None, ge=0)
+    franchise_pages_color: int | None = Field(default=None, ge=0)
+    overage_price_mono: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=4)
+    overage_price_color: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=4)
+    custom_fields: dict[str, str | float | None] | None = Field(
+        default=None, description="Valores dos campos personalizados (chave → valor; vazio remove)"
+    )
+    toner_mode: Literal["off", "global", "individual"] | None = None
+    toner_thresholds: TonerThresholds | None = None
     monitored: bool | None = None
     active: bool | None = None
     site_id: uuid.UUID | None = Field(

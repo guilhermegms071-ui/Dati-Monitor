@@ -399,6 +399,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/{agent_id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leituras, falhas e equipamentos sem resposta nas últimas 24 h */
+        get: operations["agent_stats_api_v1_agents__agent_id__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/{agent_id}/versions": {
         parameters: {
             query?: never;
@@ -725,6 +742,42 @@ export interface paths {
         patch: operations["update_company_api_v1_companies__company_id__patch"];
         trace?: never;
     };
+    "/api/v1/custom-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Custom Fields */
+        get: operations["list_custom_fields_api_v1_custom_fields_get"];
+        put?: never;
+        /** Create Custom Field */
+        post: operations["create_custom_field_api_v1_custom_fields_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-fields/{field_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Custom Field */
+        delete: operations["delete_custom_field_api_v1_custom_fields__field_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Custom Field */
+        patch: operations["update_custom_field_api_v1_custom_fields__field_id__patch"];
+        trace?: never;
+    };
     "/api/v1/customers": {
         parameters: {
             query?: never;
@@ -837,7 +890,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Device */
+        /** Cadastro completo e atributos do equipamento */
         get: operations["get_device_api_v1_devices__device_id__get"];
         put?: never;
         post?: never;
@@ -985,6 +1038,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discoveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Equipamentos descobertos aguardando decisão (ou descartados) */
+        get: operations["list_discoveries_api_v1_discoveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discoveries/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discovery Counts */
+        get: operations["discovery_counts_api_v1_discoveries_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discoveries/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ativar, descartar ou restaurar (individual ou em lote) */
+        post: operations["decide_api_v1_discoveries_decide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -1115,6 +1219,40 @@ export interface paths {
         /** Exportar o parque com os filtros aplicados */
         get: operations["park_export_api_v1_park_export_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Permission Matrix */
+        get: operations["permission_matrix_api_v1_permissions_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions/matrix/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Ajustar a matriz de um papel (null volta ao padrão) */
+        put: operations["set_role_matrix_api_v1_permissions_matrix__role__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1277,6 +1415,23 @@ export interface paths {
         put?: never;
         /** Create Range */
         post: operations["create_range_api_v1_sites__site_id__ip_ranges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/{site_id}/ip-ranges/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Importar faixas, IPs e hostnames de um arquivo .txt (uma entrada por linha) */
+        post: operations["import_ranges_api_v1_sites__site_id__ip_ranges_import_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1521,12 +1676,23 @@ export interface components {
             /** Credentials */
             credentials: components["schemas"]["CredentialConfig"][];
             discovery: components["schemas"]["DiscoveryConfig"];
+            /**
+             * Ignored Serials
+             * @description Equipamentos descartados em Descobertas: não ler (seção 16.1)
+             */
+            ignored_serials?: string[];
             intervals: components["schemas"]["Intervals"];
             /**
              * Keep Awake
              * @default false
              */
             keep_awake?: boolean;
+            /**
+             * Monitor Local Networks
+             * @description Varrer também as /24 privadas das interfaces deste PC (seção 16.10)
+             * @default false
+             */
+            monitor_local_networks?: boolean;
             /** Paused */
             paused: boolean;
             /** Profiles */
@@ -1646,6 +1812,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Install Path */
+            install_path: string | null;
             /** Kind */
             kind: string;
             /** Last Error */
@@ -1658,6 +1826,8 @@ export interface components {
             local_ips: unknown[];
             /** Memory Bytes */
             memory_bytes: number | null;
+            /** Monitor Local Networks */
+            monitor_local_networks: boolean;
             /** Name */
             name: string;
             /** Os */
@@ -1666,6 +1836,8 @@ export interface components {
             paused: boolean;
             /** Priority */
             priority: number;
+            /** Public Ip */
+            public_ip: string | null;
             /** Queue Pending */
             queue_pending: number;
             /**
@@ -1719,8 +1891,46 @@ export interface components {
              */
             ws_connected: boolean;
         };
+        /**
+         * AgentStats
+         * @description Estatísticas do coletor nas últimas 24 h (seção 16.10).
+         */
+        AgentStats: {
+            /**
+             * Devices Offline
+             * @description Desses, sem resposta ou desconectados
+             */
+            devices_offline: number;
+            /**
+             * Devices Total
+             * @description Equipamentos ativos lidos por este coletor
+             */
+            devices_total: number;
+            /**
+             * Failures 24H
+             * @description Falhas de leitura (equipamento não respondeu após as tentativas)
+             */
+            failures_24h: number;
+            /**
+             * Items 24H
+             * @description Todos os itens aceitos (leituras, suprimentos, status, atributos)
+             */
+            items_24h: number;
+            /** Last Item At */
+            last_item_at: string | null;
+            /**
+             * Readings 24H
+             * @description Leituras de contadores aceitas
+             */
+            readings_24h: number;
+        };
         /** AgentUpdate */
         AgentUpdate: {
+            /**
+             * Monitor Local Networks
+             * @description Varrer também as redes do PC do coletor (ligar = aprovação explícita)
+             */
+            monitor_local_networks?: boolean | null;
             /** Name */
             name?: string | null;
             /** Priority */
@@ -1728,7 +1938,10 @@ export interface components {
             /** Update Channel */
             update_channel?: ("canary" | "stable") | null;
         };
-        /** Alert */
+        /**
+         * Alert
+         * @description Linha da prtAlertTable (RFC 3805). `index` e `time` (TimeTicks) identificam cada alerta novo.
+         */
         Alert: {
             /**
              * Code
@@ -1741,10 +1954,85 @@ export interface components {
              */
             description?: string;
             /**
+             * Group
+             * @default null
+             */
+            group?: number | null;
+            /**
+             * Group Index
+             * @default null
+             */
+            group_index?: number | null;
+            /**
+             * Index
+             * @default null
+             */
+            index?: number | null;
+            /**
+             * Location
+             * @default null
+             */
+            location?: number | null;
+            /**
              * Severity
              * @default 0
              */
             severity?: number;
+            /**
+             * Time
+             * @description prtAlertTime (sysUpTime no momento, centésimos de s)
+             * @default null
+             */
+            time?: number | null;
+            /**
+             * Training Level
+             * @default null
+             */
+            training_level?: number | null;
+        };
+        /**
+         * AttributesPayload
+         * @description Atributos da leitura diária (seção 16.8).
+         */
+        AttributesPayload: {
+            /** Firmware */
+            firmware?: string[];
+            /**
+             * Mac
+             * @default null
+             */
+            mac?: string | null;
+            /**
+             * Memory Bytes
+             * @default null
+             */
+            memory_bytes?: number | null;
+            /**
+             * Panel Text
+             * @default null
+             */
+            panel_text?: string | null;
+            /** Parts */
+            parts?: components["schemas"]["Part"][];
+            /**
+             * Ssid
+             * @default null
+             */
+            ssid?: string | null;
+            /** Storage */
+            storage?: components["schemas"]["StorageInfo"][];
+            /** Subsystems */
+            subsystems?: components["schemas"]["Subsystem"][];
+            /**
+             * Sys Location
+             * @default null
+             */
+            sys_location?: string | null;
+            /**
+             * Uptime Seconds
+             * @default null
+             */
+            uptime_seconds?: number | null;
         };
         /** AuditOut */
         AuditOut: {
@@ -1903,9 +2191,20 @@ export interface components {
             keep_awake?: boolean | null;
             /** Proxy Url */
             proxy_url?: string | null;
-            /** Snmp Retries */
+            /**
+             * Snmp Read Timeout Ms
+             * @description Timeout nas leituras
+             */
+            snmp_read_timeout_ms?: number | null;
+            /**
+             * Snmp Retries
+             * @description Retentativas por consulta (tentativas SNMP = 1 a 5)
+             */
             snmp_retries?: number | null;
-            /** Snmp Timeout Ms */
+            /**
+             * Snmp Timeout Ms
+             * @description Timeout na descoberta
+             */
             snmp_timeout_ms?: number | null;
             /** Status Minutes */
             status_minutes?: number | null;
@@ -2107,6 +2406,24 @@ export interface components {
             /** Legal Name */
             legal_name?: string | null;
         };
+        /** CounterLine */
+        CounterLine: {
+            /**
+             * Color Mode
+             * @enum {string}
+             */
+            color_mode: "mono" | "full_color" | "single_color" | "two_color" | "any";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "total" | "print" | "copy" | "fax" | "scan" | "report" | "duplex" | "other";
+            /**
+             * Size
+             * @enum {string}
+             */
+            size: "a3" | "a4" | "letter" | "legal" | "other" | "any";
+        };
         /** CounterPoint */
         CounterPoint: {
             /** Color */
@@ -2174,6 +2491,69 @@ export interface components {
             /** Serial */
             serial: string;
         };
+        /** CustomFieldIn */
+        CustomFieldIn: {
+            /**
+             * Active
+             * @default true
+             */
+            active?: boolean;
+            /**
+             * Field Type
+             * @default text
+             * @enum {string}
+             */
+            field_type?: "text" | "number" | "date";
+            /**
+             * Key
+             * @description Minúsculas, números e _ (ex.: contrato)
+             */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Position
+             * @default 0
+             */
+            position?: number;
+        };
+        /** CustomFieldOut */
+        CustomFieldOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Field Type */
+            field_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Position */
+            position: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CustomFieldUpdate */
+        CustomFieldUpdate: {
+            /** Active */
+            active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Position */
+            position?: number | null;
+        };
         /** CustomerIn */
         CustomerIn: {
             /**
@@ -2198,6 +2578,12 @@ export interface components {
             name: string;
             /** Phone */
             phone?: string | null;
+            /**
+             * Toner Monitoring
+             * @default true
+             */
+            toner_monitoring?: boolean;
+            toner_thresholds?: components["schemas"]["TonerThresholds"];
         };
         /** CustomerOut */
         CustomerOut: {
@@ -2235,6 +2621,12 @@ export interface components {
              * Format: uuid
              */
             reseller_id: string;
+            /** Toner Monitoring */
+            toner_monitoring: boolean;
+            /** Toner Thresholds */
+            toner_thresholds: {
+                [key: string]: unknown;
+            };
             /**
              * Updated At
              * Format: date-time
@@ -2259,6 +2651,9 @@ export interface components {
             name?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Toner Monitoring */
+            toner_monitoring?: boolean | null;
+            toner_thresholds?: components["schemas"]["TonerThresholds"] | null;
         };
         /** Dashboard */
         Dashboard: {
@@ -2298,6 +2693,151 @@ export interface components {
             /** Server Version */
             server_version: string | null;
         };
+        /** DecisionIn */
+        DecisionIn: {
+            /**
+             * Action
+             * @description approve = Ativar; discard = Descartar; restore = voltar descartado para pendente
+             * @enum {string}
+             */
+            action: "approve" | "discard" | "restore";
+            /** Device Ids */
+            device_ids: string[];
+        };
+        /** DecisionOut */
+        DecisionOut: {
+            /** Changed */
+            changed: number;
+            /** Skipped */
+            skipped: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * DeviceDetail
+         * @description Cadastro completo (16.7) e atributos da leitura diária (16.8).
+         */
+        DeviceDetail: {
+            /** Active */
+            active: boolean;
+            /** Alt Serial */
+            alt_serial: string | null;
+            /** Asset Tag */
+            asset_tag: string | null;
+            /** Attributes */
+            attributes: {
+                [key: string]: unknown;
+            };
+            /** Attributes At */
+            attributes_at: string | null;
+            /** Brand */
+            brand: string | null;
+            /** Counter Source */
+            counter_source: string | null;
+            /** Custom Fields */
+            custom_fields: {
+                [key: string]: unknown;
+            };
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Disconnected */
+            disconnected: boolean;
+            /** Discovery Decided At */
+            discovery_decided_at: string | null;
+            /** Discovery State */
+            discovery_state: string;
+            /** Firmware */
+            firmware: string | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Franchise Pages Color */
+            franchise_pages_color: number | null;
+            /** Franchise Pages Mono */
+            franchise_pages_mono: number | null;
+            /** Franchise Value */
+            franchise_value: string | null;
+            /** Hostname */
+            hostname: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ip */
+            ip: string | null;
+            /** Is Color */
+            is_color: boolean | null;
+            /** Last Agent Id */
+            last_agent_id: string | null;
+            /** Last Color */
+            last_color: number | null;
+            /** Last Error Bits */
+            last_error_bits: number | null;
+            /** Last Error Reasons */
+            last_error_reasons: unknown[];
+            /** Last Mono */
+            last_mono: number | null;
+            /** Last Panel Text */
+            last_panel_text: string | null;
+            /** Last Read At */
+            last_read_at: string | null;
+            /** Last Status */
+            last_status: string;
+            /** Last Status At */
+            last_status_at: string | null;
+            /** Last Total */
+            last_total: number | null;
+            /** Mac */
+            mac: string | null;
+            /** Model */
+            model: string | null;
+            /** Monitored */
+            monitored: boolean;
+            /** Notes */
+            notes: string | null;
+            /** Overage Price Color */
+            overage_price_color: string | null;
+            /** Overage Price Mono */
+            overage_price_mono: string | null;
+            /** Profile Key */
+            profile_key: string | null;
+            /**
+             * Reseller Id
+             * Format: uuid
+             */
+            reseller_id: string;
+            /** Sector */
+            sector: string | null;
+            /** Sector From Snmp */
+            sector_from_snmp: boolean;
+            /** Serial */
+            serial: string;
+            /**
+             * Site Id
+             * Format: uuid
+             */
+            site_id: string;
+            /** Snmp Port */
+            snmp_port: number;
+            /** Source */
+            source: string;
+            /** Sys Location */
+            sys_location: string | null;
+            /** Sys Object Id */
+            sys_object_id: string | null;
+            /** Toner Mode */
+            toner_mode: string;
+            /** Toner Thresholds */
+            toner_thresholds: {
+                [key: string]: unknown;
+            };
+        };
         /** DeviceEventOut */
         DeviceEventOut: {
             /**
@@ -2328,6 +2868,8 @@ export interface components {
         DeviceOut: {
             /** Active */
             active: boolean;
+            /** Alt Serial */
+            alt_serial: string | null;
             /** Asset Tag */
             asset_tag: string | null;
             /** Brand */
@@ -2341,6 +2883,8 @@ export interface components {
             customer_id: string;
             /** Disconnected */
             disconnected: boolean;
+            /** Discovery State */
+            discovery_state: string;
             /** Firmware */
             firmware: string | null;
             /**
@@ -2407,6 +2951,8 @@ export interface components {
             snmp_port: number;
             /** Source */
             source: string;
+            /** Sys Location */
+            sys_location: string | null;
             /** Sys Object Id */
             sys_object_id: string | null;
         };
@@ -2458,6 +3004,11 @@ export interface components {
              */
             sys_descr?: string | null;
             /**
+             * Sys Location
+             * @default null
+             */
+            sys_location?: string | null;
+            /**
              * Sys Object Id
              * @default null
              */
@@ -2467,19 +3018,44 @@ export interface components {
         DeviceUpdate: {
             /** Active */
             active?: boolean | null;
+            /** Alt Serial */
+            alt_serial?: string | null;
             /** Asset Tag */
             asset_tag?: string | null;
+            /**
+             * Custom Fields
+             * @description Valores dos campos personalizados (chave → valor; vazio remove)
+             */
+            custom_fields?: {
+                [key: string]: string | number | null;
+            } | null;
+            /** Franchise Pages Color */
+            franchise_pages_color?: number | null;
+            /** Franchise Pages Mono */
+            franchise_pages_mono?: number | null;
+            /** Franchise Value */
+            franchise_value?: number | string | null;
             /** Monitored */
             monitored?: boolean | null;
             /** Notes */
             notes?: string | null;
-            /** Sector */
+            /** Overage Price Color */
+            overage_price_color?: number | string | null;
+            /** Overage Price Mono */
+            overage_price_mono?: number | string | null;
+            /**
+             * Sector
+             * @description Vazio volta a seguir o sysLocation da impressora
+             */
             sector?: string | null;
             /**
              * Site Id
              * @description Mover para outro local (o cliente acompanha)
              */
             site_id?: string | null;
+            /** Toner Mode */
+            toner_mode?: ("off" | "global" | "individual") | null;
+            toner_thresholds?: components["schemas"]["TonerThresholds"] | null;
         };
         /** DiscoveryConfig */
         DiscoveryConfig: {
@@ -2487,10 +3063,38 @@ export interface components {
             concurrency: number;
             /** Rate Pps */
             rate_pps: number;
-            /** Retries */
+            /**
+             * Read Timeout Ms
+             * @description Timeout de cada consulta SNMP nas leituras
+             * @default 2000
+             */
+            read_timeout_ms?: number;
+            /**
+             * Retries
+             * @description Retentativas de cada consulta (tentativas = retries + 1, de 1 a 5)
+             */
             retries: number;
-            /** Timeout Ms */
+            /**
+             * Timeout Ms
+             * @description Timeout de cada consulta SNMP na descoberta
+             */
             timeout_ms: number;
+        };
+        /** DiscoveryCounts */
+        DiscoveryCounts: {
+            /** Discarded */
+            discarded: number;
+            /** Pending */
+            pending: number;
+        };
+        /** DiscoveryPage */
+        DiscoveryPage: {
+            /** Items */
+            items: components["schemas"]["ParkRow"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
         };
         /** EnrollRequest */
         EnrollRequest: {
@@ -2677,6 +3281,12 @@ export interface components {
              * @default
              */
             hostname?: string;
+            /**
+             * Install Path
+             * @description Pasta do executável do coletor
+             * @default
+             */
+            install_path?: string;
             /** Last Read At */
             last_read_at?: string | null;
             /** Last Scan At */
@@ -2791,6 +3401,11 @@ export interface components {
             end_ip?: string | null;
             /** Exclusions */
             exclusions?: string[];
+            /**
+             * Host
+             * @description IP ou hostname avulso (resolvido a cada varredura)
+             */
+            host?: string | null;
             /** Id */
             id: string;
             /** Ports */
@@ -2811,6 +3426,11 @@ export interface components {
             end_ip?: string | null;
             /** Exclusions */
             exclusions?: string[];
+            /**
+             * Host
+             * @description IP ou hostname avulso
+             */
+            host?: string | null;
             /** Ports */
             ports?: number[];
             /** Start Ip */
@@ -2831,6 +3451,8 @@ export interface components {
             end_ip: string | null;
             /** Exclusions */
             exclusions: unknown[];
+            /** Host */
+            host: string | null;
             /**
              * Id
              * Format: uuid
@@ -2857,6 +3479,8 @@ export interface components {
         };
         /** Item */
         Item: {
+            /** @default null */
+            attributes?: components["schemas"]["AttributesPayload"] | null;
             device: components["schemas"]["DeviceRef"];
             /** @default null */
             event?: components["schemas"]["EventPayload"] | null;
@@ -2866,7 +3490,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "reading" | "supplies" | "status" | "event";
+            kind: "reading" | "supplies" | "status" | "event" | "attributes";
             /**
              * Read At
              * Format: date-time
@@ -2902,6 +3526,13 @@ export interface components {
             password: string;
             /** Totp Code */
             totp_code?: string | null;
+        };
+        /** MatrixModule */
+        MatrixModule: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
         };
         /** MeResponse */
         MeResponse: {
@@ -3108,6 +3739,8 @@ export interface components {
             active: boolean;
             /** Agent Name */
             agent_name: string | null;
+            /** Alt Serial */
+            alt_serial: string | null;
             /** Asset Tag */
             asset_tag: string | null;
             /** Brand */
@@ -3123,6 +3756,8 @@ export interface components {
             customer_name: string;
             /** Disconnected */
             disconnected: boolean;
+            /** Discovery State */
+            discovery_state: string;
             /** Firmware */
             firmware: string | null;
             /**
@@ -3193,8 +3828,35 @@ export interface components {
             source: string;
             /** Supplies */
             supplies: components["schemas"]["SupplyLevel"][];
+            /** Sys Location */
+            sys_location: string | null;
             /** Sys Object Id */
             sys_object_id: string | null;
+        };
+        /**
+         * Part
+         * @description Peça com nível/contador (cilindro, fusor, transferência, kit de manutenção, roletes, resíduo).
+         */
+        Part: {
+            /**
+             * Color
+             * @default null
+             */
+            color?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "drum" | "fuser" | "transfer" | "maintenance_kit" | "rollers" | "waste_toner" | "developer" | "other";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "percent" | "pages" | "count";
+            /** Value */
+            value: number;
         };
         /** PendingCommandsResponse */
         PendingCommandsResponse: {
@@ -3206,6 +3868,27 @@ export interface components {
              * @constant
              */
             v?: 1;
+        };
+        /** PermissionMatrix */
+        PermissionMatrix: {
+            /**
+             * Actions
+             * @description read/create/update/delete → Consultar/Incluir/Alterar/Excluir
+             */
+            actions: {
+                [key: string]: string;
+            };
+            /** Modules */
+            modules: components["schemas"]["MatrixModule"][];
+            /**
+             * Reseller Id
+             * Format: uuid
+             */
+            reseller_id: string;
+            /** Roles */
+            roles: components["schemas"]["RoleMatrix"][];
+            /** Supplies Permission */
+            supplies_permission: string;
         };
         /**
          * PreferencesUpdate
@@ -3224,6 +3907,34 @@ export interface components {
              * @description Coletor fixado como MASTER do local; vazio = sem preferência
              */
             agent_id: string | null;
+        };
+        /** RangeImportIn */
+        RangeImportIn: {
+            /**
+             * Content
+             * @description Conteúdo do .txt: uma faixa, IP ou hostname por linha
+             */
+            content: string;
+            /** Ports */
+            ports?: number[];
+        };
+        /** RangeImportLineError */
+        RangeImportLineError: {
+            /** Content */
+            content: string;
+            /** Error */
+            error: string;
+            /** Line */
+            line: number;
+        };
+        /** RangeImportOut */
+        RangeImportOut: {
+            /** Created */
+            created: number;
+            /** Duplicates */
+            duplicates: number;
+            /** Errors */
+            errors: components["schemas"]["RangeImportLineError"][];
         };
         /** Reactivation */
         Reactivation: {
@@ -3337,6 +4048,13 @@ export interface components {
              * @default 0
              */
             attempts?: number;
+            /**
+             * Counter Lines
+             * @description `line` dos contadores no perfil (os nomes normalizados têm mapeamento padrão)
+             */
+            counter_lines?: {
+                [key: string]: components["schemas"]["CounterLine"];
+            };
             /**
              * Counter Source
              * @default
@@ -3553,6 +4271,36 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** RoleMatrix */
+        RoleMatrix: {
+            /**
+             * Customized
+             * @description A revenda ajustou este papel (senão vale o padrão do sistema)
+             */
+            customized: boolean;
+            /**
+             * Grantable
+             * @description Permissões da matriz que este papel pode receber
+             */
+            grantable: string[];
+            /**
+             * Permissions
+             * @description Permissões da matriz que o papel tem nesta revenda
+             */
+            permissions: string[];
+            /** Role */
+            role: string;
+            /** Role Name */
+            role_name: string;
+        };
+        /** RoleMatrixIn */
+        RoleMatrixIn: {
+            /**
+             * Permissions
+             * @description Permissões da matriz; null volta ao padrão do sistema
+             */
+            permissions: string[] | null;
+        };
         /** RoleOut */
         RoleOut: {
             /** Code */
@@ -3601,16 +4349,37 @@ export interface components {
         };
         /** SiteIn */
         SiteIn: {
-            /** Address */
-            address?: string | null;
+            /**
+             * Auto Activate Devices
+             * @default false
+             */
+            auto_activate_devices?: boolean;
+            /** Cep */
+            cep?: string | null;
+            /** City */
+            city?: string | null;
             collection_config?: components["schemas"]["CollectionConfig"];
+            /** Complement */
+            complement?: string | null;
             /**
              * Customer Id
              * Format: uuid
              */
             customer_id: string;
+            /** District */
+            district?: string | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
             /** Name */
             name: string;
+            /** Number */
+            number?: string | null;
+            /** State */
+            state?: string | null;
+            /** Street */
+            street?: string | null;
             /**
              * Timezone
              * @default America/Sao_Paulo
@@ -3619,12 +4388,18 @@ export interface components {
         };
         /** SiteOut */
         SiteOut: {
-            /** Address */
-            address: string | null;
+            /** Auto Activate Devices */
+            auto_activate_devices: boolean;
+            /** Cep */
+            cep: string | null;
+            /** City */
+            city: string | null;
             /** Collection Config */
             collection_config: {
                 [key: string]: unknown;
             };
+            /** Complement */
+            complement: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3635,17 +4410,25 @@ export interface components {
              * Format: uuid
              */
             customer_id: string;
+            /** District */
+            district: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Latitude */
+            latitude: string | null;
+            /** Longitude */
+            longitude: string | null;
             /** Master Agent Id */
             master_agent_id: string | null;
             /** Master Lease Expires At */
             master_lease_expires_at: string | null;
             /** Name */
             name: string;
+            /** Number */
+            number: string | null;
             /** Preferred Master Agent Id */
             preferred_master_agent_id: string | null;
             /**
@@ -3653,6 +4436,10 @@ export interface components {
              * Format: uuid
              */
             reseller_id: string;
+            /** State */
+            state: string | null;
+            /** Street */
+            street: string | null;
             /** Timezone */
             timezone: string;
             /**
@@ -3663,11 +4450,29 @@ export interface components {
         };
         /** SiteUpdate */
         SiteUpdate: {
-            /** Address */
-            address?: string | null;
+            /** Auto Activate Devices */
+            auto_activate_devices?: boolean | null;
+            /** Cep */
+            cep?: string | null;
+            /** City */
+            city?: string | null;
             collection_config?: components["schemas"]["CollectionConfig"] | null;
+            /** Complement */
+            complement?: string | null;
+            /** District */
+            district?: string | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
             /** Name */
             name?: string | null;
+            /** Number */
+            number?: string | null;
+            /** State */
+            state?: string | null;
+            /** Street */
+            street?: string | null;
             /** Timezone */
             timezone?: string | null;
         };
@@ -3786,6 +4591,39 @@ export interface components {
              */
             status: "ready" | "printing" | "warmup" | "energy_saving" | "warning" | "error" | "offline";
         };
+        /** StorageInfo */
+        StorageInfo: {
+            /**
+             * Description
+             * @default
+             */
+            description?: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Used Bytes */
+            used_bytes: number;
+        };
+        /**
+         * Subsystem
+         * @description Subsistema do equipamento (hrDeviceTable ou `attributes.subsystems` do perfil).
+         */
+        Subsystem: {
+            /**
+             * Description
+             * @default
+             */
+            description?: string;
+            /**
+             * Name
+             * @description printer | copier | scanner | ou o tipo do hrDevice
+             */
+            name: string;
+            /**
+             * Status
+             * @description unknown | running | warning | testing | down ou texto do perfil
+             */
+            status: string;
+        };
         /** SuggestRangesRequest */
         SuggestRangesRequest: {
             /** Ranges */
@@ -3799,6 +4637,11 @@ export interface components {
         };
         /** Supply */
         Supply: {
+            /**
+             * Cartridge Serial
+             * @default null
+             */
+            cartridge_serial?: string | null;
             /**
              * Class
              * @default other
@@ -3945,6 +4788,32 @@ export interface components {
              * @constant
              */
             v?: 1;
+        };
+        /**
+         * TonerThresholds
+         * @description Limiar de toner por cor, em % (seção 16.5).
+         */
+        TonerThresholds: {
+            /**
+             * Black
+             * @default 10
+             */
+            black?: number;
+            /**
+             * Cyan
+             * @default 10
+             */
+            cyan?: number;
+            /**
+             * Magenta
+             * @default 10
+             */
+            magenta?: number;
+            /**
+             * Yellow
+             * @default 10
+             */
+            yellow?: number;
         };
         /** TotpCodeRequest */
         TotpCodeRequest: {
@@ -6223,6 +7092,82 @@ export interface operations {
             };
         };
     };
+    agent_stats_api_v1_agents__agent_id__stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AgentStats"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     versions_api_v1_agents__agent_id__versions_get: {
         parameters: {
             query?: never;
@@ -7913,6 +8858,303 @@ export interface operations {
             };
         };
     };
+    list_custom_fields_api_v1_custom_fields_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["CustomFieldOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_custom_field_api_v1_custom_fields_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["CustomFieldOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_custom_field_api_v1_custom_fields__field_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_custom_field_api_v1_custom_fields__field_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["CustomFieldOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_customers_api_v1_customers_get: {
         parameters: {
             query?: {
@@ -8637,7 +9879,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json; charset=utf-8": components["schemas"]["DeviceOut"];
+                    "application/json; charset=utf-8": components["schemas"]["DeviceDetail"];
                 };
             };
             /** @description Requisição inválida */
@@ -9481,6 +10723,232 @@ export interface operations {
             };
         };
     };
+    list_discoveries_api_v1_discoveries_get: {
+        parameters: {
+            query?: {
+                state?: "pending" | "discarded";
+                q?: string | null;
+                customer_id?: string | null;
+                site_id?: string | null;
+                sort?: string;
+                direction?: "asc" | "desc";
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["DiscoveryPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discovery_counts_api_v1_discoveries_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["DiscoveryCounts"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    decide_api_v1_discoveries_decide_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["DecisionOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     events_api_v1_events_get: {
         parameters: {
             query?: never;
@@ -10115,6 +11583,164 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": unknown;
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    permission_matrix_api_v1_permissions_matrix_get: {
+        parameters: {
+            query?: {
+                reseller_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["PermissionMatrix"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_role_matrix_api_v1_permissions_matrix__role__put: {
+        parameters: {
+            query?: {
+                reseller_id?: string | null;
+            };
+            header?: never;
+            path: {
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMatrixIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["PermissionMatrix"];
                 };
             };
             /** @description Requisição inválida */
@@ -11423,6 +13049,86 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["IpRangeOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_ranges_api_v1_sites__site_id__ip_ranges_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RangeImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["RangeImportOut"];
                 };
             };
             /** @description Requisição inválida */

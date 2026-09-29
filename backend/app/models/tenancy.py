@@ -2,12 +2,17 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import JSONB_EMPTY_OBJECT, Base, IdMixin, SoftDeleteMixin, TimestampMixin
+
+TONER_COLORS = ("black", "cyan", "magenta", "yellow")
+DEFAULT_TONER_THRESHOLDS: dict[str, int] = dict.fromkeys(TONER_COLORS, 10)
+DEFAULT_TONER_THRESHOLDS_SQL = '\'{"black": 10, "cyan": 10, "magenta": 10, "yellow": 10}\'::jsonb'
 
 
 class Reseller(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
@@ -47,6 +52,11 @@ class Customer(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     email: Mapped[str | None] = mapped_column(String(320))
     erp_code: Mapped[str | None] = mapped_column(String(64))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
+    # Limiar de toner (seção 16.5): liga/desliga e um limiar por cor, em %.
+    toner_monitoring: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
+    toner_thresholds: Mapped[dict[str, Any]] = mapped_column(
+        server_default=text(DEFAULT_TONER_THRESHOLDS_SQL), default=lambda: dict(DEFAULT_TONER_THRESHOLDS)
+    )
 
 
 class Site(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
@@ -55,7 +65,18 @@ class Site(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
     customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
-    address: Mapped[str | None] = mapped_column(Text)
+    # Endereço completo (seção 16.9); o CEP preenche o resto pelo ViaCEP no portal.
+    cep: Mapped[str | None] = mapped_column(String(8))
+    street: Mapped[str | None] = mapped_column(String(300))
+    number: Mapped[str | None] = mapped_column(String(30))
+    complement: Mapped[str | None] = mapped_column(String(200))
+    district: Mapped[str | None] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(200))
+    state: Mapped[str | None] = mapped_column(String(2))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    # Descobertas (seção 16.1): equipamento novo entra ativo sem passar pela tela de Descobertas.
+    auto_activate_devices: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
     timezone: Mapped[str] = mapped_column(
         String(64), server_default=text("'America/Sao_Paulo'"), default="America/Sao_Paulo"
     )

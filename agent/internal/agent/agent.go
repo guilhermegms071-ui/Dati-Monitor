@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"sync"
@@ -271,7 +272,7 @@ func (a *Agent) HeartbeatRequest(ctx context.Context) protocol.HeartbeatRequest 
 		Hostname: osinfo.Hostname(), OS: osinfo.Describe(), Arch: runtime.GOARCH, HostMAC: osinfo.HostMAC(),
 		AppliedConfigVersion: int(a.applied.Load()), DevicesKnown: a.Collector.KnownDevices(ctx),
 		Paused: a.Collector.Paused(), LatencyMS: a.WS.RTT(), WSConnected: a.WS.Connected(),
-		WatchdogState: a.WatchdogState(),
+		WatchdogState: a.WatchdogState(), InstallPath: installPath(),
 	}
 	if t := a.Collector.LastScan(); !t.IsZero() {
 		req.LastScanAt = &t
@@ -425,3 +426,12 @@ func (h *wsHandler) OnCommand(cmd protocol.CommandMessage) {
 }
 
 func (h *wsHandler) OnCancel(id string) { (*Agent)(h).Exec.Cancel(id) }
+
+// installPath is the folder of the running executable (shown in the portal, PROMPT 16.10).
+func installPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(exe)
+}

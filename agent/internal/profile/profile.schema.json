@@ -51,7 +51,35 @@
     "supplies": {
       "type": "object",
       "additionalProperties": false,
-      "properties": { "use_standard": { "type": "boolean" } }
+      "properties": {
+        "use_standard": { "type": "boolean" },
+        "cartridge_serial_oid": {
+          "description": "Tabela indexada como a prtMarkerSuppliesTable com o serial de cada cartucho (seção 16.3).",
+          "$ref": "#/$defs/oidOrPlaceholder"
+        }
+      }
+    },
+    "attributes": {
+      "description": "Atributos da leitura diária vindos do perfil (seção 16.8); os padrões são lidos sempre.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ssid": { "$ref": "#/$defs/oidList" },
+        "subsystems": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "printer": { "$ref": "#/$defs/oidList" },
+            "copier": { "$ref": "#/$defs/oidList" },
+            "scanner": { "$ref": "#/$defs/oidList" }
+          }
+        },
+        "parts": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+          "additionalProperties": { "$ref": "#/$defs/partDef" }
+        }
+      }
     },
     "http": {
       "description": "Leitor HTTP opcional (modelos que só mostram o contador na página web). Desativado por padrão.",
@@ -96,7 +124,8 @@
         "expr": { "type": "string", "pattern": "^[a-z0-9_ ()+*-]+$" },
         "name_regex": { "type": "string", "minLength": 1 },
         "sum_names": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-        "note": { "type": "string" }
+        "note": { "type": "string" },
+        "line": { "$ref": "#/$defs/counterLine" }
       },
       "oneOf": [
         { "required": ["oid"] },
@@ -106,6 +135,32 @@
         { "required": ["name_regex"] },
         { "required": ["sum_names"] }
       ]
+    },
+    "counterLine": {
+      "description": "Linha de reading_counters para este contador (seção 16.2).",
+      "type": "object",
+      "required": ["kind", "color_mode", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["total", "print", "copy", "fax", "scan", "report", "duplex", "other"] },
+        "color_mode": { "enum": ["mono", "full_color", "single_color", "two_color", "any"] },
+        "size": { "enum": ["a3", "a4", "letter", "legal", "other", "any"] }
+      }
+    },
+    "partDef": {
+      "description": "Peça com nível ou contador (cilindro, fusor, transferência, kit de manutenção, roletes, resíduo).",
+      "type": "object",
+      "required": ["oid", "part", "unit"],
+      "additionalProperties": false,
+      "properties": {
+        "oid": { "$ref": "#/$defs/oidOrPlaceholder" },
+        "part": {
+          "enum": ["drum", "fuser", "transfer", "maintenance_kit", "rollers", "waste_toner", "developer", "other"]
+        },
+        "unit": { "enum": ["percent", "pages", "count"] },
+        "color": { "type": "string", "enum": ["black", "cyan", "magenta", "yellow"] },
+        "note": { "type": "string" }
+      }
     },
     "counterMap": {
       "type": "object",

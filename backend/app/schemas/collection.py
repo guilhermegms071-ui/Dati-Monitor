@@ -1,6 +1,7 @@
 """Portal schemas for collectors (agents), IP ranges, SNMP credentials, collection settings and devices."""
 
 import ipaddress
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -21,8 +22,13 @@ class CollectionConfig(BaseModel):
     attributes_minutes: int | None = Field(default=None, ge=60, le=10080)
     discovery_concurrency: int | None = Field(default=None, ge=1, le=256)
     discovery_rate_pps: int | None = Field(default=None, ge=10, le=5000)
-    snmp_timeout_ms: int | None = Field(default=None, ge=500, le=10000)
-    snmp_retries: int | None = Field(default=None, ge=0, le=5)
+    snmp_timeout_ms: int | None = Field(default=None, ge=500, le=10000, description="Timeout na descoberta")
+    snmp_read_timeout_ms: int | None = Field(
+        default=None, ge=500, le=10000, description="Timeout nas leituras"
+    )
+    snmp_retries: int | None = Field(
+        default=None, ge=0, le=4, description="Retentativas por consulta (tentativas SNMP = 1 a 5)"
+    )
     keep_awake: bool | None = None
     proxy_url: str | None = Field(default=None, max_length=500)
 
@@ -43,6 +49,7 @@ DEFAULT_COLLECTION = {
     "discovery_concurrency": 64,
     "discovery_rate_pps": 200,
     "snmp_timeout_ms": 1500,
+    "snmp_read_timeout_ms": 2000,
     "snmp_retries": 1,
     "keep_awake": False,
     "proxy_url": None,
@@ -64,6 +71,9 @@ class AgentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     update_channel: Literal["canary", "stable"] | None = None
     priority: int | None = Field(default=None, ge=1, le=1000)
+    monitor_local_networks: bool | None = Field(
+        default=None, description="Varrer também as redes do PC do coletor (ligar = aprovação explícita)"
+    )
 
 
 class AgentOut(ORMModel):
@@ -99,6 +109,9 @@ class AgentOut(ORMModel):
     last_error: str | None
     suggested_ranges: list[Any]
     paused: bool
+    monitor_local_networks: bool
+    public_ip: str | None
+    install_path: str | None
     ws_connected: bool = Field(default=False, description="Há conexão WebSocket viva agora")
     watchdog_status: dict[str, Any] = Field(default_factory=dict)
     watchdog_alive: bool = Field(default=False, description="O dm-watchdog deu sinal nos últimos 3 min")
@@ -132,6 +145,23 @@ def _ipv4(v: str) -> str:
     return str(ip)
 
 
+_HOSTNAME = re.compile(
+    r"^(?=.{1,253}$)([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$"
+)
+
+
+def _host(v: str) -> str:
+    """IPv4 or DNS hostname of a single device (resolved by the agent on each scan)."""
+    v = v.strip()
+    try:
+        return str(ipaddress.IPv4Address(v))
+    except ValueError:
+        pass
+    if _HOSTNAME.match(v) and not v.replace(".", "").isdigit():
+        return v.lower()
+    raise ValueError(f"IP ou hostname inválido: {v}")
+
+
 def _exclusion(v: str) -> str:
     v = v.strip()
     try:
@@ -151,6 +181,7 @@ class IpRangeIn(BaseModel):
     cidr: str | None = None
     start_ip: str | None = None
     end_ip: str | None = None
+    host: str | None = Field(default=None, max_length=255, description="IP ou hostname avulso")
     exclusions: list[str] = Field(default_factory=list, max_length=200)
     ports: list[int] = Field(default_factory=lambda: [161], min_length=1, max_length=16)
     active: bool = True
@@ -186,11 +217,17 @@ class IpRangeIn(BaseModel):
                 raise ValueError(f"porta inválida: {p}")
         return sorted(set(v))
 
+    @field_validator("host")
+    @classmethod
+    def _host(cls, v: str | None) -> str | None:
+        return _host(v) if v and v.strip() else None
+
     @model_validator(mode="after")
     def _one_form(self) -> Self:
-        if bool(self.cidr) == bool(self.start_ip or self.end_ip):
-            raise ValueError("informe CIDR ou início/fim (um dos dois)")
-        if not self.cidr:
+        forms = sum(1 for f in (self.cidr, self.start_ip or self.end_ip, self.host) if f)
+        if forms != 1:
+            raise ValueError("informe CIDR, início/fim ou um IP/hostname avulso (só um deles)")
+        if not self.cidr and not self.host:
             if not (self.start_ip and self.end_ip):
                 raise ValueError("informe início e fim")
             a, b = ipaddress.IPv4Address(self.start_ip), ipaddress.IPv4Address(self.end_ip)
@@ -201,12 +238,43 @@ class IpRangeIn(BaseModel):
         return self
 
 
+class RangeImportIn(BaseModel):
+    content: str = Field(
+        max_length=200_000, description="Conteúdo do .txt: uma faixa, IP ou hostname por linha"
+    )
+    ports: list[int] = Field(default_factory=lambda: [161], min_length=1, max_length=16)
+
+
+class RangeImportLineError(BaseModel):
+    line: int
+    content: str
+    error: str
+
+
+class RangeImportOut(BaseModel):
+    created: int
+    duplicates: int
+    errors: list[RangeImportLineError]
+
+
+class AgentStats(BaseModel):
+    """Estatísticas do coletor nas últimas 24 h (seção 16.10)."""
+
+    readings_24h: int = Field(description="Leituras de contadores aceitas")
+    items_24h: int = Field(description="Todos os itens aceitos (leituras, suprimentos, status, atributos)")
+    failures_24h: int = Field(description="Falhas de leitura (equipamento não respondeu após as tentativas)")
+    devices_total: int = Field(description="Equipamentos ativos lidos por este coletor")
+    devices_offline: int = Field(description="Desses, sem resposta ou desconectados")
+    last_item_at: datetime | None
+
+
 class IpRangeOut(ORMModel):
     id: uuid.UUID
     site_id: uuid.UUID
     cidr: str | None
     start_ip: str | None
     end_ip: str | None
+    host: str | None
     exclusions: list[Any]
     ports: list[Any]
     active: bool
@@ -308,6 +376,26 @@ class DeviceOut(ORMModel):
     active: bool
     monitored: bool
     last_agent_id: uuid.UUID | None
+    discovery_state: str
+    alt_serial: str | None
+    sys_location: str | None
+
+
+class DeviceDetail(DeviceOut):
+    """Cadastro completo (16.7) e atributos da leitura diária (16.8)."""
+
+    discovery_decided_at: datetime | None
+    sector_from_snmp: bool
+    franchise_value: Decimal | None
+    franchise_pages_mono: int | None
+    franchise_pages_color: int | None
+    overage_price_mono: Decimal | None
+    overage_price_color: Decimal | None
+    custom_fields: dict[str, Any]
+    toner_mode: str
+    toner_thresholds: dict[str, Any]
+    attributes: dict[str, Any]
+    attributes_at: datetime | None
 
 
 class ReadingOut(ORMModel):

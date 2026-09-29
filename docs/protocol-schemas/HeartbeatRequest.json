@@ -55,6 +55,13 @@
       "title": "Hostname",
       "type": "string"
     },
+    "install_path": {
+      "default": "",
+      "description": "Pasta do executável do coletor",
+      "maxLength": 1000,
+      "title": "Install Path",
+      "type": "string"
+    },
     "last_read_at": {
       "anyOf": [
         {

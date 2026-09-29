@@ -43,6 +43,7 @@ type Identity struct {
 	SysObjectID string `json:"sys_object_id,omitempty"`
 	SysDescr    string `json:"sys_descr,omitempty"`
 	SysName     string `json:"hostname,omitempty"`
+	SysLocation string `json:"sys_location,omitempty"`
 	MAC         string `json:"mac,omitempty"`
 	ProfileKey  string `json:"profile_key,omitempty"`
 }
@@ -50,7 +51,7 @@ type Identity struct {
 // ReadIdentity reads the identity using the selected profile (serial/model/firmware in order of
 // preference) plus the standard system group and the first non-zero interface MAC.
 func ReadIdentity(ctx context.Context, src snmp.Source, profiles []*profile.Profile) (Identity, *profile.Profile, error) {
-	vals, err := src.Get(ctx, []string{OIDSysObjectID, OIDSysDescr, OIDSysName, OIDHrDeviceDescr})
+	vals, err := src.Get(ctx, []string{OIDSysObjectID, OIDSysDescr, OIDSysName, OIDHrDeviceDescr, OIDSysLocation})
 	if err != nil {
 		return Identity{}, nil, err
 	}
@@ -58,6 +59,7 @@ func ReadIdentity(ctx context.Context, src snmp.Source, profiles []*profile.Prof
 		SysObjectID: vals[0].Text,
 		SysDescr:    strings.TrimSpace(vals[1].String()),
 		SysName:     strings.TrimSpace(vals[2].String()),
+		SysLocation: strings.TrimSpace(vals[4].String()),
 	}
 	// 1ª seleção só pelo sysObjectID; depois refina com o modelo lido pelo perfil.
 	p := profile.Select(profiles, id.SysObjectID, strings.TrimSpace(vals[3].String()))

@@ -55,7 +55,12 @@ var DefaultIntervals = protocol.Intervals{
 }
 
 // DefaultDiscovery are the scanner defaults (PROMPT 4.5).
-var DefaultDiscovery = protocol.DiscoveryConfig{Concurrency: 64, RatePPS: 200, TimeoutMS: 1500, Retries: 1}
+var DefaultDiscovery = protocol.DiscoveryConfig{
+	Concurrency: 64, RatePPS: 200, TimeoutMS: 1500, Retries: 1, ReadTimeoutMS: 2000,
+}
+
+// MaxRetries caps the SNMP retries per query (1 to 5 attempts, PROMPT 16.10).
+const MaxRetries = 4
 
 // Deps are the collector's dependencies.
 type Deps struct {
@@ -67,6 +72,7 @@ type Deps struct {
 	Suggest   func(context.Context, []string) error
 	LocalIPs  func() []string
 	OnEnqueue func()
+	Lookup    discovery.LookupFunc // resolve hostnames avulsos (padrão: resolvedor do sistema)
 }
 
 type devState struct {
@@ -93,6 +99,7 @@ type Collector struct {
 	inflight  map[string]bool
 	suggested string
 	scanKey   string
+	ignored   map[string]bool // seriais descartados em Descobertas (16.1)
 
 	scanning atomic.Bool
 	scanReq  atomic.Bool
@@ -118,6 +125,9 @@ func New(d Deps) *Collector {
 	}
 	if d.OnEnqueue == nil {
 		d.OnEnqueue = func() {}
+	}
+	if d.Lookup == nil {
+		d.Lookup = discovery.DefaultLookup
 	}
 	return &Collector{
 		d: d, role: "standby", state: map[string]*devState{}, inflight: map[string]bool{},
@@ -155,19 +165,27 @@ func (c *Collector) Apply(cfg *protocol.AgentConfig) error {
 	fill(&disc.Concurrency, DefaultDiscovery.Concurrency)
 	fill(&disc.RatePPS, DefaultDiscovery.RatePPS)
 	fill(&disc.TimeoutMS, DefaultDiscovery.TimeoutMS)
+	fill(&disc.ReadTimeoutMS, DefaultDiscovery.ReadTimeoutMS)
 	if disc.Retries < 0 {
 		disc.Retries = DefaultDiscovery.Retries
+	}
+	disc.Retries = min(disc.Retries, MaxRetries)
+	ignored := map[string]bool{}
+	for _, s := range cfg.IgnoredSerials {
+		ignored[s] = true
 	}
 	// Faixas ou credenciais novas pedem varredura imediata: uma impressora que não respondia com a
 	// comunidade antiga pode responder com a nova (não dá para esperar o intervalo de descoberta).
 	rk, _ := json.Marshal(struct {
 		R []protocol.IPRange
 		C []snmp.Credential
-	}{cfg.Ranges, cfg.Credentials})
+		L bool
+	}{cfg.Ranges, cfg.Credentials, cfg.MonitorLocalNetworks})
 	sum := sha256.Sum256(rk)
 	c.mu.Lock()
 	scanNeeded := hex.EncodeToString(sum[:]) != c.scanKey
 	c.cfg, c.profiles, c.creds, c.intervals, c.disc = cfg, profiles, cfg.Credentials, intervals, disc
+	c.ignored = ignored
 	c.scanKey = hex.EncodeToString(sum[:])
 	c.credByID = map[string]snmp.Credential{}
 	for _, cr := range cfg.Credentials {
@@ -182,6 +200,7 @@ func (c *Collector) Apply(cfg *protocol.AgentConfig) error {
 		c.scanReq.Store(true)
 		c.kick()
 	}
+	c.forgetIgnored(context.Background())
 	if len(bad) > 0 {
 		return fmt.Errorf("%d perfil(is) inválido(s) ignorado(s): %s", len(bad), strings.Join(bad, "; "))
 	}
@@ -284,6 +303,9 @@ func (c *Collector) tick(ctx context.Context) {
 	}
 	readAll := c.readReq.Swap(false)
 	for _, dev := range devices {
+		if c.isIgnored(dev.Serial) {
+			continue
+		}
 		k := key(dev.IP, dev.Port)
 		c.mu.Lock()
 		if c.inflight[k] {
@@ -341,6 +363,7 @@ func (c *Collector) release(k string) {
 	c.mu.Unlock()
 }
 
+// snmpOptions are the discovery options (timeout of the scan).
 func (c *Collector) snmpOptions() snmp.Options {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -348,6 +371,41 @@ func (c *Collector) snmpOptions() snmp.Options {
 	o.Timeout = time.Duration(c.disc.TimeoutMS) * time.Millisecond
 	o.Retries = c.disc.Retries
 	return o
+}
+
+// readOptions are the options of the readings (their own timeout, PROMPT 16.10).
+func (c *Collector) readOptions() snmp.Options {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	o := snmp.DefaultOptions()
+	o.Timeout = time.Duration(c.disc.ReadTimeoutMS) * time.Millisecond
+	o.Retries = c.disc.Retries
+	return o
+}
+
+// isIgnored reports whether the serial was discarded in Descobertas.
+func (c *Collector) isIgnored(serial string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return serial != "" && c.ignored[serial]
+}
+
+// forgetIgnored drops discarded devices from the local store: they are no longer read.
+func (c *Collector) forgetIgnored(ctx context.Context) {
+	devices, err := c.d.Store.Devices(ctx)
+	if err != nil {
+		c.d.Log.Error("ler equipamentos conhecidos", "erro", err)
+		return
+	}
+	for _, d := range devices {
+		if c.isIgnored(d.Serial) {
+			if err := c.d.Store.RemoveDevice(ctx, d.IP, d.Port); err != nil {
+				c.d.Log.Error("remover equipamento descartado", "ip", d.IP, "erro", err)
+				continue
+			}
+			c.d.Log.Info("equipamento descartado no portal deixa de ser lido", "ip", d.IP, "serial", d.Serial)
+		}
+	}
 }
 
 func (c *Collector) credential(id string) (snmp.Credential, bool) {
@@ -455,6 +513,7 @@ func refFromStore(dev store.Device) protocol.DeviceRef {
 	var id printer.Identity
 	if json.Unmarshal([]byte(dev.Identity), &id) == nil && id.Serial != "" {
 		ref.MAC, ref.Hostname, ref.SysDescr, ref.Firmware = id.MAC, id.SysName, id.SysDescr, id.Firmware
+		ref.SysLocation = id.SysLocation
 	}
 	return ref
 }
@@ -463,6 +522,7 @@ func refFromIdentity(ip string, port int, id printer.Identity) protocol.DeviceRe
 	return protocol.DeviceRef{
 		IP: ip, Port: port, Serial: id.Serial, MAC: id.MAC, Hostname: id.SysName, SysObjectID: id.SysObjectID,
 		SysDescr: id.SysDescr, Model: id.Model, Firmware: id.Firmware, ProfileKey: id.ProfileKey,
+		SysLocation: id.SysLocation,
 	}
 }
 
@@ -483,7 +543,7 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 	if !ok {
 		return errors.New("nenhuma credencial SNMP configurada")
 	}
-	conn, err := c.d.Dial(dev.IP, dev.Port, cred, c.snmpOptions())
+	conn, err := c.d.Dial(dev.IP, dev.Port, cred, c.readOptions())
 	if err != nil {
 		return err
 	}
@@ -518,6 +578,13 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 			if err := refreshIdentity(); err != nil {
 				return err
 			}
+			var id printer.Identity
+			_ = json.Unmarshal([]byte(dev.Identity), &id)
+			attrs, err := printer.ReadAttributes(ctx, conn, p, id)
+			if err != nil {
+				return wrap(err)
+			}
+			c.enqueue(ctx, protocol.Item{Kind: protocol.KindAttributes, Device: ref, Attributes: &attrs})
 		case TaskCounters:
 			// Identidade por serial: se o IP passou a responder com outro serial, relê tudo (PROMPT 4.6).
 			pid, err := profile.ResolveIdentity(ctx, conn, p)
@@ -538,7 +605,8 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 				return wrap(err)
 			}
 			c.enqueue(ctx, protocol.Item{Kind: protocol.KindReading, Device: ref, Reading: &protocol.ReadingPayload{
-				Counters: res.Counters, Extra: res.Extra, CounterSource: res.Source, ProfileKey: res.ProfileID,
+				Counters: res.Counters, CounterLines: res.Lines, Extra: res.Extra, CounterSource: res.Source,
+				ProfileKey:     res.ProfileID,
 				ProfileVersion: res.ProfileVersion, MonoOnly: res.MonoOnly, SumTolerancePercent: res.SumTolerancePercent,
 				Unresolved: res.Unresolved, Status: st.Status, ErrorBits: st.ErrorBits, Source: "snmp",
 			}})
@@ -549,6 +617,11 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 			sup, err := printer.ReadSupplies(ctx, conn)
 			if err != nil {
 				return wrap(err)
+			}
+			if p != nil && p.Supplies != nil && usable(p.Supplies.CartridgeSerialOID) && len(sup) > 0 {
+				if err := printer.AttachCartridgeSerials(ctx, conn, p.Supplies.CartridgeSerialOID, sup); err != nil {
+					return wrap(err)
+				}
 			}
 			if len(sup) > 0 {
 				c.enqueue(ctx, protocol.Item{Kind: protocol.KindSupplies, Device: ref, Supplies: sup})
@@ -615,11 +688,27 @@ func (c *Collector) scan(ctx context.Context) {
 	c.mu.Lock()
 	cfg := c.cfg
 	c.mu.Unlock()
-	if len(cfg.Ranges) == 0 {
+	ranges := cfg.Ranges
+	if cfg.MonitorLocalNetworks {
+		// "Monitorar redes conectadas" (16.10): as /24 privadas das interfaces, acompanhando o PC.
+		ranges = append(append([]protocol.IPRange{}, ranges...), c.localRanges()...)
+	}
+	if len(ranges) == 0 {
 		c.suggestRanges(ctx)
 		return
 	}
-	_, _ = c.scanRanges(ctx, cfg.Ranges, true) // erros já vão para o log
+	_, _ = c.scanRanges(ctx, ranges, true) // erros já vão para o log
+}
+
+// localRanges are the private /24 networks of this PC's interfaces, on the default SNMP port.
+func (c *Collector) localRanges() []protocol.IPRange {
+	subnets := osinfo.PrivateSubnets24(c.d.LocalIPs())
+	sort.Strings(subnets)
+	out := make([]protocol.IPRange, 0, len(subnets))
+	for _, s := range subnets {
+		out = append(out, protocol.IPRange{ID: "local:" + s, CIDR: s, Ports: []int{discovery.DefaultPort}})
+	}
+	return out
 }
 
 // scanRanges probes the given ranges and registers the printers found. full=true means these are
@@ -630,10 +719,13 @@ func (c *Collector) scanRanges(ctx context.Context, ranges []protocol.IPRange, f
 	c.mu.Lock()
 	creds, disc := c.creds, c.disc
 	c.mu.Unlock()
-	targets, err := discovery.Expand(ranges)
+	targets, unresolved, err := discovery.ExpandWith(ctx, ranges, c.d.Lookup)
 	if err != nil {
 		c.d.Log.Error("faixas de IP inválidas", "erro", err)
 		return res, fmt.Errorf("faixas de IP inválidas: %w", err)
+	}
+	for _, u := range unresolved {
+		c.d.Log.Error("hostname avulso não resolvido (fica fora desta varredura)", "detalhe", u)
 	}
 	res.Targets = len(targets)
 	known := map[string]string{}
@@ -706,6 +798,9 @@ func (c *Collector) register(ctx context.Context, f discovery.Found) (bool, erro
 	if !fallbackSerial(&id) {
 		return false, errors.New("impressora sem número de série nem MAC")
 	}
+	if c.isIgnored(id.Serial) {
+		return false, nil // descartada em Descobertas: não entra na lista de leitura
+	}
 	existing, err := c.d.Store.DeviceAt(ctx, f.Target.IP, f.Target.Port)
 	if err != nil {
 		return false, err
@@ -773,3 +868,6 @@ func (c *Collector) Profiles() []string {
 	}
 	return slices.Sorted(slices.Values(ids))
 }
+
+// usable reports whether a profile OID is filled (placeholders are never queried).
+func usable(oid string) bool { return oid != "" && oid != profile.Placeholder }

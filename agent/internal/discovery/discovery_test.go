@@ -164,3 +164,41 @@ func TestScanOf254HostsFinishesFast(t *testing.T) {
 		t.Fatalf("n=%d em %v", n, time.Since(start))
 	}
 }
+
+func TestExpandSingleHostsAndHostnames(t *testing.T) {
+	lookups := 0
+	lookup := func(_ context.Context, host string) ([]string, error) {
+		lookups++
+		switch host {
+		case "impressora-rh":
+			return []string{"10.0.0.7", "fe80::1"}, nil // IPv6 é ignorado
+		case "so-ipv6":
+			return []string{"fe80::2"}, nil
+		}
+		return nil, errors.New("no such host")
+	}
+	got, unresolved, err := ExpandWith(context.Background(), []protocol.IPRange{
+		{Host: "10.0.0.9", Ports: []int{161, 1161}},
+		{Host: "impressora-rh"},
+		{Host: "desligada.local"},
+		{Host: "so-ipv6"},
+		{Start: "10.0.0.7", End: "10.0.0.7"}, // o mesmo IP do hostname: não duplica
+	}, lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s []string
+	for _, tg := range got {
+		s = append(s, tg.String())
+	}
+	if strings.Join(s, " ") != "10.0.0.7:161 10.0.0.9:161 10.0.0.9:1161" {
+		t.Fatalf("alvos: %v", s)
+	}
+	// Um nome que não resolve não impede a varredura do resto; IP literal não consulta o DNS.
+	if lookups != 3 || len(unresolved) != 2 || !strings.HasPrefix(unresolved[0], "desligada.local: ") {
+		t.Fatalf("consultas=%d não resolvidos=%v", lookups, unresolved)
+	}
+	if _, err := Expand([]protocol.IPRange{{Host: "127.0.0.1"}}); err != nil {
+		t.Fatalf("IP avulso: %v", err)
+	}
+}

@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 
+import { LoadMore } from '../../components/paging';
+import { CustomerPicker } from '../../components/pickers';
 import { Button } from '../../components/ui/button';
 import { Dialog, Menu, MenuItem, MenuSeparator } from '../../components/ui/dialog';
 import { Field, Input, Select } from '../../components/ui/form';
@@ -9,6 +11,7 @@ import { Badge, Card, EmptyState, ErrorState, PageHeader, RelativeTime, Spinner 
 import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { ROLE_LABEL } from '../../lib/labels';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { showError, showSuccess } from '../../lib/notify';
 
 type User = Schemas['UserOut'];
@@ -19,10 +22,9 @@ export function UsersPage() {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<User | 'new' | null>(null);
   const [secret, setSecret] = useState<{ email: string; password: string } | null>(null);
-  const list = useQuery({
-    queryKey: ['users', q],
-    queryFn: () => unwrap(api.GET('/api/v1/users', { params: { query: { q: q || null, limit: 500 } } })),
-  });
+  const { query: list, rows } = useCursorList<User>(['users', q], (cursor) =>
+    unwrap(api.GET('/api/v1/users', { params: { query: { q: q || null, limit: PAGE_SIZE, cursor } } })),
+  );
   const refresh = () => void qc.invalidateQueries({ queryKey: ['users'] });
 
   async function action(u: User, fn: () => Promise<unknown>, done: string) {
@@ -52,7 +54,7 @@ export function UsersPage() {
             >
               <Download className="h-3.5 w-3.5" /> Exportar
             </Button>
-            {can('users.write') ? (
+            {can('users.create') ? (
               <Button
                 size="sm"
                 onClick={() => {
@@ -84,7 +86,7 @@ export function UsersPage() {
           <Spinner />
         ) : list.isError ? (
           <ErrorState error={list.error} onRetry={() => void list.refetch()} />
-        ) : !list.data.items.length ? (
+        ) : !rows.length ? (
           <EmptyState title="Nenhum usuário" />
         ) : (
           <table className="w-full text-sm">
@@ -99,7 +101,7 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {list.data.items.map((u) => (
+              {rows.map((u) => (
                 <tr key={u.id} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 font-medium">{u.name}</td>
                   <td className="px-3 py-2 text-xs">{u.email}</td>
@@ -120,7 +122,7 @@ export function UsersPage() {
                     <RelativeTime value={u.last_login_at} />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {can('users.write') && u.id !== me?.id ? (
+                    {can('users.update') && u.id !== me?.id ? (
                       <Menu
                         trigger={
                           <Button size="icon" variant="ghost" aria-label={`Ações de ${u.email}`}>
@@ -212,6 +214,7 @@ export function UsersPage() {
             </tbody>
           </table>
         )}
+        <LoadMore query={list} shown={rows.length} />
       </Card>
       {editing ? (
         <UserDialog
@@ -248,10 +251,6 @@ export function UsersPage() {
 
 function UserDialog({ user, onClose }: { user: User | null; onClose: (created?: Schemas['UserCreated']) => void }) {
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => unwrap(api.GET('/api/v1/roles')) });
-  const customers = useQuery({
-    queryKey: ['customers', 'all'],
-    queryFn: () => unwrap(api.GET('/api/v1/customers', { params: { query: { limit: 500 } } })),
-  });
   const [form, setForm] = useState({
     name: user?.name ?? '',
     email: user?.email ?? '',
@@ -359,20 +358,13 @@ function UserDialog({ user, onClose }: { user: User | null; onClose: (created?: 
           htmlFor="u-customer"
           hint="Usuário de cliente só vê o próprio parque."
         >
-          <Select
+          <CustomerPicker
             id="u-customer"
             value={form.customer_id}
-            onChange={(e) => {
-              set({ customer_id: e.target.value });
+            onChange={(id) => {
+              set({ customer_id: id });
             }}
-          >
-            <option value="">Todos os clientes da revenda</option>
-            {(customers.data?.items ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          />
         </Field>
         <label className="flex items-center gap-2 text-sm">
           <input

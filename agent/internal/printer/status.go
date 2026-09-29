@@ -5,6 +5,7 @@ package printer
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/daticopy/dati-monitor/agent/internal/profile"
@@ -76,11 +77,18 @@ func DecodeErrorBits(b []byte) (int, []string) {
 	return mask, names
 }
 
-// Alert is one row of prtAlertTable.
+// Alert is one row of prtAlertTable (RFC 3805). Index is prtAlertIndex (last part of the row index)
+// and Time is prtAlertTime (sysUpTime when the alert was added): together they identify each new alert.
 type Alert struct {
-	Severity    int    `json:"severity"`
-	Code        int    `json:"code"`
-	Description string `json:"description"`
+	Index         int    `json:"index,omitempty"`
+	Severity      int    `json:"severity"`
+	TrainingLevel int    `json:"training_level,omitempty"`
+	Group         int    `json:"group,omitempty"`
+	GroupIndex    int    `json:"group_index,omitempty"`
+	Location      int    `json:"location,omitempty"`
+	Code          int    `json:"code"`
+	Description   string `json:"description"`
+	Time          int64  `json:"time,omitempty"`
 }
 
 // StatusResult is the normalized status of a device.
@@ -180,17 +188,29 @@ func readAlerts(ctx context.Context, src snmp.Source) ([]Alert, error) {
 		a := rows[idx]
 		if a == nil {
 			a = &Alert{}
+			if last := idx[strings.LastIndex(idx, ".")+1:]; last != "" {
+				a.Index, _ = strconv.Atoi(last)
+			}
 			rows[idx] = a
 		}
+		n, _ := pdu.Number()
 		switch col {
 		case "2":
-			n, _ := pdu.Number()
 			a.Severity = int(n)
+		case "3":
+			a.TrainingLevel = int(n)
+		case "4":
+			a.Group = int(n)
+		case "5":
+			a.GroupIndex = int(n)
+		case "6":
+			a.Location = int(n)
 		case "7":
-			n, _ := pdu.Number()
 			a.Code = int(n)
 		case "8":
 			a.Description = strings.TrimSpace(pdu.String())
+		case "9":
+			a.Time = n
 		}
 		return nil
 	})

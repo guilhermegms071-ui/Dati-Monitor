@@ -215,7 +215,12 @@ class Factory:
     def __init__(self, maker: async_sessionmaker[AsyncSession]) -> None:
         self.maker = maker
 
-    async def tenant(self, name: str = "Revenda A", admin_role: str = "reseller_admin") -> Tenant:
+    async def tenant(
+        self, name: str = "Revenda A", admin_role: str = "reseller_admin", *, auto_activate: bool = True
+    ) -> Tenant:
+        """Revenda completa para os testes. O Local ativa automaticamente os equipamentos descobertos
+        (os testes de parque/leitura partem de equipamentos ativos); os testes de Descobertas usam
+        auto_activate=False, que é o padrão do produto (seção 16.1)."""
         from app.models import Company, Customer, Reseller, Site  # noqa: PLC0415
 
         async with self.maker() as s:
@@ -230,7 +235,12 @@ class Factory:
             )
             s.add(customer)
             await s.flush()
-            site = Site(reseller_id=reseller.id, customer_id=customer.id, name=f"{name} Local")
+            site = Site(
+                reseller_id=reseller.id,
+                customer_id=customer.id,
+                name=f"{name} Local",
+                auto_activate_devices=auto_activate,
+            )
             s.add(site)
             await s.commit()
         email = f"admin@{uuid.uuid4().hex[:8]}.test"

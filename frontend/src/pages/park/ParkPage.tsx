@@ -7,7 +7,8 @@ import { Link, useSearchParams } from 'react-router';
 import { DeviceStatus, SupplyBars } from '../../components/domain';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog, Menu, MenuItem } from '../../components/ui/dialog';
-import { Field, Input, Select } from '../../components/ui/form';
+import { CustomerPicker, SitePicker } from '../../components/pickers';
+import { Field, Input } from '../../components/ui/form';
 import {
   Badge,
   Card,
@@ -498,7 +499,7 @@ export function ParkPage() {
               Ler agora
             </Button>
           ) : null}
-          {can('devices.write') ? (
+          {can('devices.update') ? (
             <>
               <BulkEdit ids={ids} onSubmit={bulk} />
               <BulkMove ids={ids} onSubmit={bulk} />
@@ -683,19 +684,6 @@ export function ParkPage() {
   );
 }
 
-function useCustomersAndSites(customerId: string) {
-  const customers = useQuery({
-    queryKey: ['customers', 'all'],
-    queryFn: () => unwrap(api.GET('/api/v1/customers', { params: { query: { limit: 500 } } })),
-  });
-  const sites = useQuery({
-    queryKey: ['sites', customerId],
-    queryFn: () => unwrap(api.GET('/api/v1/sites', { params: { query: { customer_id: customerId, limit: 500 } } })),
-    enabled: Boolean(customerId),
-  });
-  return { customers: customers.data?.items ?? [], sites: sites.data?.items ?? [] };
-}
-
 function AdvancedFilters({
   open,
   onOpenChange,
@@ -708,7 +696,6 @@ function AdvancedFilters({
   onApply: (f: Filters) => void;
 }) {
   const [draft, setDraft] = useState(filters);
-  const { customers, sites } = useCustomersAndSites(draft.customer_id);
   const set = (p: Partial<Filters>) => {
     setDraft((d) => ({ ...d, ...p }));
   };
@@ -740,37 +727,23 @@ function AdvancedFilters({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Cliente" htmlFor="f-customer">
-          <Select
+          <CustomerPicker
             id="f-customer"
             value={draft.customer_id}
-            onChange={(e) => {
-              set({ customer_id: e.target.value, site_id: '' });
+            onChange={(id) => {
+              set({ customer_id: id, site_id: '' });
             }}
-          >
-            <option value="">Todos</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          />
         </Field>
         <Field label="Local" htmlFor="f-site">
-          <Select
+          <SitePicker
             id="f-site"
+            customerId={draft.customer_id}
             value={draft.site_id}
-            onChange={(e) => {
-              set({ site_id: e.target.value });
+            onChange={(id) => {
+              set({ site_id: id });
             }}
-            disabled={!draft.customer_id}
-          >
-            <option value="">Todos</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
+          />
         </Field>
         {(['brand', 'model', 'sector', 'asset_tag', 'serial', 'ip'] as const).map((k) => (
           <Field
@@ -886,7 +859,6 @@ function BulkMove({ ids, onSubmit }: { ids: string[]; onSubmit: BulkFn }) {
   const [customer, setCustomer] = useState('');
   const [site, setSite] = useState('');
   const [busy, setBusy] = useState(false);
-  const { customers, sites } = useCustomersAndSites(customer);
   return (
     <>
       <Button
@@ -925,38 +897,24 @@ function BulkMove({ ids, onSubmit }: { ids: string[]; onSubmit: BulkFn }) {
       >
         <div className="grid gap-3">
           <Field label="Cliente" htmlFor="m-customer">
-            <Select
+            <CustomerPicker
               id="m-customer"
               value={customer}
-              onChange={(e) => {
-                setCustomer(e.target.value);
+              onChange={(id) => {
+                setCustomer(id);
                 setSite('');
               }}
-            >
-              <option value="">Escolha…</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Field label="Local" htmlFor="m-site">
-            <Select
+            <SitePicker
               id="m-site"
+              customerId={customer}
               value={site}
-              onChange={(e) => {
-                setSite(e.target.value);
+              onChange={(id) => {
+                setSite(id);
               }}
-              disabled={!customer}
-            >
-              <option value="">Escolha…</option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
         </div>
       </Dialog>

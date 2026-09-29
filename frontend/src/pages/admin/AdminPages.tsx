@@ -1,7 +1,8 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 
+import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog } from '../../components/ui/dialog';
 import { Field, Input } from '../../components/ui/form';
@@ -14,9 +15,10 @@ import {
   PageHeader,
   Spinner,
 } from '../../components/ui/primitives';
-import { api, downloadFile, unwrap } from '../../lib/api';
+import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { fmtDateTime } from '../../lib/format';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { showError, showSuccess } from '../../lib/notify';
 import { useTheme } from '../../lib/theme';
 import { ChangePasswordForm, TotpSetupForm } from '../auth/AuthPages';
@@ -92,10 +94,9 @@ function NameCnpjDialog({
 export function ResellersPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<{ id?: string; name: string; cnpj: string } | null>(null);
-  const q = useQuery({
-    queryKey: ['resellers'],
-    queryFn: () => unwrap(api.GET('/api/v1/resellers', { params: { query: { limit: 500 } } })),
-  });
+  const { query: q, rows } = useCursorList<Schemas['ResellerOut']>(['resellers'], (cursor) =>
+    unwrap(api.GET('/api/v1/resellers', { params: { query: { limit: PAGE_SIZE, cursor } } })),
+  );
   const refresh = () => void qc.invalidateQueries({ queryKey: ['resellers'] });
   return (
     <div className="space-y-3">
@@ -117,11 +118,11 @@ export function ResellersPage() {
           <Spinner />
         ) : q.isError ? (
           <ErrorState error={q.error} />
-        ) : !q.data.items.length ? (
+        ) : !rows.length ? (
           <EmptyState title="Nenhuma revenda" />
         ) : (
           <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-            {q.data.items.map((r) => (
+            {rows.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-2 px-4 py-2">
                 <span>
                   <span className="font-medium">{r.name}</span>{' '}
@@ -155,6 +156,7 @@ export function ResellersPage() {
             ))}
           </ul>
         )}
+        <LoadMore query={q} shown={rows.length} />
       </Card>
       {editing ? (
         <NameCnpjDialog
@@ -183,10 +185,9 @@ export function ResellersPage() {
 export function CompaniesPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<{ id?: string; name: string; cnpj: string } | null>(null);
-  const q = useQuery({
-    queryKey: ['companies'],
-    queryFn: () => unwrap(api.GET('/api/v1/companies', { params: { query: { limit: 500 } } })),
-  });
+  const { query: q, rows } = useCursorList<Schemas['CompanyOut']>(['companies'], (cursor) =>
+    unwrap(api.GET('/api/v1/companies', { params: { query: { limit: PAGE_SIZE, cursor } } })),
+  );
   const refresh = () => void qc.invalidateQueries({ queryKey: ['companies'] });
   return (
     <div className="space-y-3">
@@ -209,11 +210,11 @@ export function CompaniesPage() {
           <Spinner />
         ) : q.isError ? (
           <ErrorState error={q.error} />
-        ) : !q.data.items.length ? (
+        ) : !rows.length ? (
           <EmptyState title="Nenhuma empresa" />
         ) : (
           <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-            {q.data.items.map((c) => (
+            {rows.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2 px-4 py-2">
                 <span>
                   <span className="font-medium">{c.legal_name}</span>{' '}
@@ -247,6 +248,7 @@ export function CompaniesPage() {
             ))}
           </ul>
         )}
+        <LoadMore query={q} shown={rows.length} />
       </Card>
       {editing ? (
         <NameCnpjDialog

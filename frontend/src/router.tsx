@@ -5,6 +5,7 @@ import { RequireAuth } from './components/layout/RequireAuth';
 import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AccountPage, AuditPage, CompaniesPage, ResellersPage } from './pages/admin/AdminPages';
+import { CustomFieldsPage, PermissionsPage } from './pages/admin/PermissionsPage';
 import { ReleasesPage } from './pages/admin/ReleasesPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AgentDetailPage } from './pages/agents/AgentDetailPage';
@@ -12,6 +13,7 @@ import { AgentsPage } from './pages/agents/AgentsPage';
 import { ForgotPasswordPage, LimitedSessionPage, LoginPage, ResetPasswordPage } from './pages/auth/AuthPages';
 import { CustomerDetailPage, CustomersPage } from './pages/customers/CustomersPages';
 import { DeviceDetailPage } from './pages/park/DeviceDetailPage';
+import { DiscoveriesPage } from './pages/park/DiscoveriesPage';
 import { ParkPage } from './pages/park/ParkPage';
 
 export const routes: RouteObject[] = [
@@ -51,7 +53,10 @@ export const routes: RouteObject[] = [
               { path: ':customerId', element: <CustomerDetailPage />, handle: { crumb: 'Cliente' } },
             ],
           },
+          { path: 'descobertas', element: <DiscoveriesPage />, handle: { crumb: 'Descobertas' } },
           { path: 'usuarios', element: <UsersPage />, handle: { crumb: 'Usuários' } },
+          { path: 'permissoes', element: <PermissionsPage />, handle: { crumb: 'Permissões' } },
+          { path: 'campos-personalizados', element: <CustomFieldsPage />, handle: { crumb: 'Campos personalizados' } },
           { path: 'revendas', element: <ResellersPage />, handle: { crumb: 'Revendas' } },
           { path: 'empresas', element: <CompaniesPage />, handle: { crumb: 'Empresas' } },
           { path: 'auditoria', element: <AuditPage />, handle: { crumb: 'Auditoria' } },

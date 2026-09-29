@@ -2,9 +2,21 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
@@ -12,6 +24,7 @@ from app.models.base import (
     JSONB_EMPTY_OBJECT,
     Base,
     ClockCreatedMixin,
+    CreatedMixin,
     IdMixin,
     SoftDeleteMixin,
     TimestampMixin,
@@ -20,6 +33,10 @@ from app.models.base import (
 
 DEVICE_STATUSES = ("ready", "printing", "warmup", "energy_saving", "warning", "error", "offline", "unknown")
 DEVICE_SOURCES = ("snmp", "http", "usb", "manual")
+DISCOVERY_STATES = ("pending", "approved", "discarded")
+TONER_MODES = ("off", "global", "individual")
+CUSTOM_FIELD_TYPES = ("text", "number", "date")
+PRINTER_ALERT_CATEGORIES = ("parts", "service_call", "jam", "consumable", "other")
 DEVICE_EVENT_TYPES = (
     "discovered",
     "ip_changed",
@@ -34,6 +51,10 @@ DEVICE_EVENT_TYPES = (
     "sum_mismatch",
     "reading_discarded",
     "reading_classified",
+    "approved",
+    "discarded",
+    "restored",
+    "supply_replaced",
 )
 
 
@@ -75,7 +96,10 @@ class Device(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
         UniqueConstraint("reseller_id", "serial"),
         one_of("last_status", DEVICE_STATUSES),
         one_of("source", DEVICE_SOURCES),
+        one_of("discovery_state", DISCOVERY_STATES),
+        one_of("toner_mode", TONER_MODES),
         Index("ix_devices_site_id_ip", "site_id", "ip"),
+        Index("ix_devices_reseller_id_discovery_state", "reseller_id", "discovery_state"),
     )
 
     reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
@@ -116,6 +140,29 @@ class Device(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
     monitored: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
     last_agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"))  # "DCA"
+    # Descobertas (seção 16.1): novo entra pendente; só aprovado aparece no parque/relatórios/alertas.
+    discovery_state: Mapped[str] = mapped_column(
+        String(16), server_default=text("'pending'"), default="pending"
+    )
+    discovery_decided_at: Mapped[datetime | None] = mapped_column(default=None)
+    discovery_decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Cadastro (seção 16.7).
+    alt_serial: Mapped[str | None] = mapped_column(String(128))
+    sys_location: Mapped[str | None] = mapped_column(String(255))
+    # Setor segue o sysLocation até alguém editá-lo no portal.
+    sector_from_snmp: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
+    franchise_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    franchise_pages_mono: Mapped[int | None] = mapped_column(Integer)
+    franchise_pages_color: Mapped[int | None] = mapped_column(Integer)
+    overage_price_mono: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    overage_price_color: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    custom_fields: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
+    # Limiar de toner (seção 16.5): off | global (herda do cliente) | individual.
+    toner_mode: Mapped[str] = mapped_column(String(16), server_default=text("'global'"), default="global")
+    toner_thresholds: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
+    # Atributos da leitura diária (seção 16.8); o histórico fica em device_attribute_snapshots.
+    attributes: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
+    attributes_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class DeviceEvent(Base, IdMixin, ClockCreatedMixin):
@@ -132,3 +179,77 @@ class DeviceEvent(Base, IdMixin, ClockCreatedMixin):
     type: Mapped[str] = mapped_column(String(32))
     data: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+
+class DeviceAttributeSnapshot(Base, IdMixin, CreatedMixin):
+    """Atributos da leitura diária (seção 16.8). Só grava quando mudam (uptime não conta)."""
+
+    __tablename__ = "device_attribute_snapshots"
+    __table_args__ = (
+        Index("ix_device_attribute_snapshots_device_id_read_at", "device_id", text("read_at DESC")),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    read_at: Mapped[datetime]
+    attributes: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
+    content_hash: Mapped[str] = mapped_column(String(64))
+
+
+class CustomFieldDefinition(Base, IdMixin, TimestampMixin):
+    """Campo personalizado de equipamento definido pela revenda (seção 16.7)."""
+
+    __tablename__ = "custom_field_definitions"
+    __table_args__ = (UniqueConstraint("reseller_id", "key"), one_of("field_type", CUSTOM_FIELD_TYPES))
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
+    key: Mapped[str] = mapped_column(String(64))
+    label: Mapped[str] = mapped_column(String(100))
+    field_type: Mapped[str] = mapped_column(String(16), server_default=text("'text'"), default="text")
+    position: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0)
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
+
+
+class PrinterAlert(Base, IdMixin, TimestampMixin):
+    """Alerta da própria impressora (prtAlertTable, RFC 3805; seção 16.4).
+
+    Uma linha por alerta novo; `cleared_at` quando ele some da tabela. A identidade (`alert_key`) combina
+    índice, código, grupo, local e o prtAlertTime, que muda a cada novo alerta mesmo no mesmo índice.
+    """
+
+    __tablename__ = "printer_alerts"
+    __table_args__ = (
+        one_of("category", PRINTER_ALERT_CATEGORIES),
+        Index(
+            "uq_printer_alerts_device_id_alert_key_active",
+            "device_id",
+            "alert_key",
+            unique=True,
+            postgresql_where=text("cleared_at IS NULL"),
+        ),
+        Index(
+            "ix_printer_alerts_reseller_id_category_first_seen_at", "reseller_id", "category", "first_seen_at"
+        ),
+        Index("ix_printer_alerts_device_id_first_seen_at", "device_id", "first_seen_at"),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    alert_key: Mapped[str] = mapped_column(String(64))
+    prt_index: Mapped[int | None] = mapped_column(Integer)
+    severity: Mapped[int] = mapped_column(Integer)
+    training_level: Mapped[int | None] = mapped_column(Integer)
+    group: Mapped[int | None] = mapped_column(Integer)
+    group_index: Mapped[int | None] = mapped_column(Integer)
+    location: Mapped[int | None] = mapped_column(Integer)
+    code: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str | None] = mapped_column(Text)
+    alert_time_ticks: Mapped[int | None] = mapped_column(BigInteger)
+    category: Mapped[str] = mapped_column(String(16))
+    first_seen_at: Mapped[datetime]
+    last_seen_at: Mapped[datetime]
+    cleared_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Contadores do equipamento no momento em que o alerta apareceu.
+    total_at: Mapped[int | None] = mapped_column(BigInteger)
+    mono_at: Mapped[int | None] = mapped_column(BigInteger)
+    color_at: Mapped[int | None] = mapped_column(BigInteger)

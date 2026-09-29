@@ -27,6 +27,7 @@ from app.core.security import (
 )
 from app.models import PasswordResetToken, RefreshToken, Reseller, Setting, User
 from app.services import audit
+from app.services.permissions import effective_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class Session:
     access_expires_at: datetime
     refresh_token: str | None
     limited: LimitedReason | None
+    permissions: frozenset[str]
 
 
 def _now() -> datetime:
@@ -139,6 +141,7 @@ async def _issue(
             access_expires_at=expires,
             refresh_token=raw_refresh,
             limited=limited,
+            permissions=await effective_permissions(session, user.reseller_id, user.role_code),
         ),
         token_row,
     )

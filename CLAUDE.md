@@ -34,9 +34,11 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/app/worker/` | Jobs agendados (APScheduler). `python -m app.worker.main`. |
 | `backend/alembic/` | Migrações (a URL vem de `DATABASE_URL`, nunca do `alembic.ini`). |
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
+| `backend/app/services/{discoveries,counter_lines,supply_replacements,printer_alerts,custom_fields,permissions}.py` | Auditoria do Datacount (PROMPT seção 16): Descobertas, contadores como linhas (`reading_counters`), trocas de suprimento, alertas da `prtAlertTable`, campos personalizados e matriz de permissões por revenda. |
 | `backend/app/services/{park,dashboard,agent_ops,live}.py` | Tela de parque, dashboard, operações de coletor (Reativar, cluster, comandos em massa) e eventos ao vivo (SSE `/api/v1/events` sobre LISTEN/NOTIFY). |
 | `frontend/` | Portal React 18 + TS + Vite + Tailwind 4. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
 | `frontend/src/api/` | `openapi.json` (gerado da API por `scripts/gen_openapi.py`) e `schema.d.ts` (gerado por `npm run gen:api`). **Não editar à mão.** |
+| `frontend/src/components/{paging,pickers}.tsx` + `lib/paging.ts` | Lista por cursor com "Carregar mais" (`useCursorList` + `LoadMore`) e seletores com busca no servidor (`CustomerPicker`, `SitePicker`, `CompanyPicker`). **Use sempre estes**: nenhuma tela baixa lista inteira nem tem limite fixo (regra 13). |
 | `frontend/src/lib/` | `api.ts` (cliente openapi-fetch com refresh e CSRF), sessão (`AuthProvider`/`auth-context`), `live.ts` (SSE), `format.ts` (pt-BR/São Paulo), rótulos. |
 | `frontend/src/{components,pages}/` | UI (`components/ui` = primitivos Radix; `domain.tsx` = status, níveis, comandos) e telas por menu. Rotas em `src/router.tsx`. |
 | `profiles/` | Perfis de leitura YAML. `canon.yaml` e `konica-minolta.yaml` são fornecidos: **não alterar OIDs**. |
@@ -91,7 +93,15 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   (FKs circulares, SQL próprio) e rode `alembic check` (um teste falha se modelo e migração divergirem).
 - Rotas nunca consultam dados de tenant sem passar pelo serviço (que aplica o escopo). Erros via
   `app.core.errors` (`not_found`, `forbidden`, `conflict`, `bad_request`) com mensagem em português.
-- Novas listas: paginação por cursor (`services/pagination.py`) e exportação (`services/export.py`).
+- Novas listas: paginação por cursor (`services/pagination.py`) e exportação (`services/export.py`) sem limite fixo;
+  no portal, `useCursorList<Tipo>(...)` + `<LoadMore>` e, para escolher cliente/local/empresa, os pickers com busca.
+- Permissões: matriz `módulo.read|create|update|delete` + `supplies.monitor` (`core/permissions.py`); a revenda
+  ajusta os papéis operacionais (`services/permissions.py`). Use a ação certa (incluir/alterar/excluir), não `write`.
+- Equipamento novo nasce `pending` (Descobertas); parque, dashboard, relatórios e alertas filtram
+  `discovery_state == 'approved'`. Nos testes, `factory.tenant()` cria o local com ativação automática
+  (use `auto_activate=False` para testar Descobertas).
+- Mudou uma lista de CHECK (`one_of`) de uma tabela existente? O autogenerate não detecta: recrie a
+  constraint na migração à mão.
 - Testes de API usam as fixtures `client`, `factory` e `login()` de `tests/conftest.py`; o banco
   `dati_test` é recriado por sessão e esvaziado a cada teste (`clean_db`).
 - Primeiro start: a senha temporária do `admin@local` aparece no console do dev.ps1/API.
@@ -107,6 +117,8 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
 - Mudou a API (rota ou schema)? `.venv\Scripts\python scripts\gen_openapi.py` e `cd frontend; npm run gen:api`;
   o lint e o CI falham se `openapi.json`/`schema.d.ts` estiverem desatualizados. Campo com default numa
   **resposta**: marque o modelo com `json_schema_serialization_defaults_required=True` (senão o TS o vê opcional).
+  Checagem de tipos do portal: `npm run typecheck` (`tsc -b`). `npx tsc --noEmit` na raiz do frontend **não
+  verifica nada** (o `tsconfig.json` só tem referências).
 - Portal: hooks e componentes em arquivos separados (regra `react-refresh`); nada de `setState` síncrono em
   `useEffect` (use `key` para remontar formulários); falhas via `showError` (toast + `console.error`).
 - E2E: o `global-setup` roda `scripts/e2e_seed.py` (só dev/CI) com senha aleatória por execução, e

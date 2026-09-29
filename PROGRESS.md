@@ -10,7 +10,8 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 3 — Tempo real e comandos | ✅ concluída (25/09/2026) |
 | 4 — Portal | ✅ concluída (27/09/2026) |
 | 5 — Confiabilidade | ✅ concluída (28/09/2026) — falta só instalar os serviços num terminal de administrador |
-| 6 — Alertas e notificações | ⏳ próxima |
+| 5.1 — Auditoria do Datacount (ajustes nas fases concluídas) | ✅ concluída (29/09/2026) |
+| 6 — Alertas e notificações | ⏳ próxima (aguardando autorização do usuário para começar) |
 | 7 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
@@ -644,6 +645,132 @@ scripts\chaos.ps1                   # 10 min de queda (≈ 17 min no total); -Ou
 
 ---
 
+## Fase 5.1 — Auditoria do Datacount ✅
+
+Pedido do usuário depois da Fase 5: incorporar ao PROMPT as 15 funcionalidades levantadas na auditoria do
+Datacount atual. O que afeta fases concluídas (modelo de dados, agente, ingestão, telas existentes) foi feito
+agora, com testes; o resto entrou no PROMPT na fase correspondente.
+
+### Plano executado
+- PROMPT.md: regra 13 (defeitos do Datacount que não se copiam), tabelas e campos novos na seção 3,
+  descoberta/leitura/atributos nas seções 4.5–4.6, OIDs padrão novos na 6.2, extensões de perfil na 6.4,
+  worker (previsão com janela e atolamento recorrente), telas na seção 10, a **Fase 5.1** e o que cada item
+  acrescenta às Fases 6 e 7 na seção 14, critérios 20–22 na seção 15 e a nova **seção 16** (um item por
+  funcionalidade, dizendo em que fase entra). Inventário de computadores ficou fora do escopo, como pedido.
+
+### Onde cada item entrou
+| # | Item | Agora (5.1) | Depois |
+|---|---|---|---|
+| 1 | Descobertas | modelo, ingestão, agente (`ignored_serials`), API, tela, E2E | — |
+| 2 | Contadores como linhas | `reading_counters` particionada e só inserção, mapeamento padrão + `line` do perfil, migração das leituras antigas | relatórios e ERP (Fase 7) |
+| 3 | Troca de toner | detecção e `supply_replacements` com rendimento, prematura, serial | tela e relatório de rendimento (Fases 6/7) |
+| 4 | Alertas da impressora | `prtAlertTable` completa no agente, `printer_alerts` com classificação e contadores | telas e regra "atolamento recorrente" (Fase 6) |
+| 5 | Limiar de toner | cliente (por cor + liga/desliga) e equipamento (desligado/global/individual) no modelo e na API | telas e alertas (Fase 6) |
+| 6 | Previsão de toner | colunas (dias mín./máx., páginas restantes, método, confiança) | cálculo e telas (Fase 6) |
+| 7 | Cadastro do equipamento | serial alternativo, setor = sysLocation, franquia, excedente, campos personalizados, setor em lote | — |
+| 8 | Atributos diários | agente lê firmware, memória, disco, subsistemas, uptime, painel, SSID/peças pelo perfil; histórico só quando muda; aba Atributos | — |
+| 9 | Locais | endereço completo, CEP pelo ViaCEP, latitude/longitude | mapa e importação de clientes por CSV (Fase 7) |
+| 10 | Coletor | redes conectadas, IP/hostname avulso, importação `.txt`, tentativas 1–5, timeouts, IP público, SO, local de instalação, estatísticas | — |
+| 11 | Dataclassic (ErpConnector) | — | Fase 7 (fila `erp_queue`, transporte plugável) |
+| 12 | Relatórios | — | Fase 7 |
+| 13 | Visão geral | — | Fase 6 (toners em 30 dias) e Fase 7 (produção do mês, comunicando por dia) |
+| 14 | Permissões | matriz módulo × ação + Monitorar suprimentos, ajustável por revenda, tela | — |
+| 15 | Defeitos a não copiar | regra 13; corrigidos os casos existentes (abaixo) | vale para todas as fases |
+
+### O que foi feito
+- **Banco** (migração `11f512d72613`):
+  - equipamentos: `discovery_state`, cadastro (16.7), modo e limiares de toner, atributos;
+  - clientes: limiares de toner; locais: endereço completo e `auto_activate_devices`;
+  - coletores: `monitor_local_networks`, `public_ip`, `install_path`; faixas: `host`;
+  - tabelas novas: `reading_counters` (particionada e só inserção), `supply_replacements`, `printer_alerts`,
+    `device_attribute_snapshots`, `custom_field_definitions`, `reseller_role_permissions`;
+  - previsão e serial do cartucho em `supplies_current`/`supply_readings`;
+  - dados que já existiam: equipamentos entram **aprovados**, setor digitado deixa de seguir o sysLocation,
+    endereço vai para `street`, e as 288 leituras do banco de desenvolvimento ganharam 1.102 linhas em
+    `reading_counters`. A migração desce e sobe sem erro.
+- **Ingestão**:
+  - equipamento novo nasce `pending`, ou `approved` se o local ativa automaticamente;
+  - descartado responde `discarded` e sai da fila do coletor;
+  - cada contador vira linha;
+  - nível de suprimento que sobe ≥ 20 pontos (configurável) grava a troca com contadores, rendimento
+    (contador na troca − contador da troca anterior; preto usa o total, C/M/Y o contador de cor),
+    capacidade nominal em páginas, prematura (> 20%) e serial do cartucho;
+  - a `prtAlertTable` vira `printer_alerts`: um registro por alerta novo, identificado por índice + código +
+    `prtAlertTime`; o alerta é encerrado quando some; classificação em Atolamento / Chamado técnico /
+    Consumível / Peças / Outros;
+  - atributos: estado atual no equipamento e histórico só quando mudam (o uptime não conta);
+  - setor segue o `sysLocation` até alguém digitá-lo; apagar volta a segui-lo.
+- **Agente**:
+  - perfil com `line`, `supplies.cartridge_serial_oid` e `attributes` (schema único Go/servidor);
+  - leitura diária de atributos com OIDs padrão (HOST-RESOURCES e ENTITY-MIB);
+  - `prtAlertTable` com todas as colunas; `sysLocation` na identidade;
+  - IP/hostname avulso resolvido a cada varredura (nome que não resolve não trava o resto, vai para o log);
+  - "monitorar redes conectadas" soma as /24 privadas do PC;
+  - timeout próprio das leituras; retentativas limitadas a 4;
+  - seriais descartados saem da lista local e não voltam na varredura;
+  - local de instalação no heartbeat.
+- **API**:
+  - `/discoveries` (lista, contagem, decidir em lote);
+  - `/custom-fields`; `/permissions/matrix`;
+  - `/agents/{id}/stats`; `/sites/{id}/ip-ranges/import`;
+  - `GET /devices/{id}` com o cadastro completo;
+  - parque, painel e lista de equipamentos só com aprovados.
+- **Permissões**: `módulo.read/create/update/delete` + `supplies.monitor`; a revenda ajusta operador, técnico
+  e cliente; o papel Cliente só pode receber Consultar; administradores sempre têm tudo; valem na requisição
+  seguinte, sem novo login. Limiar de toner exige "Monitorar suprimentos".
+- **Portal**:
+  - telas Descobertas (pendentes/descartados, ativar/descartar/restaurar individual e em lote), Permissões
+    (matriz por papel) e Campos personalizados;
+  - diálogo de Local com CEP (ViaCEP), coordenadas e ativação automática;
+  - aba Atributos e cadastro completo no equipamento, com selo "Pendente em Descobertas";
+  - coletor com IP público, local de instalação, estatísticas de 24 h, redes conectadas, IP/hostname avulso,
+    importação `.txt` com relatório de erros por linha, tentativas SNMP e timeouts.
+- **Defeitos do Datacount corrigidos no que já existia** (regra 13):
+  - várias listas e seletores do portal baixavam no máximo 500 itens, sem avisar. Agora toda lista é
+    paginada por cursor com "Carregar mais" (`useCursorList` + `LoadMore`), e cliente/local/empresa são
+    escolhidos por seletores com busca no servidor (20 resultados por busca);
+  - a exportação do parque tinha teto fixo de 100.000 linhas: saiu, e ela respeita só os filtros.
+- **E2E**: o coletor real encontra as 8 impressoras, que chegam **pendentes**; o teste ativa em lote em
+  Descobertas e confere parque, contadores, níveis e atributos.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,5%**. Novos: atributos do simulador (memória, disco, firmware ENTITY-MIB, subsistemas, uptime), SSID/subsistemas/peças pelo perfil, `prtAlertTable` completa, serial do cartucho, `line` do perfil e schema, IP/hostname avulso (resolvido, sem resolução, IPv6 ignorado), redes do PC, seriais descartados, timeout de leitura e limite de retentativas, contrato com o item `attributes` |
+| pytest | **173** testes; cobertura **92%**. Novos: Descobertas (pendente fora do parque/painel, ativar/descartar/restaurar, `ignored_serials`, `discarded` para itens atrasados, ativação automática, permissões, isolamento entre revendas), linhas de contador (padrão, `line`, colisão, só inserção), trocas de suprimento (limiar, rendimento, prematura, capacidade, resíduo ignorado), classificação e ciclo dos alertas da impressora, atributos e setor, matriz de permissões, campos personalizados e cobrança, limiares de toner, endereço do local, IP/hostname avulso e importação `.txt`, estatísticas e opções do coletor |
+| Vitest | **34** (novos: ViaCEP, incluindo cada mensagem de falha) |
+| Playwright | **6**, com Descobertas no fluxo do coletor real (ver fluxo manual) |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos: sem problemas |
+
+### Fluxo manual executado (29/09/2026) e resultado
+1. **Migração** no banco de desenvolvimento: sobe, desce e sobe de novo. `alembic check` sem diferenças.
+   9 equipamentos existentes ficaram aprovados e 288 leituras ganharam 1.102 linhas de contador.
+2. **E2E**. A primeira execução completa falhou em Descobertas: a tela mostrou 0 pendentes, e o banco tinha
+   as 8 impressoras do local aprovadas, sem evento de aprovação. Não consegui reproduzir. Nas duas execuções
+   seguintes (só o coletor real e depois a suíte inteira), as 8 chegaram pendentes, foram ativadas em lote e
+   o teste passou (6/6). Acompanhei o banco durante uma execução: `pending` até a ativação pela tela, depois
+   `approved` com `discovery_decided_by` do usuário E2E. Registro para observar nas próximas fases.
+3. **Revisão visual** das telas novas com o seed real, sem nenhum erro no console:
+   - Descobertas, seleção em lote, Permissões, Campos personalizados, Local com CEP, Atributos, cadastro,
+     coletor com estatísticas, Faixas de IP e seletor com busca;
+   - o CEP 20040-002 foi preenchido pelo **ViaCEP de verdade** (Avenida Rio Branco, Centro, Rio de Janeiro/RJ);
+   - corrigido na revisão: CEP cortado no diálogo, "—" antes do modelo quando a marca é vazia, dica do campo
+     de faixa desalinhando o formulário e falta do selo "Pendente" no detalhe do equipamento.
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E      # inclui Descobertas no fluxo do coletor real
+scripts\dev.ps1            # portal: Descobertas, Usuários > Permissões, Campos personalizados,
+                           # Clientes > Local (CEP), Coletor > Faixas de IP (avulsos, .txt, redes do PC)
+# Local de teste de Descobertas: desligue "Ativar automaticamente" no local e varra de novo.
+```
+
+### O que falta / pendências
+- Itens 3–6, 11–13 nas Fases 6 e 7, conforme a tabela acima e a seção 16 do PROMPT.
+- As pendências de administrador das Fases 2 e 5 continuam (instalar serviços, reinício real do PostgreSQL).
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -708,3 +835,17 @@ scripts\chaos.ps1                   # 10 min de queda (≈ 17 min no total); -Ou
 | D58 | Reativar etapa 2: o portal acompanha a volta do coletor por até 3 min contra o horário do servidor (`requested_at`) | Relógio errado no PC do técnico não pode dar "voltou"/"não voltou" falso |
 | D59 | Teste de contrato Go × schemas do servidor; no Go, coleção com padrão no servidor vai `omitempty` e coleção obrigatória nunca vai `null` | O Go serializa lista vazia (nil) como `null` e o servidor recusava: o heartbeat do watchdog nunca era aceito e um PC sem IPv4 não conseguiria se cadastrar |
 | D60 | No teste de caos sem administrador, o passo do banco derruba todas as conexões (`pg_terminate_backend`) em vez de reiniciar o serviço; o relatório diz qual dos dois foi feito | Reiniciar `postgresql-x64-16` exige administrador; a recuperação de API/gateway/worker é a mesma nos dois casos. Rodar `scripts\chaos.ps1` como administrador reinicia o serviço de verdade |
+| D61 | Equipamento novo entra `pending` e **lido normalmente**; só o descartado deixa de ser lido (`ignored_serials` + resposta `discarded`) | Nenhuma leitura se perde enquanto ninguém decide; ao ativar, o histórico já existe |
+| D62 | `ignored_serials` vale para a revenda inteira | O serial é a identidade do equipamento na revenda (seção 3); o mesmo equipamento pode aparecer em outro local |
+| D63 | `reading_counters` sem FK para `readings` | A manutenção de partições move linhas da partição default antes do ATTACH, e a FK barraria a movimentação; as linhas nascem na mesma transação da leitura e são só inserção |
+| D64 | Mapeamento padrão dos contadores normalizados no servidor; `color` = `full_color` (na Canon inclui monocor); "pequeno" da Canon e "Total 2" ficam só no `extra` até o perfil mapear | Nada de significado inventado; o perfil corrige com `line` sem mudar OIDs |
+| D65 | Troca de suprimento só para suprimento consumível; rendimento usa o total para preto/desconhecido e o contador de cor para C/M/Y; sem troca anterior conhecida o rendimento fica vazio | Reservatório de resíduo enche (o nível subir não é troca); rendimento sem ponto de partida seria inventado |
+| D66 | Alerta da impressora identificado por índice + código + grupo + local + `prtAlertTime` + descrição; encerrado quando some da tabela | O `prtAlertTime` muda a cada alerta novo mesmo quando a impressora reaproveita o índice |
+| D67 | Classificação: atolamento → falhas (chamado técnico) → consumível → peças → nível de treinamento "fieldService" → outros | Ordem que evita, por exemplo, "vida do fusor quase no fim" virar chamado técnico só pelo nível de treinamento |
+| D68 | Setor segue o `sysLocation` até alguém digitá-lo; vazio volta a seguir | Seção 16.7: "padrão = sysLocation, editável" sem a leitura sobrescrever o que o usuário digitou |
+| D69 | Matriz de permissões: Clientes inclui empresas e locais; Coletores inclui faixas e credenciais; configuração de coleta do local pede "Clientes: Alterar"; ativar em Descobertas = Equipamentos: Incluir, descartar = Excluir, restaurar = Alterar; o papel Cliente só recebe Consultar; admin e superadmin sempre com tudo | Os seis módulos pedidos cobrem todas as telas; impede a revenda de se trancar fora e o usuário de cliente de alterar dados |
+| D70 | O papel Cliente não consulta Empresas, mesmo com "Clientes: Consultar" | Era assim antes da matriz (não tinha `companies.read`); a lista mostraria empresas da revenda a um usuário de cliente |
+| D71 | Tentativas SNMP no portal = retentativas + 1 (1 a 5); configuração antiga com 5 retentativas é limitada a 4 na entrega ao coletor | O Datacount fala em tentativas; o protocolo e o gosnmp usam retentativas |
+| D72 | Listas do portal por cursor com "Carregar mais" e seletores com busca de 20 resultados; exportações sem teto | Regra 13: nada de lista inteira no navegador nem limite fixo de registros |
+| D73 | ViaCEP chamado pelo navegador | O servidor não precisa de saída para a internet para isso; falha do serviço vira mensagem clara e o endereço pode ser digitado à mão |
+| D74 | Nos testes do backend o local da fábrica ativa automaticamente; os de Descobertas usam `auto_activate=False` (padrão do produto). No E2E, o seed volta para pendentes as impressoras do local do coletor real | Os testes de leitura/parque continuam testando o que testavam; Descobertas é testada com o padrão real |

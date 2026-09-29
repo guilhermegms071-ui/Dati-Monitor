@@ -192,7 +192,14 @@ async def test_config_contains_ranges_credentials_and_profiles(
     cfg = (await client.get("/api/agent/config", headers=agent.headers)).json()
     assert cfg["intervals"]["counters_minutes"] == 30
     assert cfg["intervals"]["discovery_minutes"] == 360
-    assert cfg["discovery"] == {"concurrency": 64, "rate_pps": 200, "timeout_ms": 1500, "retries": 1}
+    assert cfg["discovery"] == {
+        "concurrency": 64,
+        "rate_pps": 200,
+        "timeout_ms": 1500,
+        "retries": 1,
+        "read_timeout_ms": 2000,
+    }
+    assert (cfg["monitor_local_networks"], cfg["ignored_serials"]) == (False, [])
     assert cfg["ranges"][0]["cidr"] == "127.0.0.1/32"
     assert cfg["ranges"][0]["ports"] == [1161, 1165]
     assert cfg["credentials"][0]["community"] == "public"

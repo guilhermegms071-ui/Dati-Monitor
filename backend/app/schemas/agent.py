@@ -74,6 +74,7 @@ class HeartbeatRequest(Msg):
     errors: list[str] = Field(default_factory=list, max_length=20)
     latency_ms: float | None = Field(default=None, ge=0, description="Ida e volta do ping no WebSocket")
     ws_connected: bool = False
+    install_path: str = Field(default="", max_length=1000, description="Pasta do executável do coletor")
     watchdog_state: WatchdogServiceState = Field(
         default="unknown",
         description="Serviço do dm-watchdog visto pelo coletor (vigilância mútua, seção 5.1)",
@@ -98,8 +99,9 @@ class Intervals(BaseModel):
 class DiscoveryConfig(BaseModel):
     concurrency: int
     rate_pps: int
-    timeout_ms: int
-    retries: int
+    timeout_ms: int = Field(description="Timeout de cada consulta SNMP na descoberta")
+    retries: int = Field(description="Retentativas de cada consulta (tentativas = retries + 1, de 1 a 5)")
+    read_timeout_ms: int = Field(default=2000, description="Timeout de cada consulta SNMP nas leituras")
 
 
 class IpRangeConfig(BaseModel):
@@ -107,6 +109,7 @@ class IpRangeConfig(BaseModel):
     cidr: str | None = None
     start_ip: str | None = None
     end_ip: str | None = None
+    host: str | None = Field(default=None, description="IP ou hostname avulso (resolvido a cada varredura)")
     exclusions: list[str] = Field(default_factory=list)
     ports: list[int] = Field(default_factory=lambda: [161])
 
@@ -135,6 +138,12 @@ class AgentConfig(Msg):
     proxy_url: str | None = None
     keep_awake: bool = False
     ws_url: str = Field(description="Endereço do canal WebSocket (wss://…/ws/agent)")
+    monitor_local_networks: bool = Field(
+        default=False, description="Varrer também as /24 privadas das interfaces deste PC (seção 16.10)"
+    )
+    ignored_serials: list[str] = Field(
+        default_factory=list, description="Equipamentos descartados em Descobertas: não ler (seção 16.1)"
+    )
 
 
 class SuggestRangesRequest(Msg):
@@ -152,10 +161,26 @@ class DeviceRef(BaseModel):
     model: str | None = Field(default=None, max_length=200)
     firmware: str | None = Field(default=None, max_length=200)
     profile_key: str | None = Field(default=None, max_length=100)
+    sys_location: str | None = Field(default=None, max_length=255)
+
+
+CounterKind = Literal["total", "print", "copy", "fax", "scan", "report", "duplex", "other"]
+CounterColorMode = Literal["mono", "full_color", "single_color", "two_color", "any"]
+CounterSize = Literal["a3", "a4", "letter", "legal", "other", "any"]
+
+
+class CounterLine(BaseModel):
+    kind: CounterKind
+    color_mode: CounterColorMode
+    size: CounterSize
 
 
 class ReadingPayload(BaseModel):
     counters: dict[str, int]
+    counter_lines: dict[str, CounterLine] = Field(
+        default_factory=dict,
+        description="`line` dos contadores no perfil (os nomes normalizados têm mapeamento padrão)",
+    )
     extra: dict[str, Any] = Field(default_factory=dict)
     counter_source: str = Field(default="", max_length=64)
     profile_key: str = Field(default="", max_length=100)
@@ -180,14 +205,23 @@ class Supply(BaseModel):
     percent: float | None = None
     level_state: Literal["ok", "unknown", "some_remaining"]
     unit: str | None = Field(default=None, max_length=32)
+    cartridge_serial: str | None = Field(default=None, max_length=128)
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class Alert(BaseModel):
+    """Linha da prtAlertTable (RFC 3805). `index` e `time` (TimeTicks) identificam cada alerta novo."""
+
+    index: int | None = None
     severity: int = 0
+    training_level: int | None = None
+    group: int | None = None
+    group_index: int | None = None
+    location: int | None = None
     code: int = 0
     description: str = Field(default="", max_length=500)
+    time: int | None = Field(default=None, description="prtAlertTime (sysUpTime no momento, centésimos de s)")
 
 
 class StatusPayload(BaseModel):
@@ -200,6 +234,49 @@ class StatusPayload(BaseModel):
     alerts: list[Alert] = Field(default_factory=list)
 
 
+class StorageInfo(BaseModel):
+    description: str = Field(default="", max_length=255)
+    size_bytes: int = Field(ge=0)
+    used_bytes: int = Field(ge=0)
+
+
+class Subsystem(BaseModel):
+    """Subsistema do equipamento (hrDeviceTable ou `attributes.subsystems` do perfil)."""
+
+    name: str = Field(max_length=32, description="printer | copier | scanner | ou o tipo do hrDevice")
+    description: str = Field(default="", max_length=255)
+    status: str = Field(
+        max_length=32, description="unknown | running | warning | testing | down ou texto do perfil"
+    )
+
+
+class Part(BaseModel):
+    """Peça com nível/contador (cilindro, fusor, transferência, kit de manutenção, roletes, resíduo)."""
+
+    name: str = Field(max_length=64)
+    part: Literal[
+        "drum", "fuser", "transfer", "maintenance_kit", "rollers", "waste_toner", "developer", "other"
+    ]
+    color: str | None = Field(default=None, max_length=32)
+    unit: Literal["percent", "pages", "count"]
+    value: int
+
+
+class AttributesPayload(BaseModel):
+    """Atributos da leitura diária (seção 16.8)."""
+
+    firmware: list[str] = Field(default_factory=list, max_length=20)
+    memory_bytes: int | None = Field(default=None, ge=0)
+    storage: list[StorageInfo] = Field(default_factory=list, max_length=20)
+    mac: str | None = Field(default=None, max_length=32)
+    ssid: str | None = Field(default=None, max_length=64)
+    uptime_seconds: int | None = Field(default=None, ge=0)
+    subsystems: list[Subsystem] = Field(default_factory=list, max_length=32)
+    panel_text: str | None = Field(default=None, max_length=2000)
+    sys_location: str | None = Field(default=None, max_length=255)
+    parts: list[Part] = Field(default_factory=list, max_length=64)
+
+
 class EventPayload(BaseModel):
     type: Literal["read_failed"]
     data: dict[str, Any] = Field(default_factory=dict)
@@ -207,13 +284,14 @@ class EventPayload(BaseModel):
 
 class Item(BaseModel):
     key: str = Field(min_length=3, max_length=200)
-    kind: Literal["reading", "supplies", "status", "event"]
+    kind: Literal["reading", "supplies", "status", "event", "attributes"]
     read_at: datetime
     device: DeviceRef
     reading: ReadingPayload | None = None
     supplies: list[Supply] | None = None
     status: StatusPayload | None = None
     event: EventPayload | None = None
+    attributes: AttributesPayload | None = None
 
 
 class ReadingsRequest(Msg):

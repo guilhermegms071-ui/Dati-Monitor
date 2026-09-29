@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileText, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Download, FileText, Trash2, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
   CartesianGrid,
@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 
 import { AgentState, CommandState, CommandWatch, RoleBadge } from '../../components/domain';
+import { LoadMore } from '../../components/paging';
 import { ReactivateButton } from '../../components/Reactivate';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog, Menu, MenuItem, MenuSeparator } from '../../components/ui/dialog';
@@ -39,6 +40,7 @@ import { useSendCommand, type CommandType } from '../../lib/commands';
 import { fmtBytes, fmtDateTime, fmtDayTime, fmtDec, fmtInt, fmtTime } from '../../lib/format';
 import { CLUSTER_REASON, FINAL_COMMAND_STATES } from '../../lib/labels';
 import { showError, showSuccess } from '../../lib/notify';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { watchdogStatus } from '../../lib/watchdog';
 import { EnrollmentInfo } from './AgentsPage';
 import { PreferredMasterButton, UninstallDialog, UpdateDialog, WatchdogBadge, WatchdogCard } from './WatchdogPanels';
@@ -68,7 +70,7 @@ export function AgentDetailPage() {
             {a.revoked_at ? <Badge tone="red">Revogado</Badge> : null}
           </span>
         }
-        actions={<AgentActions agent={a} canCommand={can('agents.command')} canWrite={can('agents.write')} />}
+        actions={<AgentActions agent={a} canCommand={can('agents.command')} canWrite={can('agents.update')} />}
       />
       <Card className="p-4">
         <KeyValue
@@ -78,6 +80,8 @@ export function AgentDetailPage() {
             ['Hostname', a.hostname ?? '—'],
             ['IPs locais', (a.local_ips as string[]).join(', ') || '—'],
             ['Sistema', `${a.os ?? '—'} (${a.arch ?? '—'})`],
+            ['IP público', a.public_ip ?? '—'],
+            ['Local de instalação', a.install_path ?? '—'],
             ['Versão', a.version ?? '—'],
             ['Fila pendente', fmtInt(a.queue_pending)],
             ['CPU / memória', `${fmtDec(a.cpu_percent)}% / ${fmtBytes(a.memory_bytes)}`],
@@ -88,6 +92,7 @@ export function AgentDetailPage() {
           ]}
         />
       </Card>
+      <AgentStatsCard agentId={a.id} />
       <Tabs defaultValue="health">
         <TabsList>
           <TabsTrigger value="health">Saúde</TabsTrigger>
@@ -96,7 +101,7 @@ export function AgentDetailPage() {
           <TabsTrigger value="cluster">Cluster</TabsTrigger>
           <TabsTrigger value="ranges">Faixas de IP</TabsTrigger>
           <TabsTrigger value="credentials">Credenciais SNMP</TabsTrigger>
-          <TabsTrigger value="settings">Intervalos e proxy</TabsTrigger>
+          <TabsTrigger value="settings">Intervalos, SNMP e proxy</TabsTrigger>
           <TabsTrigger value="versions">Versões</TabsTrigger>
         </TabsList>
         <TabsContent value="health">
@@ -112,16 +117,16 @@ export function AgentDetailPage() {
           <LogsTab agentId={a.id} canCommand={can('agents.command')} />
         </TabsContent>
         <TabsContent value="cluster">
-          <ClusterTab siteId={a.site_id} canWrite={can('sites.write')} />
+          <ClusterTab siteId={a.site_id} canWrite={can('agents.update')} />
         </TabsContent>
         <TabsContent value="ranges">
-          <RangesTab siteId={a.site_id} suggested={a.suggested_ranges as string[]} canWrite={can('sites.write')} />
+          <RangesTab agent={a} canWrite={can('agents.update')} />
         </TabsContent>
         <TabsContent value="credentials">
-          <CredentialsTab siteId={a.site_id} canWrite={can('sites.write')} />
+          <CredentialsTab siteId={a.site_id} canWrite={can('agents.update')} />
         </TabsContent>
         <TabsContent value="settings">
-          <SiteSettingsTab siteId={a.site_id} canWrite={can('sites.write')} />
+          <SiteSettingsTab siteId={a.site_id} canWrite={can('customers.update')} />
         </TabsContent>
         <TabsContent value="versions">
           <VersionsTab agentId={a.id} />
@@ -461,18 +466,16 @@ function HealthCharts({ agentId }: { agentId: string }) {
 function CommandsTab({ agentId }: { agentId: string }) {
   const qc = useQueryClient();
   const [watch, setWatch] = useState<string | null>(null);
-  const q = useQuery({
-    queryKey: ['commands', agentId],
-    queryFn: () =>
-      unwrap(
-        api.GET('/api/v1/agents/{agent_id}/commands', {
-          params: { path: { agent_id: agentId }, query: { limit: 100 } },
-        }),
-      ),
-  });
+  const { query: q, rows } = useCursorList<Schemas['CommandOut']>(['commands', agentId], (cursor) =>
+    unwrap(
+      api.GET('/api/v1/agents/{agent_id}/commands', {
+        params: { path: { agent_id: agentId }, query: { limit: PAGE_SIZE, cursor } },
+      }),
+    ),
+  );
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} />;
-  if (!q.data.items.length) return <EmptyState title="Nenhum comando enviado" />;
+  if (!rows.length) return <EmptyState title="Nenhum comando enviado" />;
   return (
     <Card className="overflow-hidden">
       <table className="w-full text-sm">
@@ -486,7 +489,7 @@ function CommandsTab({ agentId }: { agentId: string }) {
           </tr>
         </thead>
         <tbody>
-          {q.data.items.map((c) => (
+          {rows.map((c) => (
             <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-3 py-1.5 text-xs">{fmtDateTime(c.created_at)}</td>
               <td className="px-3 py-1.5 text-xs">{c.type_label}</td>
@@ -530,6 +533,7 @@ function CommandsTab({ agentId }: { agentId: string }) {
           ))}
         </tbody>
       </table>
+      <LoadMore query={q} shown={rows.length} />
       {watch ? (
         <CommandWatch
           commandId={watch}
@@ -681,19 +685,108 @@ function ClusterTab({ siteId, canWrite }: { siteId: string; canWrite: boolean })
   );
 }
 
-function RangesTab({ siteId, suggested, canWrite }: { siteId: string; suggested: string[]; canWrite: boolean }) {
+/** Converte o que o operador digitou em CIDR, início–fim ou IP/hostname avulso (seção 16.10). */
+function rangeBody(text: string): { cidr?: string; start_ip?: string; end_ip?: string; host?: string } {
+  const v = text.trim();
+  if (v.includes('/')) return { cidr: v };
+  const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+  const [a, b] = v.split('-').map((x) => x.trim());
+  if (b !== undefined && a && ipv4.test(a) && ipv4.test(b)) return { start_ip: a, end_ip: b };
+  return { host: v };
+}
+
+function rangeLabel(r: Schemas['IpRangeOut']): string {
+  if (r.cidr) return r.cidr;
+  if (r.host) return r.host;
+  return `${r.start_ip ?? ''} – ${r.end_ip ?? ''}`;
+}
+
+function RangesTab({ agent, canWrite }: { agent: Agent; canWrite: boolean }) {
+  const siteId = agent.site_id;
+  const suggested = agent.suggested_ranges as string[];
   const qc = useQueryClient();
-  const [cidr, setCidr] = useState('');
+  const [entry, setEntry] = useState('');
   const [ports, setPorts] = useState('161');
   const [busy, setBusy] = useState(false);
+  const [imported, setImported] = useState<Schemas['RangeImportOut'] | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const q = useQuery({
     queryKey: ['ranges', siteId],
     queryFn: () => unwrap(api.GET('/api/v1/sites/{site_id}/ip-ranges', { params: { path: { site_id: siteId } } })),
   });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['ranges', siteId] });
+  const portList = () =>
+    ports
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .map(Number);
+
+  const importFile = (file: File) => {
+    setBusy(true);
+    file
+      .text()
+      .then((content) =>
+        unwrap(
+          api.POST('/api/v1/sites/{site_id}/ip-ranges/import', {
+            params: { path: { site_id: siteId } },
+            body: { content, ports: portList() },
+          }),
+        ),
+      )
+      .then((out) => {
+        setImported(out);
+        refresh();
+      })
+      .catch((err: unknown) => {
+        showError(err, 'Importação não concluída');
+      })
+      .finally(() => {
+        setBusy(false);
+        if (fileRef.current) fileRef.current.value = '';
+      });
+  };
+
+  const setLocalNetworks = (on: boolean) => {
+    unwrap(
+      api.PATCH('/api/v1/agents/{agent_id}', {
+        params: { path: { agent_id: agent.id } },
+        body: { monitor_local_networks: on },
+      }),
+    )
+      .then(() => {
+        showSuccess(on ? 'O coletor passa a varrer as redes do PC' : 'Redes do PC deixam de ser varridas');
+        void qc.invalidateQueries({ queryKey: ['agent', agent.id] });
+      })
+      .catch((err: unknown) => {
+        showError(err, 'Não foi possível alterar');
+      });
+  };
+
   return (
     <Card>
-      <CardHeader title="Faixas de IP varridas" subtitle="O coletor só varre faixas aprovadas." />
+      <CardHeader
+        title="Faixas de IP varridas"
+        subtitle="O coletor só varre faixas aprovadas, IPs/hostnames avulsos e, se ligado, as redes do próprio PC."
+      />
+      <label className="flex items-start gap-2 border-b border-slate-200 px-4 py-3 text-sm dark:border-slate-800">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={agent.monitor_local_networks}
+          disabled={!canWrite}
+          onChange={(e) => {
+            setLocalNetworks(e.target.checked);
+          }}
+        />
+        <span>
+          Monitorar redes conectadas
+          <span className="block text-xs text-slate-500">
+            Varre também as redes /24 privadas das placas de rede deste PC (
+            {(agent.local_ips as string[]).join(', ') || 'sem IP'}), acompanhando mudanças de rede. Ligar vale como
+            aprovação.
+          </span>
+        </span>
+      </label>
       {q.isPending ? (
         <Spinner />
       ) : q.isError ? (
@@ -708,7 +801,7 @@ function RangesTab({ siteId, suggested, canWrite }: { siteId: string; suggested:
           {q.data.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
               <span className="font-mono">
-                {r.cidr ?? `${r.start_ip ?? ''} – ${r.end_ip ?? ''}`}{' '}
+                {rangeLabel(r)} {r.host ? <Badge className="font-sans">avulso</Badge> : null}{' '}
                 <span className="text-xs text-slate-500">portas {(r.ports as number[]).join(', ')}</span>
               </span>
               <span className="flex items-center gap-2">
@@ -760,36 +853,33 @@ function RangesTab({ siteId, suggested, canWrite }: { siteId: string; suggested:
           onSubmit={(e) => {
             e.preventDefault();
             setBusy(true);
-            const portList = ports
-              .split(/[,\s]+/)
-              .filter(Boolean)
-              .map(Number);
             unwrap(
               api.POST('/api/v1/sites/{site_id}/ip-ranges', {
                 params: { path: { site_id: siteId } },
-                body: { cidr, ports: portList },
+                body: { ...rangeBody(entry), ports: portList() },
               }),
             )
               .then(() => {
-                setCidr('');
-                showSuccess('Faixa adicionada');
+                setEntry('');
+                showSuccess('Adicionado');
                 refresh();
               })
               .catch((err: unknown) => {
-                showError(err, 'Faixa não adicionada');
+                showError(err, 'Não adicionado');
               })
               .finally(() => {
                 setBusy(false);
               });
           }}
         >
-          <Field label="Nova faixa (CIDR)" htmlFor="r-cidr">
+          <Field label="Faixa, IP ou hostname" htmlFor="r-cidr">
             <Input
               id="r-cidr"
-              placeholder="192.168.0.0/24"
-              value={cidr}
+              className="w-80"
+              placeholder="192.168.0.0/24 · 10.0.0.10-10.0.0.50 · impressora-rh"
+              value={entry}
               onChange={(e) => {
-                setCidr(e.target.value);
+                setEntry(e.target.value);
               }}
               required
             />
@@ -807,8 +897,91 @@ function RangesTab({ siteId, suggested, canWrite }: { siteId: string; suggested:
           <Button type="submit" loading={busy}>
             Adicionar
           </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".txt,text/plain"
+            className="hidden"
+            aria-label="Arquivo .txt de faixas"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importFile(f);
+            }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            loading={busy}
+            onClick={() => {
+              fileRef.current?.click();
+            }}
+          >
+            <Upload className="h-4 w-4" /> Importar .txt
+          </Button>
         </form>
       ) : null}
+      {imported ? (
+        <Dialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setImported(null);
+          }}
+          title="Importação de faixas"
+          description={`${String(imported.created)} adicionada(s), ${String(imported.duplicates)} já existia(m), ${String(imported.errors.length)} com erro.`}
+          footer={
+            <Button
+              onClick={() => {
+                setImported(null);
+              }}
+            >
+              Fechar
+            </Button>
+          }
+        >
+          {imported.errors.length ? (
+            <ul className="max-h-72 space-y-1 overflow-auto text-sm">
+              {imported.errors.map((e) => (
+                <li key={e.line}>
+                  <span className="font-mono">
+                    Linha {e.line}: {e.content}
+                  </span>{' '}
+                  <span className="text-red-600">— {e.error}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm">Todas as linhas válidas foram importadas.</p>
+          )}
+        </Dialog>
+      ) : null}
+    </Card>
+  );
+}
+
+function AgentStatsCard({ agentId }: { agentId: string }) {
+  const q = useQuery({
+    queryKey: ['agent', agentId, 'stats'],
+    queryFn: () => unwrap(api.GET('/api/v1/agents/{agent_id}/stats', { params: { path: { agent_id: agentId } } })),
+    refetchInterval: 60_000,
+  });
+  if (q.isPending) return null;
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  const st = q.data;
+  const items: [string, string][] = [
+    ['Leituras (24 h)', fmtInt(st.readings_24h)],
+    ['Itens enviados (24 h)', fmtInt(st.items_24h)],
+    ['Falhas de leitura (24 h)', fmtInt(st.failures_24h)],
+    ['Equipamentos lidos', fmtInt(st.devices_total)],
+    ['Sem resposta', fmtInt(st.devices_offline)],
+  ];
+  return (
+    <Card className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-5">
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <p className="text-xs text-slate-500">{label}</p>
+          <p className="text-lg font-semibold tabular-nums">{value}</p>
+        </div>
+      ))}
     </Card>
   );
 }
@@ -999,7 +1172,8 @@ const INTERVAL_FIELDS: [keyof CollectionConfig, string, string][] = [
   ['status_minutes', 'Status/erros (min)', 'padrão 10'],
   ['attributes_minutes', 'Cadastro/atributos (min)', 'padrão 1440'],
   ['discovery_minutes', 'Descoberta (min)', 'padrão 360'],
-  ['snmp_timeout_ms', 'Timeout SNMP (ms)', 'padrão 1500'],
+  ['snmp_timeout_ms', 'Timeout SNMP na descoberta (ms)', 'padrão 1500'],
+  ['snmp_read_timeout_ms', 'Timeout SNMP nas leituras (ms)', 'padrão 2000'],
 ];
 
 function SiteSettingsTab({ siteId, canWrite }: { siteId: string; canWrite: boolean }) {
@@ -1042,6 +1216,10 @@ function SiteSettingsForm({
   const qc = useQueryClient();
   const [form, setForm] = useState(() => initialSiteForm(config));
   const [keepAwake, setKeepAwake] = useState(config.keep_awake === true);
+  // Tentativas por consulta SNMP (1 a 5) = retentativas + 1 (seção 16.10).
+  const [attempts, setAttempts] = useState(
+    typeof config.snmp_retries === 'number' ? String(config.snmp_retries + 1) : '',
+  );
   const [busy, setBusy] = useState(false);
   return (
     <Card className="p-4">
@@ -1052,6 +1230,7 @@ function SiteSettingsForm({
           setBusy(true);
           const cfg: Record<string, unknown> = { keep_awake: keepAwake, proxy_url: form.proxy_url || null };
           for (const [k] of INTERVAL_FIELDS) cfg[k] = form[k] ? Number(form[k]) : null;
+          cfg.snmp_retries = attempts ? Number(attempts) - 1 : null;
           unwrap(
             api.PATCH('/api/v1/sites/{site_id}', {
               params: { path: { site_id: siteId } },
@@ -1083,6 +1262,23 @@ function SiteSettingsForm({
             />
           </Field>
         ))}
+        <Field label="Tentativas SNMP" htmlFor="s-attempts" hint="Vazio = padrão 2">
+          <Select
+            id="s-attempts"
+            disabled={!canWrite}
+            value={attempts}
+            onChange={(e) => {
+              setAttempts(e.target.value);
+            }}
+          >
+            <option value="">Padrão</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Field
           label="Proxy HTTP (opcional)"
           htmlFor="s-proxy"

@@ -32,6 +32,10 @@ PRT_COLORANT_VALUE = "1.3.6.1.2.1.43.12.1.1.4.1"
 PRT_CONSOLE_TEXT = "1.3.6.1.2.1.43.16.5.1.2.1"
 PRT_ALERT = "1.3.6.1.2.1.43.18.1.1"
 PRINTER_TYPE = "1.3.6.1.2.1.25.3.1.5"
+HR_MEMORY_SIZE = "1.3.6.1.2.1.25.2.2.0"  # KBytes
+HR_STORAGE = "1.3.6.1.2.1.25.2.3.1"  # .2 tipo, .3 descr, .4 unidade, .5 tamanho, .6 usado
+HR_STORAGE_FIXED_DISK = "1.3.6.1.2.1.25.2.1.4"
+ENT_FIRMWARE_REV = "1.3.6.1.2.1.47.1.1.1.1.9"
 
 # --- OIDs dos perfis fornecidos -----------------------------------------------------------------
 CANON_PRODUCT_NAME = "1.3.6.1.4.1.1602.1.1.1.1.0"
@@ -211,6 +215,14 @@ def konica_color() -> dict[str, Record]:
     d[KM_COPY_COLOR] = counter(16881)
     d[KM_PRINT_COLOR] = counter(100000)
     d[KM_SCAN] = counter(7777)
+    # Atributos padrão da leitura diária (seção 16.8): memória, disco e firmware (ENTITY-MIB).
+    d[HR_MEMORY_SIZE] = integer(2097152)
+    d[f"{HR_STORAGE}.2.1"] = oid(HR_STORAGE_FIXED_DISK)
+    d[f"{HR_STORAGE}.3.1"] = octet("HDD")
+    d[f"{HR_STORAGE}.4.1"] = integer(4096)
+    d[f"{HR_STORAGE}.5.1"] = integer(61035156)
+    d[f"{HR_STORAGE}.6.1"] = integer(244140)
+    d[f"{ENT_FIRMWARE_REV}.1"] = octet("Controller 1.20")
     d.update(
         supplies(
             [
@@ -292,11 +304,22 @@ def errors() -> dict[str, Record]:
         panel="Atolamento de papel",
     )
     d.update(supplies([(1, CONSUMED, TONER, "Black Toner Cartridge", PERCENT, 100, -3)], ["black"]))
-    # prtAlertTable: severidade (.2), código (.7), descrição (.8).
+    # prtAlertTable (RFC 3805): severidade (.2), treinamento (.3), grupo (.4), índice no grupo (.5),
+    # local (.6), código (.7), descrição (.8) e prtAlertTime (.9, TimeTicks).
     d[f"{PRT_ALERT}.2.1.1"] = integer(3)  # critical
+    d[f"{PRT_ALERT}.3.1.1"] = integer(4)  # trained
+    d[f"{PRT_ALERT}.4.1.1"] = integer(13)  # mediaPath
+    d[f"{PRT_ALERT}.5.1.1"] = integer(2)
+    d[f"{PRT_ALERT}.6.1.1"] = integer(0)
     d[f"{PRT_ALERT}.7.1.1"] = integer(8)  # jam
     d[f"{PRT_ALERT}.8.1.1"] = octet("Atolamento de papel na bandeja 2")
+    d[f"{PRT_ALERT}.9.1.1"] = ("67", "8630000")
     d[f"{PRT_ALERT}.2.1.2"] = integer(3)
+    d[f"{PRT_ALERT}.3.1.2"] = integer(3)  # untrained
+    d[f"{PRT_ALERT}.4.1.2"] = integer(6)  # cover
+    d[f"{PRT_ALERT}.5.1.2"] = integer(1)
+    d[f"{PRT_ALERT}.6.1.2"] = integer(0)
+    d[f"{PRT_ALERT}.9.1.2"] = ("67", "8635000")
     d[f"{PRT_ALERT}.7.1.2"] = integer(3)  # coverOpen
     d[f"{PRT_ALERT}.8.1.2"] = octet("Porta frontal aberta")
     return d

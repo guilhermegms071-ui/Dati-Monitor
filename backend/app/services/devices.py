@@ -35,6 +35,7 @@ async def list_devices(
     p.require("devices.read")
     stmt = select(Device).where(
         Device.deleted_at.is_(None),
+        Device.discovery_state == "approved",  # pendentes e descartados ficam em Descobertas (16.1)
         reseller_scope(p, Device.reseller_id),
         customer_scope(p, Device.customer_id),
     )

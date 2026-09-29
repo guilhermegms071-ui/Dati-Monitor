@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { AgentState, DeviceStatus, RoleBadge } from '../../components/domain';
+import { LoadMore } from '../../components/paging';
+import { CompanyPicker } from '../../components/pickers';
 import { Button } from '../../components/ui/button';
 import { Dialog } from '../../components/ui/dialog';
-import { Field, Input, Select } from '../../components/ui/form';
+import { Field, Input } from '../../components/ui/form';
 import {
   Badge,
   Card,
@@ -26,6 +28,10 @@ import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { fmtCommunication, fmtInt } from '../../lib/format';
 import { showError, showSuccess } from '../../lib/notify';
+import { PAGE_SIZE, useCursorList } from '../../lib/paging';
+import { siteAddress } from '../../lib/viacep';
+
+import { SiteDialog } from './SiteDialog';
 
 type Customer = Schemas['CustomerOut'];
 
@@ -33,10 +39,9 @@ export function CustomersPage() {
   const { can } = useAuth();
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
-  const list = useQuery({
-    queryKey: ['customers', q],
-    queryFn: () => unwrap(api.GET('/api/v1/customers', { params: { query: { q: q || null, limit: 500 } } })),
-  });
+  const { query: list, rows } = useCursorList<Customer>(['customers', q], (cursor) =>
+    unwrap(api.GET('/api/v1/customers', { params: { query: { q: q || null, limit: PAGE_SIZE, cursor } } })),
+  );
   return (
     <div className="space-y-3">
       <PageHeader
@@ -57,7 +62,7 @@ export function CustomersPage() {
             >
               <Download className="h-3.5 w-3.5" /> Exportar
             </Button>
-            {can('customers.write') ? (
+            {can('customers.create') ? (
               <Button
                 size="sm"
                 onClick={() => {
@@ -89,7 +94,7 @@ export function CustomersPage() {
           <Spinner />
         ) : list.isError ? (
           <ErrorState error={list.error} onRetry={() => void list.refetch()} />
-        ) : !list.data.items.length ? (
+        ) : !rows.length ? (
           <EmptyState title="Nenhum cliente" />
         ) : (
           <table className="w-full text-sm">
@@ -103,7 +108,7 @@ export function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {list.data.items.map((c) => (
+              {rows.map((c) => (
                 <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2">
                     <Link
@@ -125,6 +130,7 @@ export function CustomersPage() {
             </tbody>
           </table>
         )}
+        <LoadMore query={list} shown={rows.length} />
       </Card>
       {editing ? (
         <CustomerDialog
@@ -140,9 +146,11 @@ export function CustomersPage() {
 
 function CustomerDialog({ customer, onClose }: { customer: Customer | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const companies = useQuery({
-    queryKey: ['companies'],
-    queryFn: () => unwrap(api.GET('/api/v1/companies', { params: { query: { limit: 500 } } })),
+  // Cliente novo: a primeira empresa da revenda já vem escolhida (a maioria das revendas tem uma só).
+  const firstCompany = useQuery({
+    queryKey: ['companies', 'first'],
+    queryFn: () => unwrap(api.GET('/api/v1/companies', { params: { query: { limit: 1 } } })),
+    enabled: !customer,
   });
   const [form, setForm] = useState({
     company_id: customer?.company_id ?? '',
@@ -159,7 +167,7 @@ function CustomerDialog({ customer, onClose }: { customer: Customer | null; onCl
     setForm((f) => ({ ...f, ...p }));
   };
   const nullable = (v: string) => (v.trim() ? v.trim() : null);
-  const companyId = form.company_id || companies.data?.items[0]?.id || '';
+  const companyId = form.company_id || firstCompany.data?.items[0]?.id || '';
   return (
     <Dialog
       open
@@ -210,19 +218,13 @@ function CustomerDialog({ customer, onClose }: { customer: Customer | null; onCl
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Empresa" htmlFor="c-company" className="sm:col-span-2">
-          <Select
+          <CompanyPicker
             id="c-company"
             value={companyId}
-            onChange={(e) => {
-              set({ company_id: e.target.value });
+            onChange={(id) => {
+              set({ company_id: id });
             }}
-          >
-            {(companies.data?.items ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.legal_name}
-              </option>
-            ))}
-          </Select>
+          />
         </Field>
         <Field label="Nome" htmlFor="c-name" className="sm:col-span-2">
           <Input
@@ -311,7 +313,7 @@ export function CustomerDetailPage() {
         title={c.name}
         subtitle={c.cnpj ?? undefined}
         actions={
-          can('customers.write') ? (
+          can('customers.update') ? (
             <Button
               size="sm"
               variant="secondary"
@@ -332,7 +334,7 @@ export function CustomerDetailPage() {
           <TabsTrigger value="data">Contatos e ERP</TabsTrigger>
         </TabsList>
         <TabsContent value="sites">
-          <SitesTab customerId={c.id} canWrite={can('sites.write')} />
+          <SitesTab customerId={c.id} canWrite={can('customers.update')} />
         </TabsContent>
         <TabsContent value="agents">
           <CustomerAgents customerId={c.id} />
@@ -367,88 +369,88 @@ export function CustomerDetailPage() {
 }
 
 function SitesTab({ customerId, canWrite }: { customerId: string; canWrite: boolean }) {
-  const qc = useQueryClient();
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const q = useQuery({
-    queryKey: ['sites', customerId],
-    queryFn: () => unwrap(api.GET('/api/v1/sites', { params: { query: { customer_id: customerId, limit: 500 } } })),
-  });
+  const [editing, setEditing] = useState<Schemas['SiteOut'] | 'new' | null>(null);
+  const { query: q, rows } = useCursorList<Schemas['SiteOut']>(['sites', customerId], (cursor) =>
+    unwrap(api.GET('/api/v1/sites', { params: { query: { customer_id: customerId, limit: PAGE_SIZE, cursor } } })),
+  );
   return (
     <Card>
-      <CardHeader title="Locais" subtitle="Cada local tem seus coletores, faixas de IP e credenciais SNMP." />
+      <CardHeader
+        title="Locais"
+        subtitle="Cada local tem seus coletores, faixas de IP e credenciais SNMP."
+        actions={
+          canWrite ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing('new');
+              }}
+            >
+              <Plus className="h-4 w-4" /> Novo local
+            </Button>
+          ) : null
+        }
+      />
       {q.isPending ? (
         <Spinner />
       ) : q.isError ? (
         <ErrorState error={q.error} />
-      ) : !q.data.items.length ? (
+      ) : !rows.length ? (
         <EmptyState title="Nenhum local" />
       ) : (
         <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-          {q.data.items.map((s) => (
-            <li key={s.id} className="flex items-center justify-between px-4 py-2">
+          {rows.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
               <span>
                 <span className="font-medium">{s.name}</span>
-                {s.address ? <span className="text-xs text-slate-500"> · {s.address}</span> : null}
+                {siteAddress(s) ? <span className="text-xs text-slate-500"> · {siteAddress(s)}</span> : null}
+                {s.auto_activate_devices ? <Badge className="ml-2">ativa descobertos</Badge> : null}
               </span>
-              <Link to={`/parque?site=${s.id}`} className="text-xs text-brand-600 hover:underline">
-                ver equipamentos
-              </Link>
+              <span className="flex items-center gap-2">
+                <Link to={`/parque?site=${s.id}`} className="text-xs text-brand-600 hover:underline">
+                  ver equipamentos
+                </Link>
+                {canWrite ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditing(s);
+                    }}
+                  >
+                    Editar
+                  </Button>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
       )}
-      {canWrite ? (
-        <form
-          className="flex flex-wrap items-end gap-2 border-t border-slate-200 p-4 dark:border-slate-800"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setBusy(true);
-            unwrap(api.POST('/api/v1/sites', { body: { customer_id: customerId, name } }))
-              .then(() => {
-                setName('');
-                showSuccess('Local criado');
-                void qc.invalidateQueries({ queryKey: ['sites', customerId] });
-              })
-              .catch((err: unknown) => {
-                showError(err, 'Local não criado');
-              })
-              .finally(() => {
-                setBusy(false);
-              });
+      <LoadMore query={q} shown={rows.length} />
+      {editing ? (
+        <SiteDialog
+          customerId={customerId}
+          site={editing === 'new' ? null : editing}
+          onClose={() => {
+            setEditing(null);
           }}
-        >
-          <Field label="Novo local" htmlFor="s-name">
-            <Input
-              id="s-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-              }}
-              required
-            />
-          </Field>
-          <Button type="submit" loading={busy}>
-            Adicionar
-          </Button>
-        </form>
+        />
       ) : null}
     </Card>
   );
 }
 
 function CustomerAgents({ customerId }: { customerId: string }) {
-  const q = useQuery({
-    queryKey: ['agents', 'customer', customerId],
-    queryFn: () => unwrap(api.GET('/api/v1/agents', { params: { query: { customer_id: customerId, limit: 500 } } })),
-  });
+  const { query: q, rows } = useCursorList<Schemas['AgentOut']>(['agents', 'customer', customerId], (cursor) =>
+    unwrap(api.GET('/api/v1/agents', { params: { query: { customer_id: customerId, limit: PAGE_SIZE, cursor } } })),
+  );
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} />;
-  if (!q.data.items.length) return <EmptyState title="Nenhum coletor neste cliente" />;
+  if (!rows.length) return <EmptyState title="Nenhum coletor neste cliente" />;
   return (
     <Card>
       <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-        {q.data.items.map((a) => (
+        {rows.map((a) => (
           <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
             <Link to={`/coletores/${a.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-100">
               {a.name}
@@ -460,18 +462,22 @@ function CustomerAgents({ customerId }: { customerId: string }) {
           </li>
         ))}
       </ul>
+      <LoadMore query={q} shown={rows.length} />
     </Card>
   );
 }
 
 function CustomerDevices({ customerId }: { customerId: string }) {
-  const q = useQuery({
-    queryKey: ['park', 'customer', customerId],
-    queryFn: () => unwrap(api.GET('/api/v1/park', { params: { query: { customer_id: customerId, limit: 500 } } })),
-  });
+  const {
+    query: q,
+    rows,
+    total,
+  } = useCursorList<Schemas['ParkRow']>(['park', 'customer', customerId], (cursor) =>
+    unwrap(api.GET('/api/v1/park', { params: { query: { customer_id: customerId, limit: PAGE_SIZE, cursor } } })),
+  );
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} />;
-  if (!q.data.items.length) return <EmptyState title="Nenhum equipamento neste cliente" />;
+  if (!rows.length) return <EmptyState title="Nenhum equipamento neste cliente" />;
   return (
     <Card className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -486,7 +492,7 @@ function CustomerDevices({ customerId }: { customerId: string }) {
           </tr>
         </thead>
         <tbody>
-          {q.data.items.map((d) => (
+          {rows.map((d) => (
             <tr key={d.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-3 py-1.5 font-mono text-xs">
                 <Link to={`/parque/${d.id}`} className="text-brand-600 hover:underline dark:text-brand-100">
@@ -504,6 +510,7 @@ function CustomerDevices({ customerId }: { customerId: string }) {
           ))}
         </tbody>
       </table>
+      <LoadMore query={q} shown={rows.length} total={total} />
     </Card>
   );
 }

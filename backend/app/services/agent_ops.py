@@ -207,7 +207,7 @@ async def set_preferred_master(
     session: AsyncSession, p: Principal, site_id: uuid.UUID, agent_id: uuid.UUID | None
 ) -> None:
     """Operator pins the preferred MASTER (4.8); the cluster job promotes it as soon as it is online."""
-    p.require("sites.write")
+    p.require("agents.update")
     site = await agents_svc.site_in_scope(session, p, site_id)
     if agent_id is not None:
         agent = await session.get(Agent, agent_id)

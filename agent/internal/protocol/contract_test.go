@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/daticopy/dati-monitor/agent/internal/printer"
+	"github.com/daticopy/dati-monitor/agent/internal/profile"
 )
 
 // schemaNode is the subset of JSON Schema produced by the server (docs/protocol-schemas, generated from
@@ -126,6 +127,15 @@ func TestMessagesMatchServerSchemas(t *testing.T) {
 			{Kind: "supplies", ReadAt: now, Supplies: []printer.Supply{{}}},
 			{Kind: "status", ReadAt: now, Status: &printer.StatusResult{}},
 			{Kind: "event", ReadAt: now, Event: &EventPayload{}},
+			{Kind: "attributes", ReadAt: now, Attributes: &printer.Attributes{}},
+			{Kind: "attributes", ReadAt: now, Attributes: &printer.Attributes{
+				Storage: []printer.Storage{{}}, Subsystems: []printer.Subsystem{{}},
+				Parts: []printer.Part{{Part: "drum", Unit: "percent"}},
+			}},
+			{Kind: "status", ReadAt: now, Status: &printer.StatusResult{Alerts: []printer.Alert{{}}}},
+			{Kind: "reading", ReadAt: now, Reading: &ReadingPayload{
+				CounterLines: map[string]profile.Line{"x": {Kind: "print", ColorMode: "mono", Size: "a4"}},
+			}},
 		}},
 		"CommandUpdate":            CommandUpdate{},
 		"Hello":                    Hello{},

@@ -32,13 +32,16 @@ from app.models import (
     AgentHeartbeat,
     ClusterEvent,
     Customer,
+    Device,
+    DeviceEvent,
     IpRange,
+    ReadingIdempotency,
     ReadProfile,
     Site,
     SnmpCredential,
 )
 from app.schemas import agent as proto
-from app.schemas.collection import DEFAULT_COLLECTION, AgentIn, AgentUpdate
+from app.schemas.collection import DEFAULT_COLLECTION, AgentIn, AgentStats, AgentUpdate
 from app.services import audit
 from app.services.pagination import Direction, PageResult, SortOption, paginate
 
@@ -49,6 +52,7 @@ CODE_VALIDITY = timedelta(days=7)
 CLOCK_SKEW_LIMIT = 300  # segundos
 LEASE_DURATION = timedelta(minutes=3)
 DEGRADED_QUEUE = 1000
+MAX_SNMP_RETRIES = 4  # tentativas de 1 a 5 (seção 16.10)
 
 
 def _now() -> datetime:
@@ -190,7 +194,7 @@ async def _issue_code(session: AsyncSession, p: Principal, agent: Agent) -> Agen
 async def create_agent(
     session: AsyncSession, p: Principal, data: AgentIn
 ) -> tuple[Agent, AgentEnrollmentCode]:
-    p.require("agents.write")
+    p.require("agents.create")
     site = await site_in_scope(session, p, data.site_id)
     agent = Agent(
         reseller_id=site.reseller_id,
@@ -220,7 +224,7 @@ async def create_agent(
 
 
 async def regenerate_code(session: AsyncSession, p: Principal, agent_id: uuid.UUID) -> AgentEnrollmentCode:
-    p.require("agents.write")
+    p.require("agents.update")
     agent = await get_agent(session, p, agent_id)
     code = await _issue_code(session, p, agent)
     await audit.record(
@@ -236,11 +240,16 @@ async def regenerate_code(session: AsyncSession, p: Principal, agent_id: uuid.UU
 
 
 async def update_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID, data: AgentUpdate) -> Agent:
-    p.require("agents.write")
+    p.require("agents.update")
     agent = await get_agent(session, p, agent_id)
     before = audit.snapshot(agent)
-    for k, v in data.model_dump(exclude_unset=True, exclude_none=True).items():
+    changes = data.model_dump(exclude_unset=True, exclude_none=True)
+    for k, v in changes.items():
         setattr(agent, k, v)
+    if "monitor_local_networks" in changes and changes["monitor_local_networks"] != before.get(
+        "monitor_local_networks"
+    ):
+        agent.config_version += 1  # o coletor busca a configuração nova no próximo heartbeat
     await session.flush()
     b, a = audit.diff(before, audit.snapshot(agent))
     await audit.record(
@@ -257,7 +266,7 @@ async def update_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID,
 
 
 async def revoke_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID) -> Agent:
-    p.require("agents.write")
+    p.require("agents.update")
     agent = await get_agent(session, p, agent_id)
     if agent.revoked_at is not None:
         raise conflict("already_revoked", "Coletor já está revogado")
@@ -275,7 +284,7 @@ async def revoke_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID)
 
 
 async def delete_agent(session: AsyncSession, p: Principal, agent_id: uuid.UUID) -> None:
-    p.require("agents.write")
+    p.require("agents.delete")
     agent = await get_agent(session, p, agent_id)
     agent.deleted_at = _now()
     agent.secret_hash = None
@@ -493,11 +502,14 @@ async def _ensure_master(session: AsyncSession, agent: Agent, now: datetime) -> 
 
 
 async def heartbeat(
-    session: AsyncSession, agent: Agent, req: proto.HeartbeatRequest, *, channel: str
+    session: AsyncSession, agent: Agent, req: proto.HeartbeatRequest, *, channel: str, ip: str | None = None
 ) -> proto.HeartbeatResponse:
     now = _now()
     before = (agent.state, agent.cluster_role)
     agent.last_seen_at = now
+    if ip:
+        agent.public_ip = ip  # IP de saída do cliente como o servidor o vê (seção 16.10)
+    agent.install_path = req.install_path or agent.install_path
     agent.version = req.version or agent.version
     agent.hostname = req.hostname or agent.hostname
     agent.os = req.os or agent.os
@@ -550,6 +562,71 @@ async def heartbeat(
     )
 
 
+async def agent_stats(session: AsyncSession, p: Principal, agent_id: uuid.UUID) -> AgentStats:
+    agent = await get_agent(session, p, agent_id)
+    since = _now() - timedelta(hours=24)
+    items = (
+        await session.execute(
+            select(
+                func.count().filter(ReadingIdempotency.kind == "reading"),
+                func.count(),
+                func.max(ReadingIdempotency.created_at),
+            ).where(
+                ReadingIdempotency.agent_id == agent.id,
+                ReadingIdempotency.result == "accepted",
+                ReadingIdempotency.created_at >= since,
+            )
+        )
+    ).one()
+    failures = (
+        await session.execute(
+            select(func.count())
+            .select_from(DeviceEvent)
+            .where(
+                DeviceEvent.reseller_id == agent.reseller_id,
+                DeviceEvent.type == "read_failed",
+                DeviceEvent.created_at >= since,
+                DeviceEvent.data["agent_id"].astext == str(agent.id),
+            )
+        )
+    ).scalar_one()
+    devices = (
+        await session.execute(
+            select(
+                func.count(),
+                func.count().filter(or_(Device.last_status == "offline", Device.disconnected.is_(True))),
+            ).where(
+                Device.last_agent_id == agent.id,
+                Device.deleted_at.is_(None),
+                Device.active.is_(True),
+                Device.discovery_state == "approved",
+            )
+        )
+    ).one()
+    return AgentStats(
+        readings_24h=items[0],
+        items_24h=items[1],
+        failures_24h=failures,
+        devices_total=devices[0],
+        devices_offline=devices[1],
+        last_item_at=items[2],
+    )
+
+
+async def ignored_serials(session: AsyncSession, reseller_id: uuid.UUID) -> list[str]:
+    """Serials discarded in Descobertas (16.1): the agents stop reading them."""
+    rows = await session.execute(
+        select(Device.serial)
+        .where(
+            Device.reseller_id == reseller_id,
+            Device.discovery_state == "discarded",
+            Device.deleted_at.is_(None),
+        )
+        .order_by(Device.serial)
+    )
+    return list(rows.scalars())
+
+
 def collection_settings(site: Site) -> dict[str, Any]:
     merged = dict(DEFAULT_COLLECTION)
     merged.update({k: v for k, v in (site.collection_config or {}).items() if v is not None})
@@ -595,7 +672,8 @@ async def agent_config(session: AsyncSession, settings: Settings, agent: Agent) 
             concurrency=cfg["discovery_concurrency"],
             rate_pps=cfg["discovery_rate_pps"],
             timeout_ms=cfg["snmp_timeout_ms"],
-            retries=cfg["snmp_retries"],
+            retries=min(int(cfg["snmp_retries"]), MAX_SNMP_RETRIES),
+            read_timeout_ms=cfg["snmp_read_timeout_ms"],
         ),
         ranges=[
             proto.IpRangeConfig(
@@ -603,6 +681,7 @@ async def agent_config(session: AsyncSession, settings: Settings, agent: Agent) 
                 cidr=r.cidr,
                 start_ip=r.start_ip,
                 end_ip=r.end_ip,
+                host=r.host,
                 exclusions=list(r.exclusions),
                 ports=list(r.ports),
             )
@@ -625,6 +704,8 @@ async def agent_config(session: AsyncSession, settings: Settings, agent: Agent) 
         proxy_url=cfg.get("proxy_url"),
         keep_awake=bool(cfg.get("keep_awake")),
         ws_url=settings.agent_ws_url,
+        monitor_local_networks=agent.monitor_local_networks,
+        ignored_serials=await ignored_serials(session, agent.reseller_id),
     )
 
 

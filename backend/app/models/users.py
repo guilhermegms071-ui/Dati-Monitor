@@ -7,7 +7,15 @@ from typing import Any
 from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, LargeBinary, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import JSONB_EMPTY_OBJECT, Base, CreatedMixin, IdMixin, SoftDeleteMixin, TimestampMixin
+from app.models.base import (
+    JSONB_EMPTY_ARRAY,
+    JSONB_EMPTY_OBJECT,
+    Base,
+    CreatedMixin,
+    IdMixin,
+    SoftDeleteMixin,
+    TimestampMixin,
+)
 
 
 class Role(Base, TimestampMixin):
@@ -23,6 +31,19 @@ class RolePermission(Base, CreatedMixin):
 
     role_code: Mapped[str] = mapped_column(ForeignKey("roles.code", ondelete="CASCADE"), primary_key=True)
     permission: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
+class ResellerRolePermission(Base, TimestampMixin):
+    """Matriz de permissões ajustada por uma revenda para um papel (seção 16.14). Sem linha = padrão."""
+
+    __tablename__ = "reseller_role_permissions"
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("resellers.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_code: Mapped[str] = mapped_column(ForeignKey("roles.code", ondelete="CASCADE"), primary_key=True)
+    permissions: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_ARRAY, default=list)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
 class User(Base, IdMixin, TimestampMixin, SoftDeleteMixin):

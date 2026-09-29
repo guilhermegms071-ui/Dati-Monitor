@@ -85,9 +85,9 @@ async def token(
 
 @router.post("/heartbeat", response_model=proto.HeartbeatResponse, summary="Heartbeat pelo canal HTTPS")
 async def heartbeat(
-    body: proto.HeartbeatRequest, agent: AgentDep, session: SessionDep
+    request: Request, body: proto.HeartbeatRequest, agent: AgentDep, session: SessionDep
 ) -> proto.HeartbeatResponse:
-    resp = await svc.heartbeat(session, agent, body, channel="http")
+    resp = await svc.heartbeat(session, agent, body, channel="http", ip=client_ip(request))
     await session.commit()
     return resp
 

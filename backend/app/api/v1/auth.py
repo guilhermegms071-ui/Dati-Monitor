@@ -8,7 +8,7 @@ from fastapi import APIRouter, Cookie, Header, Request, Response, status
 from app.api.deps import LimitedPrincipalDep, SessionDep, SettingsDep, client_ip
 from app.core.config import Settings
 from app.core.errors import AppError, forbidden, unauthorized
-from app.core.permissions import ROLE_BY_CODE, ROLE_PERMISSIONS
+from app.core.permissions import ROLE_BY_CODE
 from app.core.ratelimit import RateLimiter
 from app.core.security import constant_time_equals
 from app.models import Reseller, User
@@ -51,7 +51,7 @@ def _check_rate(request: Request, key: str) -> None:
         )
 
 
-def me_payload(user: User, reseller: Reseller) -> MeResponse:
+def me_payload(user: User, reseller: Reseller, permissions: frozenset[str]) -> MeResponse:
     return MeResponse(
         id=user.id,
         name=user.name,
@@ -61,7 +61,7 @@ def me_payload(user: User, reseller: Reseller) -> MeResponse:
         reseller_id=user.reseller_id,
         reseller_name=reseller.name,
         customer_id=user.customer_id,
-        permissions=sorted(ROLE_PERMISSIONS[user.role_code]),
+        permissions=sorted(permissions),
         totp_enabled=user.totp_enabled,
         must_change_password=user.must_change_password,
         preferences=user.preferences,
@@ -111,7 +111,7 @@ def _token_response(result: auth_service.Session) -> SessionResponse:
         access_token=result.access_token,
         expires_at=result.access_expires_at,
         limited=result.limited,
-        user=me_payload(result.user, result.reseller),
+        user=me_payload(result.user, result.reseller, result.permissions),
     )
 
 
@@ -184,7 +184,7 @@ async def me(principal: LimitedPrincipalDep, session: SessionDep) -> MeResponse:
     reseller = await session.get(Reseller, principal.reseller_id)
     if user is None or reseller is None:
         raise unauthorized()
-    return me_payload(user, reseller)
+    return me_payload(user, reseller, principal.permissions)
 
 
 @router.patch("/me/preferences", response_model=MeResponse, summary="Salvar preferências da interface")
@@ -197,7 +197,7 @@ async def update_preferences(
         raise unauthorized()
     user.preferences = {**user.preferences, **body.preferences}
     await session.commit()
-    return me_payload(user, reseller)
+    return me_payload(user, reseller, principal.permissions)
 
 
 @router.post("/change-password", response_model=SessionResponse, summary="Trocar a senha")

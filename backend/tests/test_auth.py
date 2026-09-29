@@ -32,7 +32,7 @@ async def test_login_success_sets_cookies_and_me(client: httpx.AsyncClient, fact
     body = resp.json()
     assert body["limited"] is None
     assert body["user"]["role"] == "reseller_admin"
-    assert "users.write" in body["user"]["permissions"]
+    assert {"users.create", "users.update", "users.delete"} <= set(body["user"]["permissions"])
     set_cookie = resp.headers.get_list("set-cookie")
     refresh_cookie = next(c for c in set_cookie if c.startswith("dm_refresh="))
     assert "HttpOnly" in refresh_cookie
