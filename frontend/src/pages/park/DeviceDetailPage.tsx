@@ -39,11 +39,14 @@ import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useSendCommand } from '../../lib/commands';
 import { dayKey, fmtCommunication, fmtDate, fmtDateTime, fmtInt, fmtPercent } from '../../lib/format';
+import { describeForecast } from '../../lib/forecast';
 import { DEVICE_EVENT } from '../../lib/labels';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { showError, showSuccess } from '../../lib/notify';
 
-import { AttributesCard, DeviceForm } from './DeviceRegistration';
+import { AlertsList } from '../alerts/AlertsList';
+
+import { AttributesCard, DeviceForm, DeviceTonerCard } from './DeviceRegistration';
 
 type Row = Schemas['ParkRow'];
 
@@ -110,6 +113,7 @@ export function DeviceDetailPage() {
           <TabsTrigger value="supplies">Suprimentos</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="adjustments">Ajustes</TabsTrigger>
+          <TabsTrigger value="alerts">Alertas</TabsTrigger>
           <TabsTrigger value="attributes">Atributos</TabsTrigger>
           <TabsTrigger value="data">Dados cadastrais</TabsTrigger>
         </TabsList>
@@ -128,11 +132,17 @@ export function DeviceDetailPage() {
         <TabsContent value="adjustments">
           <AdjustmentsTab deviceId={deviceId} />
         </TabsContent>
+        <TabsContent value="alerts">
+          <AlertsList deviceId={deviceId} compact />
+        </TabsContent>
         <TabsContent value="attributes">
           <AttributesCard deviceId={deviceId} />
         </TabsContent>
         <TabsContent value="data">
-          <DeviceForm deviceId={d.id} editable={can('devices.update')} />
+          <div className="space-y-4">
+            <DeviceForm deviceId={d.id} editable={can('devices.update')} />
+            {can('supplies.monitor') ? <DeviceTonerCard deviceId={d.id} editable={can('devices.update')} /> : null}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -502,8 +512,8 @@ function SuppliesTab({ deviceId }: { deviceId: string }) {
                   <td className="px-3 py-1.5 text-right font-medium">
                     {fmtPercent(s.percent === null ? null : Number(s.percent))}
                   </td>
-                  <td className="px-3 py-1.5 text-right text-xs text-slate-500">
-                    {s.days_to_empty !== null ? `acaba em ~${String(Math.round(Number(s.days_to_empty)))} dias` : ''}
+                  <td className="px-3 py-1.5 text-right text-xs">
+                    <ForecastCell supply={s} />
                   </td>
                 </tr>
               ))}
@@ -606,5 +616,18 @@ function AdjustmentsTab({ deviceId }: { deviceId: string }) {
         </tbody>
       </table>
     </Card>
+  );
+}
+
+function ForecastCell({ supply }: { supply: Schemas['SupplyOut'] }) {
+  const f = describeForecast(supply);
+  if (!f) return null;
+  return (
+    <span className="block">
+      <span className={f.uncertain ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}>
+        {f.summary}
+      </span>
+      <span className="block text-[11px] text-slate-500">{f.detail}</span>
+    </span>
   );
 }

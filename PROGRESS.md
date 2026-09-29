@@ -11,8 +11,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 4 — Portal | ✅ concluída (27/09/2026) |
 | 5 — Confiabilidade | ✅ concluída (28/09/2026) — falta só instalar os serviços num terminal de administrador |
 | 5.1 — Auditoria do Datacount (ajustes nas fases concluídas) | ✅ concluída (29/09/2026) |
-| 6 — Alertas e notificações | ⏳ próxima (aguardando autorização do usuário para começar) |
-| 7 a 11 | pendentes |
+| 6 — Alertas e notificações | ✅ concluída (29/09/2026) |
+| 7 — Perfis, relatórios e acesso web | ⏳ próxima |
+| 8 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -771,6 +772,98 @@ scripts\dev.ps1            # portal: Descobertas, Usuários > Permissões, Campo
 
 ---
 
+## Fase 6 — Alertas e notificações ✅
+
+Começou com a autorização do usuário depois da Fase 5.1.
+
+### Plano executado
+Regras centralizadas (seção 16.15) → motor de avaliação → fila de notificações → notificadores → previsão
+de toner, resumo diário e retenção → API → telas → E2E do critério 8.
+
+### O que foi feito
+- **Regras** (`alert_rules`, `services/alert_rules.py`):
+  - uma regra por tipo e por revenda, criada automaticamente com valores padrão;
+  - regra por cliente substitui a da revenda naquele cliente; a da revenda não se exclui, se desativa;
+  - 12 tipos: coletor sem sinal, equipamento sem leitura, toner abaixo do limiar, toner acaba em N dias,
+    erro de hardware, atolamento, porta aberta, **atolamento recorrente** (5 em 3 dias), **alerta da
+    impressora** por categoria, e os três da validação de leituras (regressão, salto, PB + cor ≠ total);
+  - parâmetros validados por tipo; canais por regra (nenhum marcado = todos os canais ativos).
+- **Motor** (`services/alert_engine.py`, job de 1 min):
+  - abre um alerta por condição (deduplicado por `dedup_key`) e resolve sozinho quando a condição some;
+  - **agrupamento**: local sem nenhum coletor online gera só o alerta do coletor, não um por equipamento;
+  - toner baixo pelo limiar do cliente (por cor, liga/desliga) ou do equipamento (desligado/global/individual);
+  - "acaba em N dias" só com previsão de confiança mínima;
+  - atolamento/porta/hardware só com status confiável (equipamento respondendo);
+  - alertas da impressora (`printer_alerts`) por categoria e atolamento recorrente pela janela da regra.
+- **Notificações** (`services/notifications.py`, `services/notifiers.py`, job a cada 10 s):
+  - fila pelos alertas ainda não notificados (`alerts.notified_at`), inclusive os abertos pela ingestão;
+  - e-mail (SMTP do canal ou do servidor), **webhook** com assinatura HMAC e **WhatsApp** (Meta Cloud API e
+    provedor HTTP genérico por modelo de URL/corpo, serve para Z-API/Evolution);
+  - credenciais cifradas por canal (AES-GCM), mascaradas na API; o segredo não reenviado é mantido;
+  - **silêncio** 22h–7h (configurável): crítico sai na hora, os outros saem no fim da janela;
+  - alerta resolvido antes do envio: notificação suprimida, com o motivo;
+  - retentativa em 1, 2, 5, 15, 30 e 60 min, até 6 tentativas; cada falha vai para o registro e para o log;
+  - botão **Testar** em cada canal; registro de envios com reenvio.
+- **Resumo diário** às 07:00 (Brasília) nos canais de e-mail (desligável por canal e por revenda).
+- **Previsão de toner** (`services/forecast.py`, job de 1 h e na partida do worker):
+  - regressão linear do nível nos últimos 30 dias, só desde a última troca;
+  - janela otimista/pessimista pelo intervalo de 95% da inclinação;
+  - páginas restantes pelo consumo por página; método direto quando a regressão não serve;
+  - confiança de 0 a 1; abaixo de 0,5 o portal mostra "estimativa incerta", sem alerta e fora do painel.
+- **Retenção** diária: heartbeats (30 dias), leituras de suprimento (400 dias) e registro de notificações
+  (180 dias). Leituras de contador nunca são apagadas.
+- **API**: `/alerts` (filtros, contagem, reconhecer/resolver em lote), `/alert-rules`,
+  `/notification-channels` (+ teste), `/notifications` (+ reenvio), `/notification-settings`,
+  `/printer-alerts` (+ contagem por categoria), `/supply-replacements`; dashboard com toners que acabam em
+  até 7 dias e previsão de 30 dias por cor; evento ao vivo `alerts` (SSE).
+- **Portal**:
+  - Alertas (abas Alertas, Regras, Canais, Notificações enviadas, Configurações);
+  - Trocas de toner (com rendimento e prematura) e Alertas da impressora (abas por categoria);
+  - sino do cabeçalho com a contagem (vermelho com crítico) e link para Alertas;
+  - abas Alertas e Suprimentos (limiares) no cliente; aba Alertas, limiar de toner e previsão no equipamento;
+  - dashboard com os dois cartões novos.
+- **E2E**: depois do "Reiniciar pelo watchdog", o coletor real é derrubado; o worker marca offline, a regra do
+  cliente E2E abre o alerta crítico, o portal mostra e o e-mail chega ao `smtp_catcher` (critério 8).
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,4%** (sem mudanças no agente nesta fase) |
+| pytest | **189** testes; cobertura **91%**. Novos: regras (padrões, parâmetros, cliente substitui revenda, permissões, isolamento), motor (coletor sem sinal com agrupamento e resolução, pausado, regra de cliente, limiares de toner em todos os modos, previsão com confiança, erros da impressora, atolamento recorrente, regra desativada), notificações (e-mail real no servidor de teste, silêncio, supressão, regra desligada, webhook com assinatura e retentativa até desistir, WhatsApp Meta e genérico, canais com segredo mascarado e teste, configurações, janela de silêncio, resumo diário), API de alertas (lista, contagem, reconhecer/resolver, outra revenda, usuário de cliente), alertas da impressora e trocas, previsão (matemática e job), painel, retenção, jobs do worker |
+| Vitest | **37** (novos: previsão em texto, evento ao vivo de alertas) |
+| Playwright | **6**; o fluxo do coletor real termina com alerta de offline no portal e e-mail capturado |
+| Lint | golangci-lint, ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos: sem problemas |
+
+### Fluxo manual executado (29/09/2026) e resultado
+1. **E2E completo, duas vezes (6/6).** No log do worker, o coletor foi marcado offline às 13:56:01, o
+   alerta abriu no mesmo segundo e o e-mail saiu 5 s depois. O critério 8 pede até 10 min; com os tempos
+   padrão (offline em 3 min e regra de 5 min) o total fica em cerca de 6 min.
+2. **Revisão visual** com o banco de desenvolvimento, sem erros no console:
+   - telas: dashboard, Alertas e todas as abas, novo canal de WhatsApp, Trocas de toner, Alertas da
+     impressora, suprimentos e limiar do equipamento, suprimentos e alertas do cliente;
+   - os alertas reais do banco de desenvolvimento apareceram (coletores do teste de caos offline, toner em
+     5% e 8%, atolamento e porta aberta do simulador 07), e os e-mails foram registrados como enviados;
+   - corrigido na revisão: mensagem "Coletor Coletor E2E…" (o nome já começa com "Coletor"), seletores de
+     gravidade cortando o texto, e a previsão, que só rodava 1 h depois de o worker subir (agora roda
+     também na partida).
+3. **Previsão no banco de desenvolvimento**: 18 suprimentos avaliados na partida do worker e nenhum com
+   previsão, porque os níveis simulados não mudam e o seed tem poucos pontos. O correto é não inventar
+   número; a previsão foi validada nos testes com histórico real de consumo.
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E      # inclui coletor derrubado → alerta no portal + e-mail no smtp_catcher
+scripts\dev.ps1            # Alertas: crie um canal de e-mail, clique em Testar e veja em http://localhost:8025
+# Tempos do worker por variável: AGENT_OFFLINE_AFTER_SECONDS, ALERTS_INTERVAL_SECONDS, NOTIFY_INTERVAL_SECONDS
+```
+
+### O que falta / pendências
+- WhatsApp e SMTP reais dependem das credenciais da Daticopy (provedor, token, servidor de e-mail): basta
+  cadastrar o canal e usar o botão Testar.
+- Pendências de administrador das Fases 2 e 5 continuam.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -849,3 +942,16 @@ scripts\dev.ps1            # portal: Descobertas, Usuários > Permissões, Campo
 | D72 | Listas do portal por cursor com "Carregar mais" e seletores com busca de 20 resultados; exportações sem teto | Regra 13: nada de lista inteira no navegador nem limite fixo de registros |
 | D73 | ViaCEP chamado pelo navegador | O servidor não precisa de saída para a internet para isso; falha do serviço vira mensagem clara e o endereço pode ser digitado à mão |
 | D74 | Nos testes do backend o local da fábrica ativa automaticamente; os de Descobertas usam `auto_activate=False` (padrão do produto). No E2E, o seed volta para pendentes as impressoras do local do coletor real | Os testes de leitura/parque continuam testando o que testavam; Descobertas é testada com o padrão real |
+| D75 | Uma regra por tipo por revenda, criada automaticamente, e exceções por cliente; a regra da revenda não se exclui (desativa) | Seção 16.15: regras centralizadas; ninguém fica sem regra por engano |
+| D76 | Regra sem canais marcados avisa em todos os canais ativos da revenda | O padrão útil para uma revenda com um canal só; marcar canais restringe |
+| D77 | Credenciais de notificação cifradas por canal (`notification_channels.config_enc`), não numa chave única de `settings` | Vários canais e provedores por revenda; mesma cifra AES-GCM (associada ao id do canal) |
+| D78 | Fila de notificação por `alerts.notified_at`; a migração marca os alertas antigos como notificados | Cobre alertas do motor e da ingestão igual; não dispara e-mails retroativos |
+| D79 | Silêncio adia (não descarta) o que não é crítico; alerta resolvido antes do envio é suprimido | Seção 9; ninguém recebe às 7h um alerta que já se resolveu de madrugada |
+| D80 | Agrupamento por local: sem nenhum coletor online no local, só o alerta do coletor | Seção 9: "um alerta por coletor, não um por equipamento" |
+| D81 | Atolamento, porta aberta e erro de hardware só alertam com o equipamento respondendo | Status de equipamento sem resposta é antigo; evita alertas fantasmas |
+| D82 | Alertas da validação de leituras (regressão, salto, soma) nunca se resolvem sozinhos; a regra só controla a notificação | Exigem classificação do operador (seção 6.5) |
+| D83 | Previsão: regressão desde a última troca (subida ≥ 10 pontos), janela pelo intervalo de 95% da inclinação, confiança = R² × pontos/10 × dias/7; método direto quando a regressão não serve; confiança < 0,5 = "estimativa incerta", sem alerta e fora do painel | Seção 16.6: previsão incerta não aparece como certa |
+| D84 | Retentativa em 1, 2, 5, 15, 30 e 60 min, até 6 tentativas (configurável) | Cobre quedas curtas do provedor sem insistir para sempre |
+| D85 | Tempos do worker por variável de ambiente (offline 180 s, avaliação 60 s, envio 10 s); o E2E usa 15/3/2 s | O critério 8 é medido com os padrões; o E2E não pode levar minutos esperando |
+| D86 | Resumo diário só em canais de e-mail, desligável por canal e por revenda | WhatsApp não é lugar para relatório longo |
+| D87 | O limiar de troca de suprimento (16.3) é editado em Alertas > Configurações e gravado na chave lida pela ingestão | Uma tela só para os parâmetros de alerta da revenda |

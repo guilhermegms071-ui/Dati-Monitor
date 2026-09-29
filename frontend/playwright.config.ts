@@ -44,6 +44,14 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      // E-mails capturados (critério 8: coletor offline gera e-mail). Reaproveita o do dev.ps1 se estiver no ar.
+      command: `"${python}" scripts/smtp_catcher.py --smtp-port 1025 --http-port 8025`,
+      cwd: repoRoot,
+      url: 'http://127.0.0.1:8025/api/messages',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
       command: 'npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: true,

@@ -14,6 +14,8 @@ import { ForgotPasswordPage, LimitedSessionPage, LoginPage, ResetPasswordPage } 
 import { CustomerDetailPage, CustomersPage } from './pages/customers/CustomersPages';
 import { DeviceDetailPage } from './pages/park/DeviceDetailPage';
 import { DiscoveriesPage } from './pages/park/DiscoveriesPage';
+import { PrinterAlertsPage, ReplacementsPage } from './pages/park/SupplyPages';
+import { AlertsPage } from './pages/alerts/AlertsPage';
 import { ParkPage } from './pages/park/ParkPage';
 
 export const routes: RouteObject[] = [
@@ -54,6 +56,9 @@ export const routes: RouteObject[] = [
             ],
           },
           { path: 'descobertas', element: <DiscoveriesPage />, handle: { crumb: 'Descobertas' } },
+          { path: 'alertas', element: <AlertsPage />, handle: { crumb: 'Alertas' } },
+          { path: 'trocas-de-toner', element: <ReplacementsPage />, handle: { crumb: 'Trocas de toner' } },
+          { path: 'alertas-da-impressora', element: <PrinterAlertsPage />, handle: { crumb: 'Alertas da impressora' } },
           { path: 'usuarios', element: <UsersPage />, handle: { crumb: 'Usuários' } },
           { path: 'permissoes', element: <PermissionsPage />, handle: { crumb: 'Permissões' } },
           { path: 'campos-personalizados', element: <CustomFieldsPage />, handle: { crumb: 'Campos personalizados' } },

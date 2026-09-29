@@ -1,16 +1,27 @@
 """Dashboard (PROMPT 10.2): cards, pages per day (PB x cor), collectors offline now, critical toners."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, select, text, true
+from sqlalchemy import and_, func, literal_column, select, text, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal, customer_scope, reseller_scope
 from app.models import Agent, Alert, Customer, Device, Site, SupplyCurrent
-from app.schemas.park import CriticalSupply, Dashboard, DashboardCards, OfflineAgent, PagesPerDay
+from app.schemas.park import (
+    CriticalSupply,
+    Dashboard,
+    DashboardCards,
+    OfflineAgent,
+    PagesPerDay,
+    TonersByColor,
+)
 
 CRITICAL_PERCENT = 10
+# Previsão só entra no painel com confiança suficiente (16.6: incerta não é exibida como certa).
+MIN_CONFIDENCE = 0.5
+TONER_TYPES = ("toner", "tonerCartridge", "ink", "inkCartridge")
 DISPLAY_TZ = "America/Sao_Paulo"
 ONLINE_STATES = ("online", "degraded", "paused")
 
@@ -136,7 +147,59 @@ async def build(session: AsyncSession, p: Principal, days: int = 30) -> Dashboar
         pages_per_day=await pages_per_day(session, p, days),
         offline_agents=offline,
         critical_supplies=critical,
+        ending_7_days=await _ending(session, dev_scope, 7),
+        ending_30_days_by_color=await _by_color(session, dev_scope, 30),
     )
+
+
+def _forecast_filter(days: int) -> Any:
+    return and_(
+        SupplyCurrent.supply_class == "consumed",
+        SupplyCurrent.supply_type.in_(TONER_TYPES),
+        SupplyCurrent.days_to_empty.is_not(None),
+        SupplyCurrent.days_to_empty <= days,
+        SupplyCurrent.forecast_confidence >= MIN_CONFIDENCE,
+        Device.active.is_(True),
+    )
+
+
+async def _ending(session: AsyncSession, dev_scope: Any, days: int) -> list[CriticalSupply]:
+    rows = await session.execute(
+        select(SupplyCurrent, Device.serial, Device.model, Customer.name)
+        .join(Device, Device.id == SupplyCurrent.device_id)
+        .join(Customer, Customer.id == Device.customer_id)
+        .where(dev_scope, _forecast_filter(days))
+        .order_by(SupplyCurrent.days_to_empty, Device.serial)
+        .limit(20)
+    )
+    return [
+        CriticalSupply(
+            device_id=s.device_id,
+            serial=serial,
+            model=model,
+            customer_name=cname,
+            color=s.color,
+            description=s.description,
+            percent=s.percent,
+            days_to_empty=s.days_to_empty,
+            days_to_empty_min=s.days_to_empty_min,
+            days_to_empty_max=s.days_to_empty_max,
+            forecast_confidence=s.forecast_confidence,
+        )
+        for s, serial, model, cname in rows.tuples()
+    ]
+
+
+async def _by_color(session: AsyncSession, dev_scope: Any, days: int) -> TonersByColor:
+    color = func.coalesce(SupplyCurrent.color, literal_column("'black'"))  # sem parâmetro: GROUP BY igual
+    rows = await session.execute(
+        select(color, func.count())
+        .join(Device, Device.id == SupplyCurrent.device_id)
+        .where(dev_scope, _forecast_filter(days))
+        .group_by(color)
+    )
+    counts = dict(rows.tuples().all())
+    return TonersByColor(**{c: counts.get(c, 0) for c in ("black", "cyan", "magenta", "yellow")})
 
 
 async def pages_per_day(session: AsyncSession, p: Principal, days: int) -> list[PagesPerDay]:

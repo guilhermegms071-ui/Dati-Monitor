@@ -31,7 +31,10 @@ import { showError, showSuccess } from '../../lib/notify';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { siteAddress } from '../../lib/viacep';
 
+import { AlertsList } from '../alerts/AlertsList';
+
 import { SiteDialog } from './SiteDialog';
+import { CustomerTonerCard } from './TonerThresholds';
 
 type Customer = Schemas['CustomerOut'];
 
@@ -331,6 +334,8 @@ export function CustomerDetailPage() {
           <TabsTrigger value="sites">Locais</TabsTrigger>
           <TabsTrigger value="agents">Coletores</TabsTrigger>
           <TabsTrigger value="devices">Equipamentos</TabsTrigger>
+          <TabsTrigger value="alerts">Alertas</TabsTrigger>
+          {can('supplies.monitor') ? <TabsTrigger value="supplies">Suprimentos</TabsTrigger> : null}
           <TabsTrigger value="data">Contatos e ERP</TabsTrigger>
         </TabsList>
         <TabsContent value="sites">
@@ -341,6 +346,18 @@ export function CustomerDetailPage() {
         </TabsContent>
         <TabsContent value="devices">
           <CustomerDevices customerId={c.id} />
+        </TabsContent>
+        <TabsContent value="alerts">
+          <AlertsList customerId={c.id} compact />
+        </TabsContent>
+        <TabsContent value="supplies">
+          <CustomerTonerCard
+            key={JSON.stringify([c.toner_monitoring, c.toner_thresholds])}
+            customerId={c.id}
+            monitoring={c.toner_monitoring}
+            thresholds={c.toner_thresholds}
+            editable={can('customers.update') && can('supplies.monitor')}
+          />
         </TabsContent>
         <TabsContent value="data">
           <Card className="p-4">

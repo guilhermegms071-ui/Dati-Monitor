@@ -8,6 +8,9 @@ import { api, unwrap, type Schemas } from '../../lib/api';
 import { fmtBytes, fmtDateTime, fmtInt } from '../../lib/format';
 import { showError, showSuccess } from '../../lib/notify';
 
+import { toThresholds } from '../../lib/toner';
+import { ThresholdInputs } from '../customers/TonerThresholds';
+
 import { useDeviceDetail } from './useDeviceDetail';
 
 type Detail = Schemas['DeviceDetail'];
@@ -314,6 +317,82 @@ export function AttributesCard({ deviceId }: { deviceId: string }) {
             )}
           </div>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Limiar de toner do equipamento (seção 16.5): desligado, global (herda do cliente) ou individual. */
+export function DeviceTonerCard({ deviceId, editable }: { deviceId: string; editable: boolean }) {
+  const q = useDeviceDetail(deviceId);
+  if (q.isPending) return <Spinner />;
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  return <DeviceTonerForm key={q.dataUpdatedAt} device={q.data} editable={editable} />;
+}
+
+function DeviceTonerForm({ device, editable }: { device: Detail; editable: boolean }) {
+  const qc = useQueryClient();
+  const [mode, setMode] = useState(device.toner_mode);
+  const [values, setValues] = useState(() => toThresholds(device.toner_thresholds));
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card>
+      <CardHeader title="Limiar de toner" subtitle="Quando alertar toner baixo neste equipamento" />
+      <div className="space-y-4 p-4">
+        <div className="flex flex-wrap gap-4 text-sm">
+          {(
+            [
+              ['off', 'Desligado'],
+              ['global', 'Global (limiares do cliente)'],
+              ['individual', 'Individual'],
+            ] as const
+          ).map(([v, label]) => (
+            <label key={v} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="toner-mode"
+                disabled={!editable}
+                checked={mode === v}
+                onChange={() => {
+                  setMode(v);
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        {mode === 'individual' ? (
+          <ThresholdInputs value={values} onChange={setValues} disabled={!editable} idPrefix="dt" />
+        ) : null}
+        {editable ? (
+          <Button
+            loading={busy}
+            onClick={() => {
+              setBusy(true);
+              unwrap(
+                api.PATCH('/api/v1/devices/{device_id}', {
+                  params: { path: { device_id: device.id } },
+                  body: {
+                    toner_mode: mode as 'off' | 'global' | 'individual',
+                    ...(mode === 'individual' ? { toner_thresholds: values } : {}),
+                  },
+                }),
+              )
+                .then(() => {
+                  showSuccess('Limiar de toner salvo');
+                  void qc.invalidateQueries({ queryKey: ['device', device.id] });
+                })
+                .catch((err: unknown) => {
+                  showError(err, 'Limiar não salvo');
+                })
+                .finally(() => {
+                  setBusy(false);
+                });
+            }}
+          >
+            Salvar
+          </Button>
+        ) : null}
       </div>
     </Card>
   );

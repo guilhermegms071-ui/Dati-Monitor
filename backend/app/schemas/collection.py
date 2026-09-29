@@ -436,7 +436,15 @@ class SupplyOut(ORMModel):
     percent: Decimal | None
     level_state: str
     unit: str | None
+    cartridge_serial: str | None
+    # Previsão (16.6): janela otimista/pessimista, páginas restantes, método e confiança (0 a 1).
     days_to_empty: Decimal | None
+    days_to_empty_min: Decimal | None
+    days_to_empty_max: Decimal | None
+    pages_left: int | None
+    forecast_method: str | None
+    forecast_confidence: Decimal | None
+    forecast_at: datetime | None
 
 
 class DeviceEventOut(ORMModel):

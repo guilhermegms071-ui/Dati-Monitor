@@ -8,6 +8,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.notify import CH_ALERTS, notify_event
 from app.models import Alert
 
 
@@ -65,3 +66,22 @@ async def open_alert_exists(session: AsyncSession, dedup_key: str) -> bool:
         select(Alert.id).where(Alert.dedup_key == dedup_key, Alert.state != "resolved").limit(1)
     )
     return row.first() is not None
+
+
+# ----------------------------------------------------------------------------- portal (Alertas)
+
+
+async def emit_changes(
+    session: AsyncSession, pairs: set[tuple[uuid.UUID, uuid.UUID | None]], opened: int, resolved: int
+) -> None:
+    """Live event (SSE) for every reseller/customer touched: the portal refreshes alerts and the bell."""
+    for reseller_id, customer_id in pairs:
+        await notify_event(
+            session,
+            CH_ALERTS,
+            "alerts",
+            reseller_id=reseller_id,
+            customer_id=customer_id,
+            opened=opened,
+            resolved=resolved,
+        )

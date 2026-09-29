@@ -25,6 +25,7 @@ import {
 } from '../components/ui/primitives';
 import { api, unwrap } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
+import { describeForecast } from '../lib/forecast';
 import { fmtDate, fmtInt, fmtPercent } from '../lib/format';
 import { SUPPLY_COLOR } from '../lib/labels';
 
@@ -186,7 +187,58 @@ export function DashboardPage() {
             <EmptyState title="Nenhum toner crítico" />
           )}
         </Card>
+        <Card>
+          <CardHeader
+            title="Toners que acabam em até 7 dias"
+            subtitle="Pela previsão de consumo (só previsões confiáveis)"
+          />
+          {d.ending_7_days.length ? (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {d.ending_7_days.map((s) => {
+                const f = describeForecast(s);
+                return (
+                  <li
+                    key={`${s.device_id}-${s.color ?? ''}-${s.description ?? ''}`}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <Link to={`/parque/${s.device_id}`} className="font-medium hover:underline">
+                        {s.model ?? s.serial}
+                      </Link>
+                      <p className="truncate text-xs text-slate-500">
+                        {s.serial} · {s.customer_name} · {f?.summary}
+                      </p>
+                    </div>
+                    <span className="flex items-center gap-2 font-semibold">
+                      <span
+                        className={`h-3 w-3 rounded-full ${SUPPLY_COLOR[s.color ?? '']?.bar ?? 'bg-slate-400'}`}
+                        aria-hidden
+                      />
+                      {fmtPercent(s.percent === null ? null : Number(s.percent))}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState title="Nenhum toner acaba nos próximos 7 dias" />
+          )}
+        </Card>
+        <Card>
+          <CardHeader title="Previstos para acabar em 30 dias" subtitle="Quantidade de toners por cor" />
+          <div className="grid grid-cols-4 gap-2 p-4">
+            {(['black', 'cyan', 'magenta', 'yellow'] as const).map((c) => (
+              <div key={c} className="rounded-md border border-slate-200 p-3 text-center dark:border-slate-800">
+                <span className={`mx-auto mb-1 block h-3 w-3 rounded-full ${SUPPLY_COLOR[c]?.bar ?? ''}`} aria-hidden />
+                <p className="text-2xl font-semibold tabular-nums">{fmtInt(d.ending_30_days_by_color[c])}</p>
+                <p className="text-xs text-slate-500">{TONER_LABEL[c]}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
+
+const TONER_LABEL: Record<string, string> = { black: 'Preto', cyan: 'Ciano', magenta: 'Magenta', yellow: 'Amarelo' };

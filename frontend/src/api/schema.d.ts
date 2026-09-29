@@ -433,6 +433,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alert-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Regras (da revenda e por cliente) */
+        get: operations["list_rules_api_v1_alert_rules_get"];
+        put?: never;
+        /** Create Rule */
+        post: operations["create_rule_api_v1_alert_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alert-rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Rule */
+        delete: operations["delete_rule_api_v1_alert_rules__rule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Rule */
+        patch: operations["update_rule_api_v1_alert_rules__rule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Alertas com filtros (mais recentes primeiro) */
+        get: operations["list_alerts_api_v1_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/act": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconhecer ou resolver (em lote) */
+        post: operations["act_api_v1_alerts_act_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Alertas não resolvidos por gravidade */
+        get: operations["alert_counts_api_v1_alerts_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alert_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Alert */
+        get: operations["get_alert_api_v1_alerts__alert_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -1175,6 +1279,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notification-channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Channels */
+        get: operations["list_channels_api_v1_notification_channels_get"];
+        put?: never;
+        /** Create Channel */
+        post: operations["create_channel_api_v1_notification_channels_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Channel */
+        delete: operations["delete_channel_api_v1_notification_channels__channel_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Channel */
+        patch: operations["update_channel_api_v1_notification_channels__channel_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/notification-channels/{channel_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enviar mensagem de teste agora para todos os destinos do canal */
+        post: operations["test_channel_api_v1_notification_channels__channel_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notification Settings */
+        get: operations["get_notification_settings_api_v1_notification_settings_get"];
+        /** Put Notification Settings */
+        put: operations["put_notification_settings_api_v1_notification_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Registro de envios */
+        get: operations["list_notifications_api_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Notification */
+        post: operations["retry_notification_api_v1_notifications__notification_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/park": {
         parameters: {
             query?: never;
@@ -1253,6 +1462,40 @@ export interface paths {
         get?: never;
         /** Ajustar a matriz de um papel (null volta ao padrão) */
         put: operations["set_role_matrix_api_v1_permissions_matrix__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/printer-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Alertas da impressora (prtAlertTable) */
+        get: operations["printer_alerts_api_v1_printer_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/printer-alerts/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ativos por categoria */
+        get: operations["printer_alert_counts_api_v1_printer_alerts_counts_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1489,6 +1732,23 @@ export interface paths {
         head?: never;
         /** Update Credential */
         patch: operations["update_credential_api_v1_snmp_credentials__cred_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/supply-replacements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trocas de suprimento */
+        get: operations["supply_replacements_api_v1_supply_replacements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/users": {
@@ -1990,6 +2250,203 @@ export interface components {
              */
             training_level?: number | null;
         };
+        /** AlertActionIn */
+        AlertActionIn: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "acknowledge" | "resolve";
+            /** Alert Ids */
+            alert_ids: string[];
+        };
+        /** AlertActionOut */
+        AlertActionOut: {
+            /** Changed */
+            changed: number;
+        };
+        /** AlertCounts */
+        AlertCounts: {
+            /** Critical */
+            critical: number;
+            /** Info */
+            info: number;
+            /** Open */
+            open: number;
+            /** Warning */
+            warning: number;
+        };
+        /** AlertOut */
+        AlertOut: {
+            /** Acknowledged At */
+            acknowledged_at: string | null;
+            /** Acknowledged By */
+            acknowledged_by: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name: string;
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /**
+             * Reseller Id
+             * Format: uuid
+             */
+            reseller_id: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By */
+            resolved_by: string | null;
+            /** Rule Id */
+            rule_id: string | null;
+            /** Severity */
+            severity: string;
+            /** Site Id */
+            site_id: string | null;
+            /** State */
+            state: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Name
+             * @default
+             */
+            target_name: string;
+            /** Target Type */
+            target_type: string;
+            /** Type */
+            type: string;
+            /**
+             * Type Label
+             * @default
+             */
+            type_label: string;
+        };
+        /** AlertPage */
+        AlertPage: {
+            /** Items */
+            items: components["schemas"]["AlertOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /** AlertRuleIn */
+        AlertRuleIn: {
+            /**
+             * Channel Ids
+             * @description Vazio = todos os canais ativos da revenda
+             */
+            channel_ids?: string[];
+            /**
+             * Customer Id
+             * @description Vazio = vale para toda a revenda
+             */
+            customer_id?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
+            /** Name */
+            name: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Severity
+             * @default warning
+             * @enum {string}
+             */
+            severity?: "info" | "warning" | "critical";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "toner_low" | "toner_days_left" | "device_no_reading" | "agent_offline" | "counter_regression" | "suspicious_jump" | "sum_mismatch" | "hardware_error" | "paper_jam" | "door_open" | "jam_recurrent" | "printer_alert";
+        };
+        /** AlertRuleOut */
+        AlertRuleOut: {
+            /** Channel Ids */
+            channel_ids: unknown[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /**
+             * Reseller Id
+             * Format: uuid
+             */
+            reseller_id: string;
+            /** Severity */
+            severity: string;
+            /** Type */
+            type: string;
+            /**
+             * Type Label
+             * @default
+             */
+            type_label?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AlertRuleUpdate */
+        AlertRuleUpdate: {
+            /** Channel Ids */
+            channel_ids?: string[] | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /** Severity */
+            severity?: ("info" | "warning" | "critical") | null;
+        };
         /**
          * AttributesPayload
          * @description Atributos da leitura diária (seção 16.8).
@@ -2123,6 +2580,88 @@ export interface components {
             current_password: string;
             /** New Password */
             new_password: string;
+        };
+        /** ChannelIn */
+        ChannelIn: {
+            /**
+             * Config
+             * @description email: smtp_host/smtp_port/username/password/starttls/from (opcionais), daily_summary; webhook: url, secret, headers; whatsapp: provider meta (phone_number_id, access_token) ou generic (url_template, method, body_template, headers)
+             */
+            config?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "email" | "whatsapp" | "webhook";
+            /** Name */
+            name: string;
+            /** Recipients */
+            recipients?: string[];
+        };
+        /** ChannelOut */
+        ChannelOut: {
+            /**
+             * Config
+             * @description Segredos aparecem mascarados (••••)
+             */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Recipients */
+            recipients: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ChannelTestOut */
+        ChannelTestOut: {
+            /** Ok */
+            ok: boolean;
+            /** Results */
+            results: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** ChannelUpdate */
+        ChannelUpdate: {
+            /**
+             * Config
+             * @description Segredos omitidos ou com '••••' mantêm o valor guardado
+             */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Recipients */
+            recipients?: string[] | null;
         };
         /** ClusterEventOut */
         ClusterEventOut: {
@@ -2477,6 +3016,10 @@ export interface components {
             customer_name: string;
             /** Days To Empty */
             days_to_empty: string | null;
+            /** Days To Empty Max */
+            days_to_empty_max?: string | null;
+            /** Days To Empty Min */
+            days_to_empty_min?: string | null;
             /** Description */
             description: string | null;
             /**
@@ -2484,6 +3027,8 @@ export interface components {
              * Format: uuid
              */
             device_id: string;
+            /** Forecast Confidence */
+            forecast_confidence?: string | null;
             /** Model */
             model: string | null;
             /** Percent */
@@ -2660,6 +3205,12 @@ export interface components {
             cards: components["schemas"]["DashboardCards"];
             /** Critical Supplies */
             critical_supplies: components["schemas"]["CriticalSupply"][];
+            ending_30_days_by_color: components["schemas"]["TonersByColor"];
+            /**
+             * Ending 7 Days
+             * @description Toners que acabam em até 7 dias (previsão confiável)
+             */
+            ending_7_days: components["schemas"]["CriticalSupply"][];
             /** Offline Agents */
             offline_agents: components["schemas"]["OfflineAgent"][];
             /** Pages Per Day */
@@ -3596,6 +4147,81 @@ export interface components {
             /** Root Oid */
             root_oid: string | null;
         };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Alert Id */
+            alert_id: string | null;
+            /** Attempts */
+            attempts: number;
+            /** Channel Id */
+            channel_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Destination */
+            destination: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Sent At */
+            sent_at: string | null;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+        };
+        /** NotificationPage */
+        NotificationPage: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** NotificationSettings */
+        "NotificationSettings-Input": {
+            /**
+             * Daily Summary
+             * @description Resumo diário às 07:00 nos canais de e-mail
+             * @default true
+             */
+            daily_summary?: boolean;
+            quiet_hours?: components["schemas"]["QuietHours-Input"];
+            /**
+             * Replacement Threshold Points
+             * @description Subida de nível que conta como troca de suprimento (16.3)
+             * @default 20
+             */
+            replacement_threshold_points?: number;
+        };
+        /** NotificationSettings */
+        "NotificationSettings-Output": {
+            /**
+             * Daily Summary
+             * @description Resumo diário às 07:00 nos canais de e-mail
+             * @default true
+             */
+            daily_summary: boolean;
+            quiet_hours: components["schemas"]["QuietHours-Output"];
+            /**
+             * Replacement Threshold Points
+             * @description Subida de nível que conta como troca de suprimento (16.3)
+             * @default 20
+             */
+            replacement_threshold_points: number;
+        };
         /** OfflineAgent */
         OfflineAgent: {
             /** Customer Name */
@@ -3907,6 +4533,125 @@ export interface components {
              * @description Coletor fixado como MASTER do local; vazio = sem preferência
              */
             agent_id: string | null;
+        };
+        /** PrinterAlertCounts */
+        PrinterAlertCounts: {
+            /** Consumable */
+            consumable: number;
+            /** Jam */
+            jam: number;
+            /** Other */
+            other: number;
+            /** Parts */
+            parts: number;
+            /** Service Call */
+            service_call: number;
+        };
+        /** PrinterAlertOut */
+        PrinterAlertOut: {
+            /** Category */
+            category: string;
+            /** Cleared At */
+            cleared_at: string | null;
+            /** Code */
+            code: number;
+            /** Color At */
+            color_at: number | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name?: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Group */
+            group: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Model */
+            model?: string | null;
+            /** Mono At */
+            mono_at: number | null;
+            /**
+             * Serial
+             * @default
+             */
+            serial?: string;
+            /** Severity */
+            severity: number;
+            /** Total At */
+            total_at: number | null;
+            /** Training Level */
+            training_level: number | null;
+        };
+        /** PrinterAlertPage */
+        PrinterAlertPage: {
+            /** Items */
+            items: components["schemas"]["PrinterAlertOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /**
+         * QuietHours
+         * @description Silêncio (seção 9): fora do horário, só alertas críticos saem na hora; os outros esperam o fim.
+         */
+        "QuietHours-Input": {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
+            /**
+             * End Hour
+             * @default 7
+             */
+            end_hour?: number;
+            /**
+             * Start Hour
+             * @default 22
+             */
+            start_hour?: number;
+        };
+        /**
+         * QuietHours
+         * @description Silêncio (seção 9): fora do horário, só alertas críticos saem na hora; os outros esperam o fim.
+         */
+        "QuietHours-Output": {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * End Hour
+             * @default 7
+             */
+            end_hour: number;
+            /**
+             * Start Hour
+             * @default 22
+             */
+            start_hour: number;
         };
         /** RangeImportIn */
         RangeImportIn: {
@@ -4707,18 +5452,32 @@ export interface components {
         };
         /** SupplyOut */
         SupplyOut: {
+            /** Cartridge Serial */
+            cartridge_serial: string | null;
             /** Color */
             color: string | null;
             /** Days To Empty */
             days_to_empty: string | null;
+            /** Days To Empty Max */
+            days_to_empty_max: string | null;
+            /** Days To Empty Min */
+            days_to_empty_min: string | null;
             /** Description */
             description: string | null;
+            /** Forecast At */
+            forecast_at: string | null;
+            /** Forecast Confidence */
+            forecast_confidence: string | null;
+            /** Forecast Method */
+            forecast_method: string | null;
             /** Level */
             level: number | null;
             /** Level State */
             level_state: string;
             /** Max Capacity */
             max_capacity: number | null;
+            /** Pages Left */
+            pages_left: number | null;
             /** Percent */
             percent: string | null;
             /**
@@ -4750,6 +5509,82 @@ export interface components {
             read_at: string;
             /** Supply Key */
             supply_key: string;
+        };
+        /** SupplyReplacementOut */
+        SupplyReplacementOut: {
+            /** Cartridge Serial After */
+            cartridge_serial_after: string | null;
+            /** Cartridge Serial Before */
+            cartridge_serial_before: string | null;
+            /** Color */
+            color: string | null;
+            /** Color After */
+            color_after: number | null;
+            /** Color Before */
+            color_before: number | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name?: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Level After */
+            level_after: string;
+            /** Level Before */
+            level_before: string;
+            /** Model */
+            model?: string | null;
+            /** Nominal Capacity */
+            nominal_capacity: number | null;
+            /** Premature */
+            premature: boolean;
+            /**
+             * Previous Read At
+             * Format: date-time
+             */
+            previous_read_at: string;
+            /**
+             * Replaced At
+             * Format: date-time
+             */
+            replaced_at: string;
+            /**
+             * Serial
+             * @default
+             */
+            serial?: string;
+            /** Supply Key */
+            supply_key: string;
+            /** Supply Type */
+            supply_type: string | null;
+            /** Total After */
+            total_after: number | null;
+            /** Total Before */
+            total_before: number | null;
+            /** Yield Counter */
+            yield_counter: string | null;
+            /** Yield Pages */
+            yield_pages: number | null;
+        };
+        /** SupplyReplacementPage */
+        SupplyReplacementPage: {
+            /** Items */
+            items: components["schemas"]["SupplyReplacementOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
         };
         /** TokenRequest */
         TokenRequest: {
@@ -4814,6 +5649,20 @@ export interface components {
              * @default 10
              */
             yellow?: number;
+        };
+        /**
+         * TonersByColor
+         * @description Toners previstos para acabar em até 30 dias, por cor (16.13); só previsões confiáveis.
+         */
+        TonersByColor: {
+            /** Black */
+            black: number;
+            /** Cyan */
+            cyan: number;
+            /** Magenta */
+            magenta: number;
+            /** Yellow */
+            yellow: number;
         };
         /** TotpCodeRequest */
         TotpCodeRequest: {
@@ -7186,6 +8035,619 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["VersionSeen"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rules_api_v1_alert_rules_get: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertRuleOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rule_api_v1_alert_rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertRuleOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rule_api_v1_alert_rules__rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rule_api_v1_alert_rules__rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertRuleOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_alerts_api_v1_alerts_get: {
+        parameters: {
+            query?: {
+                state?: "open" | "acknowledged" | "resolved" | "all";
+                severity?: ("info" | "warning" | "critical") | null;
+                type?: string | null;
+                customer_id?: string | null;
+                device_id?: string | null;
+                agent_id?: string | null;
+                q?: string | null;
+                sort?: string;
+                direction?: "asc" | "desc";
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    act_api_v1_alerts_act_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertActionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertActionOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alert_counts_api_v1_alerts_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertCounts"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_alert_api_v1_alerts__alert_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["AlertOut"];
                 };
             };
             /** @description Requisição inválida */
@@ -11393,6 +12855,677 @@ export interface operations {
             };
         };
     };
+    list_channels_api_v1_notification_channels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ChannelOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_channel_api_v1_notification_channels_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ChannelOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_channel_api_v1_notification_channels__channel_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_channel_api_v1_notification_channels__channel_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ChannelOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_channel_api_v1_notification_channels__channel_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ChannelTestOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notification_settings_api_v1_notification_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["NotificationSettings-Output"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_notification_settings_api_v1_notification_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings-Input"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["NotificationSettings-Output"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_api_v1_notifications_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "sent" | "failed" | "suppressed") | null;
+                alert_id?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["NotificationPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_notification_api_v1_notifications__notification_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["NotificationOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     park_api_v1_park_get: {
         parameters: {
             query?: {
@@ -11795,6 +13928,153 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    printer_alerts_api_v1_printer_alerts_get: {
+        parameters: {
+            query?: {
+                category?: ("parts" | "service_call" | "jam" | "consumable" | "other") | null;
+                active?: boolean | null;
+                customer_id?: string | null;
+                device_id?: string | null;
+                q?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["PrinterAlertPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    printer_alert_counts_api_v1_printer_alerts_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["PrinterAlertCounts"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -13519,6 +15799,90 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["SnmpCredentialOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    supply_replacements_api_v1_supply_replacements_get: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+                device_id?: string | null;
+                color?: string | null;
+                premature?: boolean | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                q?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["SupplyReplacementPage"];
                 };
             };
             /** @description Requisição inválida */

@@ -48,6 +48,8 @@ REAL_SITE = "Local E2E coletor real"
 REAL_COUNTERS_MINUTES = 5
 AGENT = "Coletor E2E"
 SERIAL = "E2E-0001"
+ALERT_CHANNEL = "E-mail do E2E"
+ALERT_EMAIL = "alertas-e2e@dati.local"
 MIN_PASSWORD = 12
 
 
@@ -188,6 +190,36 @@ async def prepare_real_site(client: httpx.AsyncClient, customer_id: str) -> dict
     return site
 
 
+async def prepare_alerts(client: httpx.AsyncClient, customer_id: str) -> None:
+    """Canal de e-mail do E2E e regra do cliente E2E: coletor sem sinal alerta na hora (0 min)."""
+    channels = check(await client.get("/api/v1/notification-channels"))
+    channel = next((c for c in channels if c["name"] == ALERT_CHANNEL), None)
+    if channel is None:
+        channel = check(
+            await client.post(
+                "/api/v1/notification-channels",
+                json={"kind": "email", "name": ALERT_CHANNEL, "recipients": [ALERT_EMAIL]},
+            )
+        )
+    rules = check(await client.get("/api/v1/alert-rules", params={"customer_id": customer_id}))
+    rule = next((r for r in rules if r["customer_id"] == customer_id and r["type"] == "agent_offline"), None)
+    body = {"params": {"minutes": 0}, "severity": "critical", "enabled": True, "channel_ids": [channel["id"]]}
+    if rule is None:
+        check(
+            await client.post(
+                "/api/v1/alert-rules",
+                json={
+                    "customer_id": customer_id,
+                    "name": "Coletor sem sinal (E2E)",
+                    "type": "agent_offline",
+                    **body,
+                },
+            )
+        )
+    else:
+        check(await client.patch(f"/api/v1/alert-rules/{rule['id']}", json=body))
+
+
 async def seed_park(api: str, password: str) -> dict[str, Any]:
     async with httpx.AsyncClient(base_url=api, timeout=30) as client:
         token = check(
@@ -210,6 +242,7 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
             )
         site = await ensure_site(client, customer["id"], SITE, auto_activate=True)
         real_site = await prepare_real_site(client, customer["id"])
+        await prepare_alerts(client, customer["id"])
 
         park = check(await client.get("/api/v1/park", params={"q": SERIAL, "limit": 5}))["items"]
         row = next((r for r in park if r["serial"] == SERIAL), None)
@@ -365,6 +398,7 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
         "customer_id": customer["id"],
         "real_site_id": real_site["id"],
         "real_site_name": real_site["name"],
+        "alert_email": ALERT_EMAIL,
         "total": base["total"] + 450,
     }
 

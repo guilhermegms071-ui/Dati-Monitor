@@ -48,6 +48,10 @@ describe('applyEvent', () => {
     ]);
 
     spy.mockClear();
+    applyEvent(qc, 'alerts', { type: 'alerts' }, devices);
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([['alerts'], ['alert-counts'], ['dashboard']]);
+
+    spy.mockClear();
     applyEvent(qc, 'devices', { type: 'devices' }, devices);
     expect(devices).toHaveBeenCalledOnce();
     expect(spy).not.toHaveBeenCalled();

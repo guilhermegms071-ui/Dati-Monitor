@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     # Atualização automática pelo worker; nunca oferece versão com falha acima disto no canary.
     auto_update: bool = True
     update_max_canary_failure_percent: float = Field(default=5.0, ge=0, le=100)
+    # Presença (seção 8): coletor sem heartbeat há tanto tempo fica offline.
+    agent_offline_after_seconds: int = Field(default=180, ge=10)
+    # Alertas e notificações (seções 8 e 9).
+    alerts_interval_seconds: int = Field(default=60, ge=1)
+    notify_interval_seconds: int = Field(default=10, ge=1)
+    notification_max_attempts: int = Field(default=6, ge=1, le=20)
+    forecast_interval_minutes: int = Field(default=60, ge=1)
+    # WhatsApp Meta Cloud API (o endereço fica configurável para testes e proxies).
+    whatsapp_meta_api_base: str = "https://graph.facebook.com/v21.0"
+    # Retenção (seção 8): nunca apaga leituras de contador.
+    retention_heartbeat_days: int = Field(default=30, ge=1)
+    retention_supply_readings_days: int = Field(default=400, ge=30)
+    retention_notifications_days: int = Field(default=180, ge=7)
 
     @field_validator("master_key")
     @classmethod

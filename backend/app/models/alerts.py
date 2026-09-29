@@ -23,6 +23,8 @@ ALERT_RULE_TYPES = (
     "hardware_error",
     "paper_jam",
     "door_open",
+    "jam_recurrent",  # N atolamentos em X dias (seção 16.4)
+    "printer_alert",  # alerta da prtAlertTable por categoria (seção 16.4)
 )
 CHANNEL_KINDS = ("email", "whatsapp", "webhook")
 NOTIFICATION_STATES = ("pending", "sent", "failed", "suppressed")
@@ -51,6 +53,7 @@ class Alert(Base, IdMixin, TimestampMixin):
         Index("ix_alerts_state_type", "state", "type"),
         # Deduplicação: no máximo um alerta não resolvido por chave.
         Index("uq_alerts_dedup_open", "dedup_key", unique=True, postgresql_where=text("state <> 'resolved'")),
+        Index("ix_alerts_pending_notification", "opened_at", postgresql_where=text("notified_at IS NULL")),
     )
 
     reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"), index=True)
@@ -70,6 +73,8 @@ class Alert(Base, IdMixin, TimestampMixin):
     acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     resolved_at: Mapped[datetime | None] = mapped_column(default=None)
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Fila de notificação: o worker enfileira os envios de todo alerta aberto ainda não notificado.
+    notified_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class NotificationChannel(Base, IdMixin, TimestampMixin):

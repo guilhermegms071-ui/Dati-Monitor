@@ -22,6 +22,7 @@ export default function globalSetup(): void {
     customer: string;
     real_site_id: string;
     real_site_name: string;
+    alert_email: string;
   };
   process.env.DM_E2E_EMAIL = seed.email;
   process.env.DM_E2E_PASSWORD = password;
@@ -30,4 +31,5 @@ export default function globalSetup(): void {
   process.env.DM_E2E_CUSTOMER = seed.customer;
   process.env.DM_E2E_REAL_SITE = seed.real_site_id;
   process.env.DM_E2E_REAL_SITE_NAME = seed.real_site_name;
+  process.env.DM_E2E_ALERT_EMAIL = seed.alert_email;
 }

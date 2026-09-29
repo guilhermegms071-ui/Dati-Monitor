@@ -247,6 +247,15 @@ class Factory:
         await self.user(reseller.id, email=email, role=admin_role)
         return Tenant(reseller.id, company.id, customer.id, site.id, email, self.PASSWORD)
 
+    async def customer(self, reseller_id: uuid.UUID, company_id: uuid.UUID, name: str) -> uuid.UUID:
+        from app.models import Customer  # noqa: PLC0415
+
+        async with self.maker() as s:
+            customer = Customer(reseller_id=reseller_id, company_id=company_id, name=name)
+            s.add(customer)
+            await s.commit()
+            return customer.id
+
     async def user(
         self,
         reseller_id: uuid.UUID,

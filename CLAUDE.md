@@ -35,6 +35,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/alembic/` | Migrações (a URL vem de `DATABASE_URL`, nunca do `alembic.ini`). |
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
 | `backend/app/services/{discoveries,counter_lines,supply_replacements,printer_alerts,custom_fields,permissions}.py` | Auditoria do Datacount (PROMPT seção 16): Descobertas, contadores como linhas (`reading_counters`), trocas de suprimento, alertas da `prtAlertTable`, campos personalizados e matriz de permissões por revenda. |
+| `backend/app/services/{alert_rules,alert_engine,notifications,notifiers,forecast,retention,alerts_portal}.py` | Alertas e notificações (Fase 6): regras centralizadas, motor de avaliação (job de 1 min), fila e entrega (SMTP, webhook, WhatsApp), previsão de toner, retenção e as telas de alertas, trocas e alertas da impressora. |
 | `backend/app/services/{park,dashboard,agent_ops,live}.py` | Tela de parque, dashboard, operações de coletor (Reativar, cluster, comandos em massa) e eventos ao vivo (SSE `/api/v1/events` sobre LISTEN/NOTIFY). |
 | `frontend/` | Portal React 18 + TS + Vite + Tailwind 4. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
 | `frontend/src/api/` | `openapi.json` (gerado da API por `scripts/gen_openapi.py`) e `schema.d.ts` (gerado por `npm run gen:api`). **Não editar à mão.** |
@@ -110,6 +111,11 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   preparo opcional em `services/commands.py` (`_PREPARERS`) e handler em `agent/internal/agent/commands.go`
   (`commandSpecs`). Todo comando precisa de teste nos dois lados.
 - Canais `pg_notify` só em `app/core/notify.py`; o `notify` vai na mesma transação da mudança.
+- Alerta novo: abra com `services.alerts.open_alert` (dedup por `dedup_key`); a notificação sai sozinha pela
+  fila (`notified_at`). Tipo novo de regra: `ALERT_RULE_TYPES` + migração do CHECK, `PARAMS_BY_TYPE`/`RULE_LABELS`
+  em `schemas/alerts.py`, `DEFAULT_RULES` e a condição em `alert_engine.py` (e em `ENGINE_TYPES` se o motor resolve).
+- Notificador novo: implemente o protocolo `Notifier` em `services/notifiers.py` e registre em `build_notifier`;
+  falha sempre como `NotifyError` com mensagem em português.
 - `dev.ps1` sobe cada serviço no próprio console oculto: não volte para `-NoNewWindow` (o reload do
   uvicorn manda CTRL_C para o console inteiro).
 - Protocolo do agente: mudou `app/schemas/agent.py`? Atualize `agent/internal/protocol` e rode

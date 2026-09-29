@@ -12,11 +12,13 @@ import {
   PackageCheck,
   Moon,
   Printer,
+  Repeat,
   ScanSearch,
   Server,
   ShieldCheck,
   Sun,
   SunMoon,
+  TriangleAlert,
   UserCircle,
   Users,
   X,
@@ -46,6 +48,19 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
   { to: '/parque', label: 'Equipamentos', icon: <Printer className="h-4 w-4" />, permission: 'devices.read' },
   { to: '/descobertas', label: 'Descobertas', icon: <ScanSearch className="h-4 w-4" />, permission: 'devices.read' },
+  { to: '/alertas', label: 'Alertas', icon: <Bell className="h-4 w-4" />, permission: 'alerts.read' },
+  {
+    to: '/trocas-de-toner',
+    label: 'Trocas de toner',
+    icon: <Repeat className="h-4 w-4" />,
+    permission: 'devices.read',
+  },
+  {
+    to: '/alertas-da-impressora',
+    label: 'Alertas da impressora',
+    icon: <TriangleAlert className="h-4 w-4" />,
+    permission: 'devices.read',
+  },
   { to: '/coletores', label: 'Coletores', icon: <Server className="h-4 w-4" />, permission: 'agents.read' },
   { to: '/clientes', label: 'Clientes', icon: <Building2 className="h-4 w-4" />, permission: 'customers.read' },
   { to: '/empresas', label: 'Empresas', icon: <Building2 className="h-4 w-4" />, permission: 'customers.update' },
@@ -110,12 +125,14 @@ export function AppShell() {
   const [theme, setTheme] = useTheme();
   const [open, setOpen] = useState(false);
   const alerts = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => unwrap(api.GET('/api/v1/dashboard')),
-    enabled: can('devices.read'),
+    queryKey: ['alert-counts'],
+    queryFn: () => unwrap(api.GET('/api/v1/alerts/counts')),
+    enabled: can('alerts.read'),
+    refetchInterval: 60_000,
   });
   const items = NAV.filter((n) => (n.superadmin ? user?.role === 'superadmin' : !n.permission || can(n.permission)));
-  const openAlerts = alerts.data?.cards.alerts_open ?? 0;
+  const openAlerts = alerts.data?.open ?? 0;
+  const criticalAlerts = alerts.data?.critical ?? 0;
 
   const nav = (
     <nav className="flex flex-col gap-0.5 p-2" aria-label="Menu principal">
@@ -201,15 +218,31 @@ export function AppShell() {
               <span className="hidden sm:inline">{LIVE_LABEL[live].text}</span>
             </span>
           </Tooltip>
-          <Tooltip content={openAlerts ? `${String(openAlerts)} alerta(s) aberto(s)` : 'Nenhum alerta aberto'}>
-            <span className="relative p-1.5 text-slate-500" aria-label="Alertas">
+          <Tooltip
+            content={
+              openAlerts
+                ? `${String(openAlerts)} alerta(s) aberto(s)${criticalAlerts ? `, ${String(criticalAlerts)} crítico(s)` : ''}`
+                : 'Nenhum alerta aberto'
+            }
+          >
+            <Link
+              to="/alertas"
+              className="relative rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label="Alertas"
+              data-testid="alerts-bell"
+            >
               <Bell className="h-5 w-5" />
               {openAlerts ? (
-                <span className="absolute -right-0.5 -top-0.5 rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                <span
+                  className={cn(
+                    'absolute -right-0.5 -top-0.5 rounded-full px-1 text-[10px] font-bold text-white',
+                    criticalAlerts ? 'bg-red-600' : 'bg-amber-500',
+                  )}
+                >
                   {openAlerts}
                 </span>
               ) : null}
-            </span>
+            </Link>
           </Tooltip>
           <Menu
             trigger={

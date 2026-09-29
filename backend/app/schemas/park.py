@@ -176,6 +176,18 @@ class CriticalSupply(BaseModel):
     description: str | None
     percent: Decimal | None
     days_to_empty: Decimal | None
+    days_to_empty_min: Decimal | None = None
+    days_to_empty_max: Decimal | None = None
+    forecast_confidence: Decimal | None = None
+
+
+class TonersByColor(BaseModel):
+    """Toners previstos para acabar em até 30 dias, por cor (16.13); só previsões confiáveis."""
+
+    black: int
+    cyan: int
+    magenta: int
+    yellow: int
 
 
 class Dashboard(BaseModel):
@@ -183,3 +195,7 @@ class Dashboard(BaseModel):
     pages_per_day: list[PagesPerDay]
     offline_agents: list[OfflineAgent]
     critical_supplies: list[CriticalSupply]
+    ending_7_days: list[CriticalSupply] = Field(
+        description="Toners que acabam em até 7 dias (previsão confiável)"
+    )
+    ending_30_days_by_color: TonersByColor

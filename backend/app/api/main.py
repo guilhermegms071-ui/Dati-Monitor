@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.api.agent import routes as agent_routes
+from app.api.v1 import alerts as alerts_routes
 from app.api.v1 import auth as auth_routes
 from app.api.v1 import collection as collection_routes
 from app.api.v1 import commands as commands_routes
@@ -127,6 +128,7 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
     v1.include_router(park_routes.router)
     v1.include_router(releases_routes.router)
     v1.include_router(discovery_routes.router)
+    v1.include_router(alerts_routes.router)
     app.include_router(v1)
     app.include_router(agent_routes.router)
     app.include_router(agent_routes.watchdog_router)

@@ -55,6 +55,11 @@ export function applyEvent(qc: QueryClient, kind: string, ev: LiveEvent, devices
     case 'devices':
       devicesThrottle();
       break;
+    case 'alerts':
+      void qc.invalidateQueries({ queryKey: ['alerts'] });
+      void qc.invalidateQueries({ queryKey: ['alert-counts'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      break;
     case 'resync':
       void qc.invalidateQueries();
       break;

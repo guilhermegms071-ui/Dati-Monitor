@@ -73,6 +73,20 @@ async def test_scheduler_registers_jobs(engine: AsyncEngine, test_settings: Sett
     updates = scheduler.get_job("updates")
     assert updates is not None
     assert updates.trigger.interval.total_seconds() == 300
+    alerts = scheduler.get_job("alerts")
+    notify = scheduler.get_job("notify")
+    forecast = scheduler.get_job("forecast")
+    assert alerts is not None
+    assert alerts.trigger.interval.total_seconds() == test_settings.alerts_interval_seconds
+    assert notify is not None
+    assert notify.trigger.interval.total_seconds() == test_settings.notify_interval_seconds
+    assert forecast is not None
+    assert forecast.trigger.interval.total_seconds() == 3600
+    summary = scheduler.get_job("daily_summary")
+    assert summary is not None
+    assert str(summary.trigger.timezone) == "America/Sao_Paulo"
+    assert "hour='7'" in str(summary.trigger)
+    assert scheduler.get_job("retention") is not None
 
 
 @pytest.mark.usefixtures("clean_db")

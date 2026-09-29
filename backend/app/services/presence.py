@@ -15,7 +15,7 @@ from app.services import agents as agents_svc
 
 # Sem heartbeat por este tempo → offline. Maior que 2 min de WebSocket caído (o agente só passa ao
 # heartbeat por HTTPS depois disso) + 30 s de intervalo, e igual à duração do lease do MASTER.
-OFFLINE_AFTER = timedelta(minutes=3)
+OFFLINE_AFTER_SECONDS = 180  # padrão; o worker usa settings.agent_offline_after_seconds
 
 
 def _now() -> datetime:
@@ -81,9 +81,9 @@ async def connected_ids(session: AsyncSession, agent_ids: Iterable[uuid.UUID]) -
     return set(rows.scalars())
 
 
-async def sweep(session: AsyncSession) -> tuple[int, int]:
+async def sweep(session: AsyncSession, offline_after_seconds: int = OFFLINE_AFTER_SECONDS) -> tuple[int, int]:
     """Worker job: removes presence rows of gateways that died without cleaning up and marks agents
-    without any heartbeat for OFFLINE_AFTER as offline. Returns (stale rows, agents now offline)."""
+    without any heartbeat for `offline_after_seconds` as offline. Returns (stale rows, agents now offline)."""
     now = _now()
     stale = await session.execute(
         delete(AgentPresence)
@@ -95,7 +95,7 @@ async def sweep(session: AsyncSession) -> tuple[int, int]:
         .where(
             Agent.deleted_at.is_(None),
             Agent.state != "offline",
-            Agent.last_seen_at < now - OFFLINE_AFTER,
+            Agent.last_seen_at < now - timedelta(seconds=offline_after_seconds),
         )
         .values(state="offline")
         .returning(Agent)

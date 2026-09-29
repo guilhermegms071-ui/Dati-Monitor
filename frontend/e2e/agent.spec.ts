@@ -3,7 +3,7 @@ import { createWriteStream, existsSync, mkdirSync, rmSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { repoRoot } from './paths';
+import { python, repoRoot } from './paths';
 
 /**
  * Fluxo da seção 13 do PROMPT com o dm-agent real (compilado do código): portal gera o código →
@@ -11,7 +11,8 @@ import { repoRoot } from './paths';
  * as 8 impressoras simuladas aparecem no parque com contadores PB/cor e níveis → detalhe com gráfico.
  * O coletor roda sob o dm-watchdog real (modo processo): o portal mostra o vigia ativo e o comando
  * "Reiniciar o coletor (pelo watchdog)" é executado por ele (seção 5.1).
- * (Alerta de offline por e-mail e página web pelo túnel entram nas Fases 6 e 7.)
+ * Depois o coletor é derrubado: o worker gera o alerta de offline, que aparece no portal e chega por e-mail
+ * ao smtp_catcher (critério 8). (Página web pelo túnel entra na Fase 7.)
  */
 
 const win = process.platform === 'win32';
@@ -23,6 +24,7 @@ const AGENT_NAME = 'Coletor E2E real';
 const SIM_PORTS = Array.from({ length: 8 }, (_, i) => 12161 + i);
 
 let watchdog: ChildProcess | null = null;
+let worker: ChildProcess | null = null;
 
 function goExe(): string {
   if (process.env.GO_EXE) return process.env.GO_EXE;
@@ -82,10 +84,12 @@ function killTree(child: ChildProcess | null) {
 test.afterAll(() => {
   killTree(watchdog);
   watchdog = null;
+  killTree(worker);
+  worker = null;
 });
 
 test('coletor real: cadastro pelo portal, online, varredura e parque com contadores e níveis', async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   const consoleErrors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -201,6 +205,53 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await page.getByRole('link', { name: AGENT_NAME }).first().click();
   const restarted = await runCommand(page, 'Reiniciar o coletor (pelo watchdog)', 90_000);
   expect(restarted).toContain('"restarted": true');
+
+  // 9. Coletor derrubado (critério 8): o worker marca offline, a regra do cliente E2E (0 min) abre o alerta,
+  //    o portal mostra e o e-mail chega ao smtp_catcher. Tempos do worker encurtados só no E2E.
+  const workerLog = createWriteStream(`${workDir}/worker.log`);
+  worker = spawn(python, ['-m', 'app.worker.main'], {
+    cwd: `${repoRoot}backend`,
+    env: {
+      ...process.env,
+      AGENT_OFFLINE_AFTER_SECONDS: '15',
+      ALERTS_INTERVAL_SECONDS: '3',
+      NOTIFY_INTERVAL_SECONDS: '2',
+      AUTO_UPDATE: 'false',
+      PYTHONIOENCODING: 'utf-8',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: !win,
+  });
+  worker.stdout?.pipe(workerLog);
+  worker.stderr?.pipe(workerLog);
+  const killedAt = Date.now();
+  killTree(watchdog);
+  watchdog = null;
+  await page.goto('/alertas');
+  const alertRow = page.getByRole('row').filter({ hasText: `${AGENT_NAME} sem sinal` });
+  await expect(async () => {
+    await page.reload();
+    await expect(alertRow.first()).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 120_000 });
+  await expect(alertRow.first()).toContainText('Crítico');
+  await expect(page.getByTestId('alerts-bell')).not.toHaveText('');
+  await expect
+    .poll(
+      async () => {
+        const resp = await fetch('http://127.0.0.1:8025/api/messages');
+        const list = (await resp.json()) as { to: string[]; subject: string; received_at: string }[];
+        return list.find(
+          (m) =>
+            m.to.includes(env('DM_E2E_ALERT_EMAIL')) &&
+            m.subject.includes(`${AGENT_NAME} sem sinal`) &&
+            Date.parse(m.received_at) >= killedAt,
+        )?.subject;
+      },
+      { timeout: 120_000, intervals: [2_000] },
+    )
+    .toContain('CRÍTICO');
+  // Critério 8: e-mail e portal em até 10 min (aqui com os tempos do worker encurtados).
+  expect(Date.now() - killedAt).toBeLessThan(600_000);
 
   expect(consoleErrors).toEqual([]);
 });

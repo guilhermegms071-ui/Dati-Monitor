@@ -19,9 +19,10 @@ CH_AGENT_REVOKED = "dm_agent_revoked"
 CH_COMMAND_UPDATE = "dm_command_update"  # {"type":"command","id","agent_id",...}
 CH_AGENT_STATE = "dm_agent_state"  # {"type":"agent","id","state","ws_connected"?,...}
 CH_DEVICES = "dm_devices"  # {"type":"devices","count",...}
+CH_ALERTS = "dm_alerts"  # {"type":"alerts","opened","resolved"} — alertas abertos/resolvidos
 
-CHANNELS = (CH_COMMAND, CH_AGENT_REVOKED, CH_COMMAND_UPDATE, CH_AGENT_STATE, CH_DEVICES)
-LIVE_CHANNELS = (CH_COMMAND_UPDATE, CH_AGENT_STATE, CH_DEVICES)
+CHANNELS = (CH_COMMAND, CH_AGENT_REVOKED, CH_COMMAND_UPDATE, CH_AGENT_STATE, CH_DEVICES, CH_ALERTS)
+LIVE_CHANNELS = (CH_COMMAND_UPDATE, CH_AGENT_STATE, CH_DEVICES, CH_ALERTS)
 MAX_PAYLOAD = 7900  # limite do PostgreSQL: 8000 bytes
 
 
