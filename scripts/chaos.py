@@ -454,7 +454,7 @@ class Chaos:
         )
         self.start_server()
         password = secrets.token_urlsafe(18)
-        asyncio.run(ensure_user(password))
+        asyncio.run(ensure_user(E2E_EMAIL, password))
         self.portal = Portal(password)
         self.setup_site()
         for c in (self.a, self.b):

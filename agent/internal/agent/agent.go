@@ -57,7 +57,9 @@ type Agent struct {
 	Health    *health.Registry
 	WS        *ws.Channel
 	Web       *webproxy.Proxy
-	Exec      *commands.Executor
+	// USB replaces the USB printer inventory in tests (zero value = WMI/PJL do Windows).
+	USB  collector.USBDeps
+	Exec *commands.Executor
 	// ContingencyAfter/PollInterval/ReconnectWait are fields so tests can shorten them.
 	ContingencyAfter time.Duration
 	PollInterval     time.Duration
@@ -164,7 +166,27 @@ func (a *Agent) info() map[string]any {
 		"ws_down_seconds":      a.WS.DownFor().Seconds(),
 		"ws_rtt_ms":            a.WS.RTT(),
 		"ws_last_error":        a.wsError(),
+		"runtime":              runtimeStats(),
 	}
+}
+
+// runtimeStats feeds the soak test (scripts\soak.ps1): growth of memory, goroutines or handles = leak.
+func runtimeStats() map[string]any {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	out := map[string]any{
+		"goroutines": runtime.NumGoroutine(), "heap_alloc_bytes": ms.HeapAlloc, "sys_bytes": ms.Sys,
+	}
+	if rss, err := osinfo.ProcessMemory(os.Getpid()); err == nil {
+		out["rss_bytes"] = rss
+	}
+	if priv, err := osinfo.PrivateMemory(os.Getpid()); err == nil {
+		out["private_bytes"] = priv
+	}
+	if n, err := osinfo.OpenHandles(); err == nil {
+		out["open_handles"] = n
+	}
+	return out
 }
 
 func unixMs(ms int64) time.Time {
@@ -207,7 +229,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.mu.Unlock()
 	var wg sync.WaitGroup
 	errs := make(chan error, 1)
-	wg.Add(7)
+	wg.Add(8)
 	go func() {
 		defer wg.Done()
 		if err := health.Serve(ctx, addr, a.Health); err != nil {
@@ -220,6 +242,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 	}()
 	go func() { defer wg.Done(); a.Collector.Run(ctx) }()
+	go func() { defer wg.Done(); a.Collector.RunUSB(ctx, a.USB) }()
 	go func() { defer wg.Done(); a.Uploader.Run(ctx) }()
 	go func() { defer wg.Done(); a.WS.Run(ctx) }()
 	go func() { defer wg.Done(); a.Exec.Run(ctx) }()

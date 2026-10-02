@@ -71,7 +71,7 @@ jobs:
       - name: Python — ruff e mypy --strict
         working-directory: backend
         run: |
-          PY_SCRIPTS="../scripts/smtp_catcher.py ../scripts/sleepy_udp_proxy.py ../scripts/gen_protocol_docs.py ../scripts/gen_openapi.py ../scripts/e2e_seed.py ../scripts/e2e_sims.py ../scripts/chaos.py ../scripts/printer_web_sim.py ../scripts/build_linux.py ../scripts/ci_enrollment_code.py ../profiles/recordings/sim/generate.py"
+          PY_SCRIPTS="../scripts/smtp_catcher.py ../scripts/sleepy_udp_proxy.py ../scripts/gen_protocol_docs.py ../scripts/gen_openapi.py ../scripts/e2e_seed.py ../scripts/e2e_sims.py ../scripts/chaos.py ../scripts/printer_web_sim.py ../scripts/build_linux.py ../scripts/ci_enrollment_code.py ../scripts/soak.py ../scripts/load.py ../profiles/recordings/sim/generate.py"
           ../.venv/bin/ruff check app tests alembic $PY_SCRIPTS
           ../.venv/bin/ruff format --check app tests alembic $PY_SCRIPTS
           ../.venv/bin/mypy --strict app tests $PY_SCRIPTS
@@ -122,6 +122,70 @@ jobs:
           test ! -e /etc/systemd/system/DatiMonitorAgent.service
           test ! -e /var/lib/dati-monitor
           echo "pacote Linux: instalação, serviços e remoção OK"
+
+  soak-load:
+    name: Resistência (soak 30 min) e carga (20.000 equipamentos, 500 WebSockets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dati
+          POSTGRES_PASSWORD: dati-ci
+          POSTGRES_DB: dati_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dati -d dati_dev"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://dati:dati-ci@127.0.0.1:5432/dati_dev
+      TEST_DATABASE_URL: postgresql+asyncpg://dati:dati-ci@127.0.0.1:5432/dati_dev
+      POSTGRES_SUPERUSER: dati
+      POSTGRES_SUPERUSER_PASSWORD: dati-ci
+      APP_ENV: test
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef0123456789abcdef
+      MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      COOKIE_SECURE: "false"
+      PUBLIC_SERVER_URL: http://127.0.0.1:8000
+      PUBLIC_WS_URL: ws://127.0.0.1:8001/ws/agent
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.mod
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Servidor, gateway e impressoras simuladas
+        run: |
+          set -e
+          python -m venv .venv
+          .venv/bin/pip install -r backend/requirements-dev.lock
+          .venv/bin/pip install --no-deps -e backend
+          (cd backend && ../.venv/bin/python -m app.cli migrate && ../.venv/bin/python -m app.cli seed-dev)
+          (cd backend && ../.venv/bin/python -m uvicorn app.api.main:create_app --factory --port 8000 > ../api.log 2>&1 &)
+          (cd backend && ../.venv/bin/python -m uvicorn app.gateway.main:create_app --factory --port 8001 --ws websockets-sansio > ../gateway.log 2>&1 &)
+          for d in profiles/recordings/sim/0*-*/; do
+            n=$(basename "$d" | cut -c1-2); port=$((1160 + 10#$n))
+            .venv/bin/snmpsim-command-responder --data-dir="$d" --cache-dir="var/snmpsim-cache/$n" --agent-udpv4-endpoint=127.0.0.1:$port > "sim$n.log" 2>&1 &
+          done
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8000/api/health && curl -fs http://127.0.0.1:8001/health && break; sleep 1; done
+      - name: Soak de 30 min (dm-agent real; memória, goroutines, handles e fila)
+        run: .venv/bin/python scripts/soak.py --minutes 30
+      - name: Carga (banco dati_load, 500 coletores no WebSocket, parque < 1 s)
+        run: .venv/bin/python scripts/load.py
+      - name: Relatórios e logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-load
+          path: |
+            var/soak/**/report.json
+            var/soak/**/agent.log
+            var/load/**
+            *.log
 
   windows:
     name: Windows — build dos agentes e testes Go

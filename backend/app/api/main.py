@@ -15,6 +15,7 @@ from app.api.v1 import alerts as alerts_routes
 from app.api.v1 import auth as auth_routes
 from app.api.v1 import collection as collection_routes
 from app.api.v1 import commands as commands_routes
+from app.api.v1 import computers as computers_routes
 from app.api.v1 import discovery as discovery_routes
 from app.api.v1 import installers as installers_routes
 from app.api.v1 import park as park_routes
@@ -139,6 +140,7 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
         reports_routes,
         web_access_routes,
         installers_routes,
+        computers_routes,
     ):
         v1.include_router(module.router)
     v1.include_router(erp_routes.tokens_router)

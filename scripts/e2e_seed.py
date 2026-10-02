@@ -51,9 +51,11 @@ SERIAL = "E2E-0001"
 ALERT_CHANNEL = "E-mail do E2E"
 ALERT_EMAIL = "alertas-e2e@dati.local"
 MIN_PASSWORD = 12
+USB_PJL_SERIAL = "E2EUSBPJL01"
+USB_MANUAL_SERIAL = "USB-E2E000000001"
 
 
-async def ensure_user(password: str) -> None:
+async def ensure_user(email: str, password: str) -> None:
     settings = get_settings()
     if settings.app_env == "production":
         raise SystemExit("e2e_seed.py é só para desenvolvimento (APP_ENV=production)")
@@ -72,12 +74,12 @@ async def ensure_user(password: str) -> None:
             )
             if reseller is None:
                 raise SystemExit("Nenhuma revenda no banco (o bootstrap deveria ter criado)")
-            user = (await session.execute(select(User).where(User.email == E2E_EMAIL))).scalars().first()
+            user = (await session.execute(select(User).where(User.email == email))).scalars().first()
             if user is None:
                 user = User(
                     reseller_id=reseller.id,
                     name="Usuário E2E",
-                    email=E2E_EMAIL,
+                    email=email,
                     password_hash="",
                 )
                 session.add(user)
@@ -220,11 +222,11 @@ async def prepare_alerts(client: httpx.AsyncClient, customer_id: str) -> None:
         check(await client.patch(f"/api/v1/alert-rules/{rule['id']}", json=body))
 
 
-async def seed_park(api: str, password: str) -> dict[str, Any]:
+async def seed_park(api: str, email: str, password: str) -> dict[str, Any]:
     async with httpx.AsyncClient(base_url=api, timeout=30) as client:
-        token = check(
-            await client.post("/api/v1/auth/login", json={"email": E2E_EMAIL, "password": password})
-        )["access_token"]
+        token = check(await client.post("/api/v1/auth/login", json={"email": email, "password": password}))[
+            "access_token"
+        ]
         client.headers["Authorization"] = f"Bearer {token}"
 
         customers = check(await client.get("/api/v1/customers", params={"q": CUSTOMER, "limit": 50}))["items"]
@@ -385,6 +387,7 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
                 ],
             ),
         ]
+        items += usb_items(agent_id, now)
         results = check(await agent_client.post("/api/agent/readings", json={"v": 1, "items": items}))[
             "results"
         ]
@@ -392,7 +395,7 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
         if rejected:
             raise SystemExit(f"Leituras recusadas pela API: {rejected}")
     return {
-        "email": E2E_EMAIL,
+        "email": email,
         "device_serial": SERIAL,
         "customer": CUSTOMER,
         "customer_id": customer["id"],
@@ -400,17 +403,61 @@ async def seed_park(api: str, password: str) -> dict[str, Any]:
         "real_site_name": real_site["name"],
         "alert_email": ALERT_EMAIL,
         "total": base["total"] + 450,
+        "usb_pjl_serial": USB_PJL_SERIAL,
+        "usb_manual_serial": USB_MANUAL_SERIAL,
     }
 
 
-async def main_async(api: str) -> int:
+def usb_items(agent_id: str, now: datetime) -> list[dict[str, Any]]:
+    """Duas impressoras USB no PC do coletor (como o dm-agent as envia): uma responde PJL (contador
+    automático), a outra não (só status; o contador vem da leitura manual em Computadores)."""
+
+    def usb(kind: str, serial: str, model: str, **payload: Any) -> dict[str, Any]:
+        return {
+            "key": f"{agent_id}:{uuid.uuid4()}",
+            "kind": kind,
+            "read_at": now.isoformat(),
+            "device": {
+                "ip": "",
+                "serial": serial,
+                "source": "usb",
+                "brand": "HP",
+                "model": model,
+                "hostname": "PC-E2E",
+                "sys_descr": f"{model} (USB001)",
+            },
+            **payload,
+        }
+
+    status = {"status": {"status": "ready", "error_bits": 0}}
+    # Contador PJL sempre maior que o da execução anterior: minutos desde 2026-01-01.
+    pjl_total = 30000 + int((now - datetime(2026, 1, 1, tzinfo=UTC)).total_seconds() // 60)
+    return [
+        usb("status", USB_PJL_SERIAL, "HP LaserJet Pro M404", **status),
+        usb(
+            "reading",
+            USB_PJL_SERIAL,
+            "HP LaserJet Pro M404",
+            reading={
+                "counters": {"total": pjl_total},
+                "counter_source": "pjl",
+                "source": "usb",
+                "status": "ready",
+                "error_bits": 0,
+            },
+        ),
+        usb("status", USB_MANUAL_SERIAL, "HP LaserJet M15w", **status),
+    ]
+
+
+async def main_async(api: str, email: str) -> int:
     password = os.environ.get("DM_E2E_PASSWORD", "")
     if len(password) < MIN_PASSWORD:
         raise SystemExit(
             "Defina DM_E2E_PASSWORD (12+ caracteres); o global-setup do Playwright gera uma aleatória"
         )
-    await ensure_user(password)
-    result = await seed_park(api, password)
+    await ensure_user(email, password)
+    result = await seed_park(api, email, password)
     print(json.dumps(result, ensure_ascii=False))  # noqa: T201
     return 0
 
@@ -418,8 +465,10 @@ async def main_async(api: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api", default="http://127.0.0.1:8000")
+    # Outro usuário (ex.: o do soak) para uma execução do seed não revogar a sessão da outra.
+    parser.add_argument("--email", default=E2E_EMAIL)
     args = parser.parse_args(argv)
-    return asyncio.run(main_async(args.api))
+    return asyncio.run(main_async(args.api, args.email))
 
 
 if __name__ == "__main__":

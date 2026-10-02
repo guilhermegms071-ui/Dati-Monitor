@@ -263,6 +263,20 @@
     },
     "DeviceRef": {
       "properties": {
+        "brand": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Marca (USB: pelo driver)",
+          "title": "Brand"
+        },
         "firmware": {
           "anyOf": [
             {
@@ -345,6 +359,16 @@
           "default": "",
           "maxLength": 128,
           "title": "Serial",
+          "type": "string"
+        },
+        "source": {
+          "default": "snmp",
+          "description": "usb = impressora ligada por USB ao PC do coletor (PROMPT 11)",
+          "enum": [
+            "snmp",
+            "usb"
+          ],
+          "title": "Source",
           "type": "string"
         },
         "sys_descr": {

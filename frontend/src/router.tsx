@@ -12,6 +12,7 @@ import { ReleasesPage } from './pages/admin/ReleasesPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AgentDetailPage } from './pages/agents/AgentDetailPage';
 import { AgentsPage } from './pages/agents/AgentsPage';
+import { ComputersPage } from './pages/agents/ComputersPage';
 import { ForgotPasswordPage, LimitedSessionPage, LoginPage, ResetPasswordPage } from './pages/auth/AuthPages';
 import { CustomerDetailPage, CustomersPage } from './pages/customers/CustomersPages';
 import { SitesMapPage } from './pages/customers/SitesMapPage';
@@ -71,6 +72,7 @@ export const routes: RouteObject[] = [
           { path: 'relatorios', element: <ReportsPage />, handle: { crumb: 'Relatórios' } },
           { path: 'mapa', element: <SitesMapPage />, handle: { crumb: 'Mapa dos locais' } },
           { path: 'integracao', element: <IntegrationPage />, handle: { crumb: 'Integração ERP' } },
+          { path: 'computadores', element: <ComputersPage />, handle: { crumb: 'Computadores' } },
           { path: 'descobertas', element: <DiscoveriesPage />, handle: { crumb: 'Descobertas' } },
           { path: 'alertas', element: <AlertsPage />, handle: { crumb: 'Alertas' } },
           { path: 'trocas-de-toner', element: <ReplacementsPage />, handle: { crumb: 'Trocas de toner' } },

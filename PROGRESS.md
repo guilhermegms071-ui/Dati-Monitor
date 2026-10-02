@@ -14,8 +14,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 6 — Alertas e notificações | ✅ concluída (29/09/2026) |
 | 7 — Perfis, relatórios e acesso web | ✅ concluída (02/10/2026) |
 | 8 — Instaladores | ✅ concluída (02/10/2026) — falta só o teste `-Full` num terminal de administrador |
-| 9 — USB e acabamento | ⏳ próxima |
-| 10 e 11 | pendentes |
+| 9 — USB e acabamento | ✅ concluída (02/10/2026) |
+| 10 — Rede real | ⏳ próxima (precisa do usuário: faixa de IP, comunidade SNMP e folhas de contadores) |
+| 11 — Aceitação final | pendente |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -1069,6 +1070,129 @@ scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código do porta
 
 ---
 
+## Fase 9 — USB e acabamento ✅
+
+### Plano executado
+Backup e restauração → impressoras USB no agente → Computadores e leitura manual → teste de resistência →
+teste de carga → tema escuro e responsividade → documentação final → CI → testes.
+
+### O que foi feito
+- **Backup e restauração** (`scripts/backup.ps1`, `scripts/restore.ps1`):
+  - o backup gera:
+    - `pg_dump` formato custom;
+    - zip do `STORAGE_DIR` (walks, logs, versões, instaladores);
+    - manifesto com sha256, revisão das migrações e linhas por tabela, medidas antes e depois do dump
+      (faixa `[min, max]`, porque o sistema continua gravando durante o backup);
+  - o dump é conferido com `pg_restore --list`, e `-Keep` apaga os backups antigos;
+  - a restauração:
+    - recria o banco com o superusuário (dono = papel da aplicação);
+    - exige `-Force` se o destino tiver tabelas e recusa se houver conexões abertas;
+    - confere no fim a revisão e as linhas de cada tabela;
+    - `-RestoreFiles` devolve os arquivos conferindo o sha256 de cada um.
+- **Impressoras USB no agente** (`agent/internal/usbprint`, `collector/usb.go`):
+  - inventário pelo WMI (`Win32_Printer` nas portas `USB*`, com o dispositivo pai para achar a interface
+    USBPRINT);
+  - contador por PJL (`@PJL INFO PAGECOUNT`) com timeout e cancelamento de E/S;
+  - serial da USB ou, sem ele, `USB-` + hash estável (PC + dispositivo + nome);
+  - roda em todo PC com coletor (não só no MASTER), no intervalo dos contadores;
+  - status sempre e leitura (`source=usb`, `counter_source=pjl`) quando a impressora responde.
+- **Protocolo e ingestão**:
+  - `DeviceRef` ganhou `source` (`snmp`/`usb`) e `brand`;
+  - a impressora USB fica ligada ao PC (`usb_agent_id`) e não tem IP.
+- **Computadores** (tela nova no menu, `/api/v1/computers`):
+  - PCs com coletor, estado, último sinal e número de impressoras USB;
+  - abrir o PC mostra as impressoras com "automático (PJL)" ou "sem contador disponível".
+- **Leitura manual** (`POST /api/v1/devices/{id}/manual-readings`, botão em Computadores e no detalhe do
+  equipamento):
+  - total, PB e cor da folha de contadores; total vazio = PB + cor;
+  - mesma regra de contadores dos relatórios: contador menor que a última leitura válida é recusado com
+    o motivo, data no futuro é recusada;
+  - grava as linhas de `reading_counters`, atualiza o equipamento e audita (`reading.manual`);
+  - permissão `readings.adjust`.
+- **Teste de resistência** (`scripts/soak.py` / `soak.ps1`):
+  - dm-agent real contra o `dev.ps1` por N minutos, com "Ler agora" a cada minuto;
+  - mede pelo `/health` (novo bloco `runtime`): memória privada, memória do runtime Go, working set,
+    heap, goroutines, handles abertos e fila;
+  - falha se crescer mais de 20% depois de estabilizar, se a fila não esvaziar ou se o agente parar;
+  - 24 h = `-Minutes 1440`.
+- **Teste de carga** (`scripts/load.py` / `load.ps1`):
+  - banco `dati_load` próprio (recriado e apagado), API em 8200 e gateway em 8201;
+  - 500 coletores cadastrados pelo caminho do dm-agent, um por local, com os 500 WebSockets abertos e
+    heartbeat;
+  - 2 horas de leituras de 20.000 equipamentos em lotes assinados;
+  - 8 consultas da tela de parque (ordenações, busca, filtro, 2ª página, contagens), com limite de 1 s.
+- **Tema escuro e responsividade**:
+  - `frontend/e2e/manual-f9.mjs` abre todas as 20 telas do menu a 390 px no tema escuro e mede o
+    estouro horizontal: **nenhuma tela estoura**;
+  - a tabela USB rola dentro do próprio cartão.
+- **Documentação final**: `docs/operacao.md` (instalar no cliente, modelo novo com walk, publicar versão,
+  backup/restauração, soak e carga) e `docs/piloto.md` (roteiro de 30 dias em 3 a 5 clientes comparando
+  com o Datacount e a folha, com critérios de aprovação).
+- **Lint e CI**:
+  - `soak.py` e `load.py` no ruff/mypy;
+  - o `lint.ps1` confere a sintaxe e o BOM de todos os `.ps1` pelo parser do PowerShell;
+  - job de CI `soak-load` (soak de 30 min + carga, relatórios como artefato).
+- **Encontrado e corrigido no caminho**:
+  - **o portal mostrava "A API respondeu HTTP 400" em vez do motivo do erro**: o `openapi-fetch` já
+    lia o corpo da resposta, e o `unwrap` tentava lê-lo de novo. Afetava toda tela que usa
+    `unwrap`. Agora o motivo vem do erro já lido, com teste;
+  - o modelo aparecia como "HP HP LaserJet" (a marca já vem no modelo pelo driver): `printerName`, com
+    teste;
+  - o `e2e_seed` trocava a senha do usuário de teste a cada execução e derrubava a sessão de outro teste
+    rodando ao mesmo tempo: ganhou `--email` (o soak usa `soak@dati.local` e entra de novo quando o token
+    de 15 min vence);
+  - o roteiro manual esperava `networkidle`, que nunca chega com o SSE ao vivo aberto.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,4%**. Novos: `usbprint` (PJL, ID, serial, interface, WMI real), coletor USB, memória privada e handles do processo |
+| pytest | **224** testes; cobertura **91%**. Novos: impressora USB ligada ao PC, Computadores (escopo, contagem, PJL), regras da leitura manual (menor recusado, futuro recusado, total obrigatório, linhas, auditoria, entra na produção, permissão) |
+| Vitest | **43** (novos: nome da impressora; erro da API lido do corpo já consumido pelo openapi-fetch) |
+| Playwright | **7**; novo: Computadores → impressoras USB → leitura manual registrada → contador menor recusado com o motivo na tela |
+| Soak (30 min, dm-agent real) | **OK**: memória privada 51,1 → 55,0 MB (estável em ~54–56 MB), runtime Go 15,9 MB fixo, 17 goroutines, ~215 handles, fila 0, `/health` ok em todas as amostras |
+| Carga | **OK**: 500/500 WebSockets conectados em 15 s e abertos até o fim; hora 1 (cria os 20.000 equipamentos) em 7,3 min, hora 2 em 4,6 min; 20.000 equipamentos e 40.000 leituras no banco; parque: lista 133 ms, ordenações 150–270 ms, busca livre 738 ms, filtro 209 ms, 2ª página 64 ms, contagens 40 ms (pior de 5 execuções) |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos, sintaxe/BOM dos PowerShell: sem problemas |
+
+### Fluxo manual executado (02/10/2026) e resultado
+1. **Backup** do `dati_dev` e **restauração** em `dati_restore_teste`: 49 tabelas, revisão e contagens
+   conferidas; os arquivos voltaram com o sha256 certo.
+2. **USB neste PC**: a consulta WMI real rodou e encontrou 0 impressoras (não há impressora USB aqui).
+   As duas impressoras USB do seed chegam pelo mesmo protocolo do agente.
+3. **Computadores** (`manual-f9.mjs`): o "Coletor E2E" mostra 2 impressoras USB, uma "automático (PJL)"
+   com o total e outra "sem contador disponível". A leitura manual foi registrada e um total menor foi
+   recusado com o motivo. Capturas no tema claro, no escuro e a 390 px; nenhum erro no console.
+4. **Soak de 30 min**:
+   - **1ª execução reprovada**: o working set saltou de 23 para 66 MB e ficou em 34 MB, num momento
+     em que o coletor estava ocioso, com heap (1,4–2,9 MB), goroutines e handles estáveis. No Windows,
+     o working set inclui páginas compartilhadas e mapeadas e varia com o gerenciamento de memória da
+     máquina; o teste passou a medir a memória privada e a do runtime Go (D117).
+   - Na mesma execução, o "Ler agora" foi recusado a partir dos 15 min (token vencido, e o roteiro
+     manual tinha trocado a senha do usuário compartilhado), corrigido como descrito acima.
+   - **2ª execução: OK**, sem nenhum aviso.
+5. **Carga completa**: OK, com os números da tabela acima.
+6. **Para registro**: o p95 da resposta ao heartbeat chegou a 4 s enquanto 500 coletores enviavam
+   leituras ao mesmo tempo (API, gateway e banco nesta mesma máquina). Nenhuma conexão caiu (o coletor
+   tolera bem mais); vale reavaliar no servidor de produção.
+
+### Como testar
+```powershell
+scripts\backup.ps1 ; scripts\restore.ps1 -Manifest var\backups\<arquivo>.json -Database dati_restaurado
+scripts\soak.ps1 -Minutes 30        # com o scripts\dev.ps1 no ar
+scripts\load.ps1                    # ambiente próprio; leva ~15 min
+node frontend\e2e\manual-f9.mjs var\manual-f9    # telas, escuro e 390 px (com o dev.ps1 no ar)
+```
+
+### O que falta / pendências
+- **Impressora USB real**: não há impressora USB neste PC. A leitura por PJL foi testada com respostas
+  gravadas e o WMI com a consulta real. Validar com uma impressora USB no piloto (`docs/piloto.md`).
+- **Stream contínuo de logs** (registrado na Fase 5 para cá): segue `get_logs` + últimas linhas. Não é
+  exigido pelo PROMPT; fica para depois da v1.0 se a equipe pedir.
+- **Banco `dati_restore_teste`**: cópia do teste de restauração, pode ser apagada.
+- As pendências de administrador das Fases 2, 5 e 8 continuam valendo.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1187,3 +1311,12 @@ scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código do porta
 | D112 | Só o superadmin publica instaladores; qualquer usuário com acesso a Coletores baixa no portal | Mesma regra das versões do coletor: o binário roda em todos os clientes |
 | D113 | Desinstalação remove também a pasta de dados (credencial, fila, logs) | "Desinstalador limpo" (Fase 8); quem reinstala recebe um código novo no portal |
 | D114 | Assinatura de código pronta no build (`-Sign`, `signtool`, carimbo de tempo, certificado .pfx ou impressão digital), desligada até existir o certificado | PROMPT: deixar o passo pronto; sem certificado, o build avisa em vez de falhar |
+| D115 | Backup = `pg_dump -Fc` + zip dos arquivos + manifesto; contagem de linhas como faixa medida antes e depois do dump; a restauração recria o banco e confere revisão e contagens | O sistema continua gravando durante o backup (contagem exata falharia); restaurar sem conferir não prova nada |
+| D116 | USB pelo WMI via PowerShell (`Get-CimInstance`) e PJL direto na interface USBPRINT; sem cgo e sem driver próprio | O agente é compilado com `CGO_ENABLED=0`; o PowerShell existe em todo Windows suportado |
+| D117 | O coletor USB roda em todo PC (não só no MASTER) e a impressora fica ligada ao PC (`usb_agent_id`), sem IP | A impressora USB só é visível do PC onde está ligada |
+| D118 | Leitura manual segue a mesma regra de contadores: menor que a última leitura válida é recusado com o motivo (corrige-se a leitura errada no histórico), total vazio = PB + cor | Uma regra só para relatórios, ERP e conector; a digitação não cria regressão |
+| D119 | O soak avalia a memória **privada** do processo (Windows "Private Bytes"; Linux `RssAnon`) e a memória do runtime Go; o working set fica só no relatório | O working set do Windows inclui páginas compartilhadas e mapeadas e oscilou de 23 para 66 MB com o coletor ocioso e o heap estável; a memória privada é o que cresce num vazamento |
+| D120 | O teste de carga roda em ambiente próprio (`dati_load`, portas 8200/8201) e respeita o limite de requisições por IP (espera e repete no 429) em vez de afrouxá-lo | Não suja o banco de desenvolvimento; mede o sistema com a configuração real |
+| D121 | Limite da carga: uma hora de leituras de 20.000 equipamentos recebida em até 15 min; cada consulta do parque abaixo de 1 s (pior de 5 execuções, medida do cliente) | Folga de 4× sobre o ritmo real; o portal virtualiza a tabela, então o tempo da tela é o tempo da API |
+| D122 | `e2e_seed.py --email` e usuário próprio para o soak | Cada execução do seed troca a senha do usuário que recebe; testes simultâneos não podem derrubar a sessão um do outro |
+| D123 | O `lint.ps1` confere sintaxe e BOM de todos os `.ps1` | Erro de sintaxe num script de backup ou instalador só apareceria na hora de usar |

@@ -227,7 +227,8 @@ async def resolve_device(
             .with_for_update()
         )
     ).scalar_one_or_none()
-    brand = brand_name(ref.sys_object_id)
+    brand = brand_name(ref.sys_object_id) or ref.brand
+    usb = ref.source == "usb"
     if device is not None and device.discovery_state == "discarded":
         raise DeviceDiscardedError
     if device is None:
@@ -251,7 +252,8 @@ async def resolve_device(
             profile_key=ref.profile_key,
             first_seen_at=min(read_at, ctx.now),
             last_agent_id=ctx.agent.id,
-            source="snmp",
+            source="usb" if usb else "snmp",
+            usb_agent_id=ctx.agent.id if usb else None,
             discovery_state="approved" if auto else "pending",
             discovery_decided_at=ctx.now if auto else None,
         )
@@ -296,6 +298,9 @@ async def resolve_device(
     _set_location(device, ref.sys_location)
     if brand and device.brand != brand:
         device.brand, device.brand_id = brand, await _brand_id(session, brand)
+    if usb:
+        # Impressora USB passou para outro PC (ou o coletor foi reinstalado): segue o PC que a vê.
+        device.source, device.usb_agent_id = "usb", ctx.agent.id
     device.last_agent_id = ctx.agent.id
     return device
 

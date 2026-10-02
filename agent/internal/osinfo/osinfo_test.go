@@ -2,6 +2,7 @@ package osinfo
 
 import (
 	"net"
+	"os"
 	"runtime"
 	"slices"
 	"testing"
@@ -61,5 +62,18 @@ func TestProcessMeter(t *testing.T) {
 	cpu, _ = m.Sample()
 	if cpu < 0 || cpu > 100 || x == 0 {
 		t.Fatalf("CPU fora de 0..100: %v", cpu)
+	}
+}
+
+func TestOpenHandlesAndOwnMemory(t *testing.T) {
+	n, err := OpenHandles()
+	if err != nil || n <= 0 {
+		t.Fatalf("handles: %d %v", n, err)
+	}
+	if mem, err := ProcessMemory(os.Getpid()); err != nil || mem == 0 {
+		t.Fatalf("memória do próprio processo: %d %v", mem, err)
+	}
+	if priv, err := PrivateMemory(os.Getpid()); err != nil || priv == 0 {
+		t.Fatalf("memória privada do próprio processo: %d %v", priv, err)
 	}
 }

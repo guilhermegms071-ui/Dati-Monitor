@@ -175,6 +175,10 @@ class DeviceRef(BaseModel):
     firmware: str | None = Field(default=None, max_length=200)
     profile_key: str | None = Field(default=None, max_length=100)
     sys_location: str | None = Field(default=None, max_length=255)
+    source: Literal["snmp", "usb"] = Field(
+        default="snmp", description="usb = impressora ligada por USB ao PC do coletor (PROMPT 11)"
+    )
+    brand: str | None = Field(default=None, max_length=100, description="Marca (USB: pelo driver)")
 
 
 CounterKind = Literal["total", "print", "copy", "fax", "scan", "report", "duplex", "other"]

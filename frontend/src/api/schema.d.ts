@@ -954,6 +954,40 @@ export interface paths {
         patch: operations["update_company_api_v1_companies__company_id__patch"];
         trace?: never;
     };
+    "/api/v1/computers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** PCs com coletor (e impressoras USB) */
+        get: operations["list_computers_api_v1_computers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/computers/{agent_id}/usb-printers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Impressoras USB do PC */
+        get: operations["usb_printers_api_v1_computers__agent_id__usb_printers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/custom-fields": {
         parameters: {
             query?: never;
@@ -1196,6 +1230,23 @@ export interface paths {
         get: operations["list_events_api_v1_devices__device_id__events_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices/{device_id}/manual-readings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leitura manual (folha de contadores) */
+        post: operations["manual_reading_api_v1_devices__device_id__manual_readings_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3507,6 +3558,46 @@ export interface components {
             /** Legal Name */
             legal_name?: string | null;
         };
+        /** ComputerOut */
+        ComputerOut: {
+            /** Hostname */
+            hostname: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /** Local Ips */
+            local_ips: string[];
+            /**
+             * Location
+             * @description Cliente / local
+             */
+            location: string;
+            /** Name */
+            name: string;
+            /** Os */
+            os: string | null;
+            /** Public Ip */
+            public_ip: string | null;
+            /** State */
+            state: string;
+            /** Usb Printers */
+            usb_printers: number;
+            /** Version */
+            version: string | null;
+        };
+        /** ComputerPage */
+        ComputerPage: {
+            /** Items */
+            items: components["schemas"]["ComputerOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** CounterLine */
         CounterLine: {
             /**
@@ -4108,6 +4199,12 @@ export interface components {
         /** DeviceRef */
         DeviceRef: {
             /**
+             * Brand
+             * @description Marca (USB: pelo driver)
+             * @default null
+             */
+            brand?: string | null;
+            /**
              * Firmware
              * @default null
              */
@@ -4147,6 +4244,13 @@ export interface components {
              * @default
              */
             serial?: string;
+            /**
+             * Source
+             * @description usb = impressora ligada por USB ao PC do coletor (PROMPT 11)
+             * @default snmp
+             * @enum {string}
+             */
+            source?: "snmp" | "usb";
             /**
              * Sys Descr
              * @default null
@@ -5189,6 +5293,37 @@ export interface components {
             password: string;
             /** Totp Code */
             totp_code?: string | null;
+        };
+        /** ManualReadingIn */
+        ManualReadingIn: {
+            /** Color */
+            color?: number | null;
+            /** Mono */
+            mono?: number | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Read At
+             * @description Padrão: agora
+             */
+            read_at?: string | null;
+            /** Total */
+            total?: number | null;
+        };
+        /** ManualReadingOut */
+        ManualReadingOut: {
+            /**
+             * Read At
+             * Format: date-time
+             */
+            read_at: string;
+            /**
+             * Reading Id
+             * Format: uuid
+             */
+            reading_id: string;
+            /** Total */
+            total: number | null;
         };
         /** MatrixModule */
         MatrixModule: {
@@ -7289,6 +7424,44 @@ export interface components {
              * @constant
              */
             v?: 1;
+        };
+        /** UsbPrinterOut */
+        UsbPrinterOut: {
+            /** Brand */
+            brand: string | null;
+            /**
+             * Counter Available
+             * @description A impressora já informou contador por PJL
+             */
+            counter_available: boolean;
+            /** Discovery State */
+            discovery_state: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Color */
+            last_color: number | null;
+            /** Last Mono */
+            last_mono: number | null;
+            /** Last Read At */
+            last_read_at: string | null;
+            /** Last Status At */
+            last_status_at: string | null;
+            /** Last Total */
+            last_total: number | null;
+            /** Model */
+            model: string | null;
+            /**
+             * Name
+             * @description Nome no Windows e porta USB
+             */
+            name: string | null;
+            /** Serial */
+            serial: string;
+            /** Status */
+            status: string;
         };
         /** UserCreated */
         UserCreated: {
@@ -12476,6 +12649,160 @@ export interface operations {
             };
         };
     };
+    list_computers_api_v1_computers_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ComputerPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usb_printers_api_v1_computers__agent_id__usb_printers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["UsbPrinterOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_custom_fields_api_v1_custom_fields_get: {
         parameters: {
             query?: never;
@@ -14038,6 +14365,86 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["Page_DeviceEventOut_"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    manual_reading_api_v1_devices__device_id__manual_readings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualReadingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ManualReadingOut"];
                 };
             };
             /** @description Requisição inválida */

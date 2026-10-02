@@ -62,6 +62,14 @@ describe('unwrap', () => {
     expect(err).toMatchObject({ status: 409, code: 'site_has_agents', message: 'O local tem coletores' });
   });
 
+  it('usa o corpo que o openapi-fetch já leu (a resposta não pode ser lida de novo)', async () => {
+    const detail = { code: 'counter_lower', message: 'Contador total (5) menor que o da leitura' };
+    const response = json(400, { detail });
+    const error: unknown = await response.json(); // o que o openapi-fetch faz antes de devolver `error`
+    const err: unknown = await unwrap(Promise.resolve({ error, response })).catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 400, ...detail });
+  });
+
   it('resposta sem JSON ainda vira um erro legível', async () => {
     const response = new Response('Bad Gateway', { status: 502 });
     await expect(unwrap(Promise.resolve({ response }))).rejects.toMatchObject({

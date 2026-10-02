@@ -52,25 +52,31 @@ export function csrfToken(): string {
   return m?.[1] ? decodeURIComponent(m[1]) : '';
 }
 
-async function parseError(resp: Response): Promise<ApiError> {
-  let code = `http_${String(resp.status)}`;
-  let message = `A API respondeu HTTP ${String(resp.status)}`;
+/** Erro padronizado da API (`{"detail": {"code", "message", ...}}`); sem esse formato, mensagem com o status. */
+function apiError(status: number, body: unknown): ApiError {
+  let code = `http_${String(status)}`;
+  let message = `A API respondeu HTTP ${String(status)}`;
   let details: Record<string, unknown> = {};
-  try {
-    const body: unknown = await resp.clone().json();
-    if (typeof body === 'object' && body !== null && 'detail' in body) {
-      const detail = body.detail;
-      if (typeof detail === 'object' && detail !== null) {
-        const d = detail as Record<string, unknown>;
-        if (typeof d.code === 'string') code = d.code;
-        if (typeof d.message === 'string') message = d.message;
-        details = d;
-      }
+  if (typeof body === 'object' && body !== null && 'detail' in body) {
+    const detail = body.detail;
+    if (typeof detail === 'object' && detail !== null) {
+      const d = detail as Record<string, unknown>;
+      if (typeof d.code === 'string') code = d.code;
+      if (typeof d.message === 'string') message = d.message;
+      details = d;
     }
-  } catch {
-    // corpo sem JSON: fica a mensagem genérica com o status
   }
-  return new ApiError(resp.status, code, message, details);
+  return new ApiError(status, code, message, details);
+}
+
+async function parseError(resp: Response): Promise<ApiError> {
+  let body: unknown = null;
+  try {
+    body = await resp.clone().json();
+  } catch {
+    // corpo sem JSON (ou já lido): fica a mensagem genérica com o status
+  }
+  return apiError(resp.status, body);
 }
 
 let refreshing: Promise<TokenResponse | null> | null = null;
@@ -124,8 +130,13 @@ export const api = createClient<paths>({ baseUrl: '', fetch: authFetch, credenti
 
 /** Resultado do openapi-fetch → dados ou ApiError (a falha nunca é silenciosa). */
 export async function unwrap<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
-  const { data, response } = await p;
-  if (!response.ok) throw await parseError(response);
+  const { data, error, response } = await p;
+  if (!response.ok) {
+    // O openapi-fetch já leu o corpo do erro (em `error`) e a resposta não pode ser lida de novo; sem o
+    // erro padronizado nele, tenta a resposta (fica a mensagem com o status se ela já foi consumida).
+    if (typeof error === 'object' && error !== null && 'detail' in error) throw apiError(response.status, error);
+    throw await parseError(response);
+  }
   return data as T;
 }
 

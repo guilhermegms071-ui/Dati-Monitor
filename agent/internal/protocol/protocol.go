@@ -197,6 +197,9 @@ type DeviceRef struct {
 	Firmware    string `json:"firmware,omitempty"`
 	ProfileKey  string `json:"profile_key,omitempty"`
 	SysLocation string `json:"sys_location,omitempty"`
+	// Source = "usb" para impressora ligada por USB ao PC do coletor (PROMPT 11); vazio = rede (SNMP).
+	Source string `json:"source,omitempty"`
+	Brand  string `json:"brand,omitempty"`
 }
 
 // ReadingPayload is a counter reading. Counters holds every resolved counter; the server maps the

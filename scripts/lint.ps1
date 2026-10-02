@@ -36,7 +36,8 @@ try {
     $scriptsPy = @('..\scripts\smtp_catcher.py', '..\scripts\sleepy_udp_proxy.py', '..\scripts\gen_protocol_docs.py',
         '..\scripts\gen_openapi.py', '..\scripts\e2e_seed.py', '..\scripts\e2e_sims.py',
         '..\scripts\chaos.py', '..\scripts\printer_web_sim.py', '..\scripts\build_linux.py',
-        '..\scripts\ci_enrollment_code.py', '..\profiles\recordings\sim\generate.py')
+        '..\scripts\ci_enrollment_code.py', '..\scripts\soak.py', '..\scripts\load.py',
+        '..\profiles\recordings\sim\generate.py')
     $pyTargets = @('app', 'tests', 'alembic') + $scriptsPy
     Invoke-Checked 'Python: ruff check' { & "$venvScripts\ruff.exe" check @pyTargets }
     Invoke-Checked 'Python: ruff format --check' { & "$venvScripts\ruff.exe" format --check @pyTargets }
@@ -52,5 +53,23 @@ try {
     Invoke-Checked 'Frontend: tsc --noEmit' { & npm.cmd run --silent typecheck }
     Invoke-Checked 'Frontend: schema.d.ts atualizado' { & npm.cmd run --silent api:check }
 } finally { Pop-Location }
+
+# Scripts PowerShell (dev, testes, backup/restauração, instalador): erro de sintaxe só apareceria na hora de
+# rodar; o parser do próprio PowerShell confere todos, e os arquivos precisam de BOM (o PS 5.1 lê sem BOM
+# como ANSI e estraga os acentos das mensagens).
+Write-Step 'PowerShell: sintaxe e BOM dos scripts'
+$psProblems = @()
+foreach ($f in Get-ChildItem -Path (Join-Path $RepoRoot 'scripts'), (Join-Path $RepoRoot 'installer') -Recurse -Include '*.ps1') {
+    $tokens = $null; $parseErrors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+    foreach ($e in $parseErrors) { $psProblems += "$($f.Name):$($e.Extent.StartLineNumber): $($e.Message)" }
+    $head = [IO.File]::ReadAllBytes($f.FullName) | Select-Object -First 3
+    if (($head -join ',') -ne '239,187,191') { $psProblems += "$($f.Name): sem BOM UTF-8" }
+}
+if ($psProblems) {
+    $psProblems | ForEach-Object { Write-Host $_ }
+    Stop-WithError 'PowerShell: scripts com problema'
+}
+Write-Ok 'PowerShell: sintaxe e BOM dos scripts'
 
 Write-Ok 'Lint completo sem problemas'

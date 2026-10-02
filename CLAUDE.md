@@ -53,7 +53,9 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `deploy/` | Dockerfiles, compose e Caddyfile da hospedagem futura (**não usados agora**). |
 | `installer/` | Fase 8: `windows/dati-monitor.iss` (Inno Setup; recusa Windows antigo, confere o código sem gastá-lo, instala os 2 serviços) e `linux/` (postinst/prerm/postrm do .deb e o modelo do `install.sh`, servido preenchido em `/api/public/install.sh`). Uso em `installer/README.md`. |
 | `backend/app/services/installers.py` + `api/v1/installers.py` | Downloads: instaladores publicados (superadmin) e o link público do instalador, válido só com código de cadastro vigente. |
-| `docs/` | Arquitetura, protocolo, operação. |
+| `agent/internal/usbprint/` + `collector/usb.go` | Impressoras USB (Fase 9): lista pelo WMI (`Win32_Printer` em portas `USB*`), contador por PJL (`@PJL INFO PAGECOUNT`) quando a impressora responde; roda em todo PC com coletor (não só no MASTER). |
+| `backend/app/services/computers.py` + `api/v1/computers.py` | Computadores (PCs com coletor), impressoras USB de cada um e **leitura manual** (`/devices/{id}/manual-readings`, mesma regra de contadores; menor que a última é recusada). |
+| `docs/` | Arquitetura, protocolo, `operacao.md` (instalar no cliente, modelo novo com walk, publicar versão, restaurar backup) e `piloto.md` (roteiro de validação com o Datacount). |
 | `var/` | Gerado em execução (logs, e-mails capturados, cache do snmpsim). Ignorado pelo git. |
 
 ## Comandos (terminal comum, sem administrador)
@@ -71,6 +73,10 @@ scripts\build-installer.ps1 -Version x.y.z -Server URL [-Sign]   # setup.exe (In
 .venv\Scripts\python scripts\build_linux.py --version x.y.z      # .deb e .tar.gz por arquitetura
 scripts\test-installer.ps1 -Server URL -Code XXXXXXXX [-Full]  # -Full instala de verdade (como administrador)
 scripts\chaos.ps1 [-OutageMinutes 10]      # teste de caos (seção 13); como administrador reinicia também o PostgreSQL
+scripts\soak.ps1 [-Minutes 30]             # resistência: dm-agent real contra o dev.ps1 (no ar); 24 h = -Minutes 1440
+scripts\load.ps1                           # carga: banco dati_load próprio, API 8200/gateway 8201, 500 WebSockets, 20.000 equipamentos, parque < 1 s
+scripts\backup.ps1 [-OutDir D:\backups] [-Keep 14]          # pg_dump + arquivos + manifesto conferido
+scripts\restore.ps1 -Manifest <json> -Database <banco> [-Force] [-RestoreFiles]
 # Publicar versão: build com -Version x.y.z → dm-tool sign --file <binário> --version x.y.z → colar a saída em Versões (superadmin)
 ```
 
