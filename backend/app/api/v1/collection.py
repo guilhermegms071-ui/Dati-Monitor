@@ -44,14 +44,19 @@ Limit = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)]
 
 def enrollment_out(code: AgentEnrollmentCode, server_url: str) -> EnrollmentCodeOut:
     product = get_product()
+    base = server_url.rstrip("/")
     return EnrollmentCodeOut(
         code=code.code,
         expires_at=code.expires_at,
-        install_command=f"dm-agent enroll --server {server_url} --code {code.code}",
+        install_command=f"dm-agent enroll --server {base} --code {code.code}",
+        windows_url=f"{base}/api/public/installer?code={code.code}&platform=windows",
+        windows_silent=f"setup.exe /VERYSILENT /SERVER={base} /CODE={code.code}",
+        linux_command=f'curl -fsSL "{base}/api/public/install.sh?code={code.code}" | sudo sh',
         instructions=[
-            f"1. Baixe o instalador do coletor {product.name} na página Downloads e execute-o num PC "
-            "ligado o tempo todo, na mesma rede das impressoras (Windows 10 ou mais novo).",
-            f"2. Quando o instalador pedir, informe o código {code.code} (válido por 7 dias, uso único).",
+            f"1. No PC do cliente (ligado o tempo todo, na mesma rede das impressoras, Windows 10 ou mais "
+            f"novo), baixe o instalador do {product.name} pelo link abaixo e execute-o.",
+            f"2. Quando o instalador pedir, informe o código {code.code} (válido por 7 dias, uso único). "
+            "Ele é conferido na hora e só é usado no fim da instalação.",
             "3. Pronto: o coletor aparece como online nesta tela em alguns segundos.",
         ],
     )

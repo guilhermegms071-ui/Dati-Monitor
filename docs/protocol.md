@@ -93,6 +93,7 @@ por `POST /api/agent/commands/{id}/update`.
 | Método | Caminho | Corpo | Resposta | Autenticação |
 |---|---|---|---|---|
 | POST | `/api/agent/enroll` | [EnrollRequest](protocol-schemas/EnrollRequest.json) | [EnrollResponse](protocol-schemas/EnrollResponse.json) | sem token (código de 8 caracteres) |
+| POST | `/api/agent/enroll/check` | [EnrollCheckRequest](protocol-schemas/EnrollCheckRequest.json) | [EnrollCheckResponse](protocol-schemas/EnrollCheckResponse.json) | sem token; instalador confere o código sem usá-lo |
 | POST | `/api/agent/token` | [TokenRequest](protocol-schemas/TokenRequest.json) | [TokenResponse](protocol-schemas/TokenResponse.json) | sem token (assinatura HMAC) |
 | POST | `/api/agent/heartbeat` | [HeartbeatRequest](protocol-schemas/HeartbeatRequest.json) | [HeartbeatResponse](protocol-schemas/HeartbeatResponse.json) | Bearer (token do agente) |
 | GET | `/api/agent/config` | — | [AgentConfig](protocol-schemas/AgentConfig.json) | Bearer |

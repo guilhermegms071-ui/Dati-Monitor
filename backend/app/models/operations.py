@@ -198,3 +198,29 @@ class WebSession(Base, IdMixin, TimestampMixin):
     last_used_at: Mapped[datetime | None] = mapped_column(default=None)
     requests: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0)
     bytes_out: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), default=0)
+
+
+INSTALLER_KINDS = ("windows", "deb", "tar")
+
+
+class Installer(Base, IdMixin, CreatedMixin):
+    """Instalador publicado na página Downloads (Fase 8): setup.exe do Windows (todas as arquiteturas),
+    .deb e .tar.gz por arquitetura. O arquivo fica em disco (STORAGE_DIR/installers)."""
+
+    __tablename__ = "installers"
+    __table_args__ = (
+        one_of("kind", INSTALLER_KINDS),
+        one_of("arch", ("all", "amd64", "386", "arm64", "arm")),
+        UniqueConstraint("kind", "arch", "version"),
+    )
+
+    kind: Mapped[str] = mapped_column(String(16))
+    arch: Mapped[str] = mapped_column(String(16))
+    version: Mapped[str] = mapped_column(String(64))
+    filename: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(Text)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64))
+    notes: Mapped[str | None] = mapped_column(Text)
+    published_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    withdrawn: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)

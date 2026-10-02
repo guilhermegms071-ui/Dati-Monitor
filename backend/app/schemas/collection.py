@@ -126,6 +126,9 @@ class EnrollmentCodeOut(BaseModel):
     code: str
     expires_at: datetime
     install_command: str
+    windows_url: str = Field(description="Baixa o setup.exe sem login (vale enquanto o código for válido)")
+    windows_silent: str = Field(description="Instalação silenciosa (prompt de comando como administrador)")
+    linux_command: str = Field(description="Linha única para Linux (sudo)")
     instructions: list[str]
 
 

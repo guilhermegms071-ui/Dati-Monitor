@@ -38,15 +38,9 @@ async function shot(name, path, wait) {
 
 await shot('f7-01-dashboard', '/', 'Produção do mês');
 await shot('f7-02-relatorio-producao', '/relatorios?r=production', 'Páginas PB e cor');
-const [pdf] = await Promise.all([
-  page.waitForEvent('download'),
-  page.getByRole('button', { name: 'PDF' }).click(),
-]);
+const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF' }).click()]);
 await pdf.saveAs(`${out}/f7-producao.pdf`);
-const [xlsx] = await Promise.all([
-  page.waitForEvent('download'),
-  page.getByRole('button', { name: 'XLSX' }).click(),
-]);
+const [xlsx] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'XLSX' }).click()]);
 await xlsx.saveAs(`${out}/f7-producao.xlsx`);
 console.log('exportados:', pdf.suggestedFilename(), xlsx.suggestedFilename());
 await shot('f7-03-contador-diario', '/relatorios?r=daily_counter', 'Páginas por dia com gráfico');

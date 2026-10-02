@@ -124,6 +124,20 @@ func Enroll(ctx context.Context, opts Options, req protocol.EnrollRequest) (*pro
 	return &out, nil
 }
 
+// CheckEnrollment validates a code without using it (installer, before copying files).
+func CheckEnrollment(ctx context.Context, opts Options, code string) (*protocol.EnrollCheckResponse, error) {
+	hc, base, err := NewHTTP(opts)
+	if err != nil {
+		return nil, err
+	}
+	var out protocol.EnrollCheckResponse
+	req := protocol.EnrollCheckRequest{V: protocol.Version, Code: code}
+	if err := doJSON(ctx, hc, base, http.MethodPost, "/api/agent/enroll/check", "", req, &out, false); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Client is an authenticated agent session.
 type Client struct {
 	hc      *http.Client

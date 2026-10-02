@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pacote do coletor: depois de instalar/atualizar os binários.
+# Com o PC já cadastrado (atualização), (re)instala e inicia os serviços; senão, mostra como cadastrar.
+set -e
+DATA_DIR="@DATA_DIR@"
+if [ "$1" = "configure" ]; then
+    if [ -f "$DATA_DIR/config.json" ]; then
+        [ -f "/etc/systemd/system/@AGENT_SERVICE@.service" ] || /usr/bin/dm-agent install
+        [ -f "/etc/systemd/system/@WATCHDOG_SERVICE@.service" ] || /usr/bin/dm-watchdog install
+        systemctl daemon-reload
+        systemctl restart "@AGENT_SERVICE@" "@WATCHDOG_SERVICE@"
+        echo "@PRODUCT@: coletor atualizado e em execução."
+    else
+        echo "@PRODUCT@: binários instalados. Para cadastrar este coletor (código gerado no portal):"
+        echo "  sudo dm-agent enroll --server https://SEU-SERVIDOR --code XXXXXXXX"
+        echo "  sudo dm-agent install && sudo dm-watchdog install"
+        echo "  sudo systemctl start @AGENT_SERVICE@ @WATCHDOG_SERVICE@"
+    fi
+fi
+exit 0

@@ -51,7 +51,8 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `profiles/recordings/real/` | Walks de impressoras reais (Fase 10), salvos pela tela Perfis de modelos; `<nome>.expected.json` = valores da folha de contadores. Rodam no `TestRealRecordings` do Go. |
 | `scripts/` | PowerShell do dia a dia + `smtp_catcher.py`. |
 | `deploy/` | Dockerfiles, compose e Caddyfile da hospedagem futura (**não usados agora**). |
-| `installer/` | Inno Setup / systemd (Fase 8). |
+| `installer/` | Fase 8: `windows/dati-monitor.iss` (Inno Setup; recusa Windows antigo, confere o código sem gastá-lo, instala os 2 serviços) e `linux/` (postinst/prerm/postrm do .deb e o modelo do `install.sh`, servido preenchido em `/api/public/install.sh`). Uso em `installer/README.md`. |
+| `backend/app/services/installers.py` + `api/v1/installers.py` | Downloads: instaladores publicados (superadmin) e o link público do instalador, válido só com código de cadastro vigente. |
 | `docs/` | Arquitetura, protocolo, operação. |
 | `var/` | Gerado em execução (logs, e-mails capturados, cache do snmpsim). Ignorado pelo git. |
 
@@ -66,6 +67,9 @@ scripts\test.ps1            # Go (-race, cobertura >= 80% internal/), pytest (>=
 scripts\test.ps1 -E2E       # + Playwright
 scripts\lint.ps1            # golangci-lint, ruff, mypy --strict, eslint, prettier, tsc
 scripts\build-agent.ps1 [-Version x.y.z]   # 3 binários x 7 alvos em dist\
+scripts\build-installer.ps1 -Version x.y.z -Server URL [-Sign]   # setup.exe (Inno Setup) em dist\installers\
+.venv\Scripts\python scripts\build_linux.py --version x.y.z      # .deb e .tar.gz por arquitetura
+scripts\test-installer.ps1 -Server URL -Code XXXXXXXX [-Full]  # -Full instala de verdade (como administrador)
 scripts\chaos.ps1 [-OutageMinutes 10]      # teste de caos (seção 13); como administrador reinicia também o PostgreSQL
 # Publicar versão: build com -Version x.y.z → dm-tool sign --file <binário> --version x.y.z → colar a saída em Versões (superadmin)
 ```
@@ -141,6 +145,10 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   por conta própria (regressão, ajuste manual e troca de placa já estão tratados lá).
 - Relatório novo: função em `services/reports/definitions.py` que devolve `ReportData` (colunas tipadas) e
   `register(ReportDef(...))`; a tela, a paginação e as exportações já funcionam.
+- Instalador Windows: compile com `scripts\build-installer.ps1` (versão e nomes vêm do `product.json`); o
+  instalador de teste (`-TestMode`) roda sem administrador e é usado pelo `test-installer.ps1`. Rodando o
+  setup.exe pelo Git Bash, `/VERYSILENT` vira caminho: use `MSYS_NO_PATHCONV=1` ou rode pelo PowerShell.
+- Pascal do Inno Setup: `Out` é palavra reservada; a saída dos dm-* é UTF-8 (use `Utf8ToString` do .iss).
 - Página web da impressora: a resposta do túnel **sempre** sai com `Content-Security-Policy: sandbox` sem
   `allow-same-origin` (a página da impressora não pode agir como o usuário do portal). Não remova.
 - Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de

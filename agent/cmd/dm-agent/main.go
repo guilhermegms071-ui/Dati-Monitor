@@ -77,6 +77,7 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	proxy := fs.String("proxy", "", "proxy HTTP manual (ex.: http://proxy:3128)")
 	healthAddr := fs.String("health-addr", "", "endereço do /health (padrão "+health.DefaultAddr+")")
 	force := fs.Bool("force", false, "substitui um cadastro existente")
+	checkOnly := fs.Bool("check-only", false, "só confere o código (não cadastra nem grava nada); usado pelo instalador")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -85,6 +86,17 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	}
 	if err := osinfo.CheckSupported(); err != nil {
 		return fail(stderr, "%v", err)
+	}
+	if *checkOnly {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		info, err := api.CheckEnrollment(ctx, api.Options{ServerURL: *server, InsecureDev: *insecure, ProxyURL: *proxy}, normalizeCode(*code))
+		if err != nil {
+			return fail(stderr, "código não aceito: %v", err)
+		}
+		_, _ = fmt.Fprintf(stdout, "Código válido: coletor %q do cliente %s, local %s.\n",
+			info.AgentName, info.CustomerName, info.SiteName)
+		return 0
 	}
 	dir := config.DataDir(*dataDir)
 	if err := config.EnsureDirs(dir); err != nil {

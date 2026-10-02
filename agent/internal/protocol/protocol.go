@@ -56,6 +56,21 @@ type EnrollResponse struct {
 	WSURL      string    `json:"ws_url"`
 }
 
+// EnrollCheckRequest lets the installer validate a code before installing, without using it.
+type EnrollCheckRequest struct {
+	V    int    `json:"v"`
+	Code string `json:"code"`
+}
+
+// EnrollCheckResponse says where the collector will be registered.
+type EnrollCheckResponse struct {
+	V            int       `json:"v"`
+	AgentName    string    `json:"agent_name"`
+	CustomerName string    `json:"customer_name"`
+	SiteName     string    `json:"site_name"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
 // TokenRequest proves possession of the secret: signature = hex(HMAC-SHA256(K, agent_id\nts\nnonce))
 // with K = SHA-256("dm-agent-auth\n" + secret).
 type TokenRequest struct {

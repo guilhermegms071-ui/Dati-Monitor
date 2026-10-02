@@ -74,6 +74,18 @@ async def enroll(
     return resp
 
 
+@router.post(
+    "/enroll/check",
+    response_model=proto.EnrollCheckResponse,
+    summary="Conferir o código de cadastro sem usá-lo (instalador)",
+)
+async def enroll_check(
+    body: proto.EnrollCheckRequest, request: Request, session: SessionDep
+) -> proto.EnrollCheckResponse:
+    _rate(request, f"enroll:{client_ip(request)}")
+    return await svc.check_enrollment_code(session, body.code)
+
+
 @router.post("/token", response_model=proto.TokenResponse, summary="Token de sessão (HMAC do segredo)")
 async def token(
     body: proto.TokenRequest, request: Request, session: SessionDep, settings: SettingsDep

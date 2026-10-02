@@ -346,6 +346,29 @@ async def bump_all_configs(session: AsyncSession) -> None:
 # ----------------------------------------------------------------------------- enrollment / auth
 
 
+async def check_enrollment_code(session: AsyncSession, code: str) -> proto.EnrollCheckResponse:
+    """The installer validates the code (and shows where the collector will go) without using it."""
+    now = _now()
+    row = (
+        await session.execute(
+            select(AgentEnrollmentCode, Agent.name, Site.name, Customer.name)
+            .join(Agent, Agent.id == AgentEnrollmentCode.agent_id)
+            .join(Site, Site.id == AgentEnrollmentCode.site_id)
+            .join(Customer, Customer.id == Site.customer_id)
+            .where(AgentEnrollmentCode.code == code.upper(), Agent.deleted_at.is_(None))
+        )
+    ).tuples().one_or_none()  # fmt: skip
+    if row is None or row[0].used_at is not None or row[0].expires_at <= now:
+        raise unauthorized("enrollment_code_invalid", "Código de cadastro inválido, já usado ou expirado")
+    code_row, agent_name, site_name, customer_name = row
+    return proto.EnrollCheckResponse(
+        agent_name=agent_name,
+        customer_name=customer_name,
+        site_name=site_name,
+        expires_at=code_row.expires_at,
+    )
+
+
 async def enroll(
     session: AsyncSession, settings: Settings, req: proto.EnrollRequest, ip: str | None
 ) -> proto.EnrollResponse:

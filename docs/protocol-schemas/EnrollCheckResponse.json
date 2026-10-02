@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "agent_name": {
+      "title": "Agent Name",
+      "type": "string"
+    },
+    "customer_name": {
+      "title": "Customer Name",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "site_name": {
+      "title": "Site Name",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "agent_name",
+    "customer_name",
+    "site_name",
+    "expires_at"
+  ],
+  "title": "EnrollCheckResponse",
+  "type": "object"
+}

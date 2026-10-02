@@ -119,6 +119,7 @@ func TestMessagesMatchServerSchemas(t *testing.T) {
 	now := time.Now().UTC()
 	sent := map[string]any{
 		"EnrollRequest":        EnrollRequest{},
+		"EnrollCheckRequest":   EnrollCheckRequest{},
 		"TokenRequest":         TokenRequest{},
 		"HeartbeatRequest":     HeartbeatRequest{Ts: now},
 		"SuggestRangesRequest": SuggestRangesRequest{},

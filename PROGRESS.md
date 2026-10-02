@@ -13,8 +13,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 5.1 — Auditoria do Datacount (ajustes nas fases concluídas) | ✅ concluída (29/09/2026) |
 | 6 — Alertas e notificações | ✅ concluída (29/09/2026) |
 | 7 — Perfis, relatórios e acesso web | ✅ concluída (02/10/2026) |
-| 8 — Instaladores | ⏳ próxima |
-| 9 a 11 | pendentes |
+| 8 — Instaladores | ✅ concluída (02/10/2026) — falta só o teste `-Full` num terminal de administrador |
+| 9 — USB e acabamento | ⏳ próxima |
+| 10 e 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -978,6 +979,96 @@ scripts\dev.ps1           # sobe também a página de impressora simulada em htt
 
 ---
 
+## Fase 8 — Instaladores ✅
+
+### Plano executado
+Conferência do código sem gastá-lo → instalador Windows (Inno Setup) → pacote Linux (.deb, .tar.gz,
+install.sh) → publicação e links de download → telas → CI → testes.
+
+### O que foi feito
+- **Conferência do código sem gastá-lo**: `POST /api/agent/enroll/check` e `dm-agent enroll --check-only`
+  mostram o coletor, o cliente e o local. O instalador confere o código antes de copiar arquivos, então
+  cancelar a instalação não gasta o código.
+- **Instalador Windows** (`installer/windows/dati-monitor.iss`, `scripts/build-installer.ps1`):
+  - um setup.exe com os binários de amd64, arm64 e 386; a arquitetura do PC é escolhida na instalação;
+  - recusa Windows 7, 8, 8.1, Server 2008 e 2012 com a mensagem da seção 4.1 (mesma regra e texto do
+    agente);
+  - tela de servidor e código, conferido na hora;
+  - modo silencioso `/VERYSILENT /SERVER= /CODE=` com códigos de saída (0, 1, 3);
+  - instala os 2 serviços com início automático com atraso e recuperação do SCM, e inicia os dois;
+  - atualização por cima mantém o cadastro;
+  - desinstalador limpo: serviços, programa e `ProgramData`;
+  - nomes vindos do `product.json`;
+  - passo de assinatura pronto (`-Sign` com `signtool` e certificado .pfx ou impressão digital);
+  - instalador de teste (`-TestMode`) que roda sem administrador, para testes automáticos.
+- **Pacote Linux** (`scripts/build_linux.py`, `installer/linux/`):
+  - `.deb` (amd64, i386, arm64, armhf) e `.tar.gz` por arquitetura, montados sem `dpkg-deb` e
+    reprodutíveis;
+  - `postinst` atualiza e reinicia os serviços quando o PC já está cadastrado; `prerm` remove os
+    serviços; `postrm purge` apaga os dados;
+  - units do systemd geradas pelo próprio `dm-agent install` (template único);
+  - `install.sh` servido já preenchido: detecta a arquitetura, baixa o pacote certo, cadastra, instala e
+    inicia.
+- **Downloads**:
+  - tabela `installers`, publicação pelo superadmin com sha256 e auditoria;
+  - a versão mais nova de cada tipo e arquitetura é a oferecida; retirar e devolver;
+  - download no portal;
+  - link público `/api/public/installer` e `/api/public/install.sh`, válido **só com código de cadastro
+    vigente**, com limite de requisições;
+  - página Downloads no portal;
+  - o diálogo "Novo coletor" mostra o link do instalador, o comando silencioso e a linha única do Linux.
+- **CI** (escrito; ainda sem repositório no GitHub para rodar):
+  - job Linux: instala o `.deb` pelo `install.sh` com servidor real, confere os serviços no systemd e
+    remove com `purge`;
+  - job `windows-installer`: PostgreSQL do runner, API, Inno Setup e `test-installer.ps1 -Full`.
+- `deploy/Dockerfile.backend` passou a levar `installer/linux` (o `install.sh` é servido pela API).
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,4%**; novos: `CheckEnrollment`, contrato das mensagens de conferência |
+| pytest | **222** testes; cobertura **91%**. Novos: conferência do código (não gasta, usado/inválido recusado), `.deb` (formato ar, control, permissões, scripts preenchidos, reprodutível), CLI de pacotes, `install.sh` executado de verdade com comandos falsos (ordem: baixa → dpkg → cadastra → serviços → inicia), downloads (publicação, validação, oferecida/retirada, download, link público com código válido/expirado/inexistente, install.sh preenchido) |
+| Vitest | **40** (novo: tipo/arquitetura/versão pelo nome do instalador) |
+| Playwright | **6**; o diálogo "Novo coletor" mostra o link do instalador preso ao código e a linha do Linux |
+| Instalador Windows (`scripts/test-installer.ps1`, sem administrador) | recusa Windows 7, 8.1 e Server 2012 com a mensagem do PROMPT; Windows 10 aceito; código inválido recusado em português; código válido conferido e ainda válido depois |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos: sem problemas |
+
+### Fluxo manual executado (02/10/2026) e resultado
+1. Inno Setup 6.7.3 instalado só para o usuário (sem administrador); setup.exe de 24 MB gerado, sem
+   assinatura (aviso no build).
+2. Pacotes Linux gerados para as 4 arquiteturas com os binários da versão 0.8.0.
+3. **Publicação** no banco de desenvolvimento como o superadmin: setup.exe, `.deb` amd64/armhf e
+   `.tar.gz` amd64.
+4. **Download pelos links públicos** com um código novo: o setup.exe e o `.deb` armhf vieram com o
+   sha256 publicado; o `install.sh` veio preenchido com servidor e código; o código inexistente recebeu
+   404.
+5. **Telas** (`frontend/e2e/manual-f8.mjs`): Downloads (os 4 instaladores, "oferecida", sha256) e o
+   diálogo "Novo coletor" com o botão do instalador, o comando silencioso e a linha do Linux; nenhum erro
+   no console.
+6. **Encontrado e corrigido no caminho**:
+   - o Git Bash convertia `/VERYSILENT` em caminho; o teste passou a rodar pelo PowerShell;
+   - `Out` é palavra reservada no Pascal do Inno;
+   - a versão do `.tar.gz` era lida como "1.2.0-linux";
+   - o `load_script` dos testes não registrava o módulo, e as dataclasses do script falhavam.
+
+### Como testar
+```powershell
+scripts\build-installer.ps1 -Version 1.0.0 -Server http://127.0.0.1:8000
+scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código do portal>          # sem administrador
+scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código do portal> -Full    # COMO ADMINISTRADOR
+.venv\Scripts\python scripts\build_linux.py --version 1.0.0
+```
+
+### O que falta / pendências (ações do usuário)
+- **Terminal como administrador**: `scripts\test-installer.ps1 -Full` instala de verdade nesta máquina e
+  confere serviços, recuperação, `/health`, atualização e desinstalação. Isso também resolve as
+  pendências de serviço das Fases 2 e 5: o instalador instala os 2 serviços.
+- **Certificado de assinatura de código**: quando for comprado, use
+  `scripts\build-installer.ps1 -Sign` com `DM_SIGN_PFX` ou `DM_SIGN_THUMBPRINT`.
+- **CI**: os jobs Linux (pacote) e `windows-installer` rodam assim que houver repositório no GitHub.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1086,3 +1177,13 @@ scripts\dev.ps1           # sobe também a página de impressora simulada em htt
 | D102 | Link `/devweb/{token}/?dm_key=` vale para o primeiro navegador (cookie HttpOnly no caminho da sessão) | "Token de uso por usuário" da seção 4.9: um link vazado não abre em outro navegador |
 | D103 | Abrir por IP digitado só para impressora ativa cadastrada no local; a recusa é auditada (`web_session.denied`) e confirmada antes do erro | Critério 14 |
 | D104 | O gateway reconhece os quadros do túnel pelo campo `type` da mensagem, não pelos bytes | A primeira versão dependia da ordem e dos espaços do JSON, e o teste com outro cliente mostrou que isso é frágil |
+| D105 | O instalador confere o código no servidor sem gastá-lo (`/api/agent/enroll/check`); o cadastro de verdade só acontece no fim da instalação | Cancelar a instalação depois de digitar o código não pode inutilizar o código de uso único |
+| D106 | Um setup.exe com os binários de amd64, arm64 e 386, escolhendo pela arquitetura do PC | O técnico baixa um arquivo só, sem saber a arquitetura do PC do cliente |
+| D107 | A recusa de Windows antigo é feita pelo próprio instalador (Pascal), com a mesma regra e texto do agente; `MinVersion=6.1` | Os binários Go não rodam no Windows 7: a mensagem do PROMPT tem de sair antes de qualquer binário |
+| D108 | Instalador de teste (`-TestMode`, sem administrador, só verificações, `/SIMULATEOS`) para os testes automáticos; o instalador real não aceita simulação | Testar a recusa de Windows antigo e a conferência do código sem UAC; ninguém consegue burlar a checagem no setup de produção |
+| D109 | O pacote Linux não traz units estáticas: o `postinst` e o `install.sh` usam `dm-agent install`/`dm-watchdog install` | Uma fonte só para a unit do systemd (o template já testado no Go) |
+| D110 | `.deb` montado em Python (ar + tar.gz), reprodutível | Gera os pacotes nesta máquina Windows sem `dpkg-deb`; mesma entrada, mesmos bytes |
+| D111 | Link público do instalador e do `install.sh` vale só com código de cadastro vigente (resposta 404 igual para inexistente, usado ou expirado) e tem limite de requisições | Técnico instala sem login no portal; ninguém de fora baixa o instalador nem descobre códigos |
+| D112 | Só o superadmin publica instaladores; qualquer usuário com acesso a Coletores baixa no portal | Mesma regra das versões do coletor: o binário roda em todos os clientes |
+| D113 | Desinstalação remove também a pasta de dados (credencial, fila, logs) | "Desinstalador limpo" (Fase 8); quem reinstala recebe um código novo no portal |
+| D114 | Assinatura de código pronta no build (`-Sign`, `signtool`, carimbo de tempo, certificado .pfx ou impressão digital), desligada até existir o certificado | PROMPT: deixar o passo pronto; sem certificado, o build avisa em vez de falhar |

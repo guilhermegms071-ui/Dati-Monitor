@@ -253,3 +253,30 @@ func TestNetworkErrorIsReported(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+func TestCheckEnrollment(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req protocol.EnrollCheckRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if r.URL.Path != "/api/agent/enroll/check" || req.V != protocol.Version {
+			http.Error(w, "rota", http.StatusNotFound)
+			return
+		}
+		if req.Code != "ABCD1234" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"detail":{"code":"enrollment_code_invalid","message":"Código de cadastro inválido, já usado ou expirado"}}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(protocol.EnrollCheckResponse{AgentName: "Coletor 1", CustomerName: "Escola", SiteName: "Sede"})
+	}))
+	defer srv.Close()
+	info, err := CheckEnrollment(context.Background(), Options{ServerURL: srv.URL}, "ABCD1234")
+	if err != nil || info.SiteName != "Sede" || info.CustomerName != "Escola" {
+		t.Fatalf("checagem: %+v %v", info, err)
+	}
+	if _, err := CheckEnrollment(context.Background(), Options{ServerURL: srv.URL}, "ZZZZ9999"); err == nil ||
+		!strings.Contains(err.Error(), "inválido") {
+		t.Fatalf("código inválido deveria trazer a mensagem do servidor: %v", err)
+	}
+}

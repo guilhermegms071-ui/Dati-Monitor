@@ -71,7 +71,7 @@ jobs:
       - name: Python — ruff e mypy --strict
         working-directory: backend
         run: |
-          PY_SCRIPTS="../scripts/smtp_catcher.py ../scripts/sleepy_udp_proxy.py ../scripts/gen_protocol_docs.py ../scripts/gen_openapi.py ../scripts/e2e_seed.py ../scripts/e2e_sims.py ../scripts/chaos.py ../profiles/recordings/sim/generate.py"
+          PY_SCRIPTS="../scripts/smtp_catcher.py ../scripts/sleepy_udp_proxy.py ../scripts/gen_protocol_docs.py ../scripts/gen_openapi.py ../scripts/e2e_seed.py ../scripts/e2e_sims.py ../scripts/chaos.py ../scripts/printer_web_sim.py ../scripts/build_linux.py ../scripts/ci_enrollment_code.py ../profiles/recordings/sim/generate.py"
           ../.venv/bin/ruff check app tests alembic $PY_SCRIPTS
           ../.venv/bin/ruff format --check app tests alembic $PY_SCRIPTS
           ../.venv/bin/mypy --strict app tests $PY_SCRIPTS
@@ -100,6 +100,29 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test
 
+      - name: Pacote Linux — .deb instalado pelo install.sh, cadastrado e rodando no systemd
+        run: |
+          set -e
+          pwsh scripts/build-agent.ps1 -Version 0.0.0-ci -Targets linux/amd64
+          .venv/bin/python scripts/build_linux.py --version 0.0.0-ci --arch amd64
+          DEB=dist/installers/dati-monitor-agent_0.0.0~ci_amd64.deb
+          dpkg-deb --info "$DEB"
+          dpkg-deb --contents "$DEB"
+          (cd backend && ../.venv/bin/python -m app.cli migrate)
+          (cd backend && ../.venv/bin/python -m uvicorn app.api.main:create_app --factory --port 8000 > ../api.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8000/api/health && break; sleep 1; done
+          CODE=$(.venv/bin/python scripts/ci_enrollment_code.py)
+          curl -fsSL "http://127.0.0.1:8000/api/public/install.sh?code=$CODE" -o install.sh
+          sudo sh install.sh --package "$DEB"
+          sleep 5
+          systemctl is-active DatiMonitorAgent DatiMonitorWatchdog
+          grep -q "Restart=always" /etc/systemd/system/DatiMonitorAgent.service
+          sudo dm-agent status
+          sudo dpkg -P dati-monitor-agent
+          test ! -e /etc/systemd/system/DatiMonitorAgent.service
+          test ! -e /var/lib/dati-monitor
+          echo "pacote Linux: instalação, serviços e remoção OK"
+
   windows:
     name: Windows — build dos agentes e testes Go
     runs-on: windows-latest
@@ -121,3 +144,46 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: go test -race -count=1 ./...
+
+  windows-installer:
+    name: Windows — instalador (2 serviços, recuperação, atualização, desinstalação)
+    runs-on: windows-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:root@127.0.0.1:5432/dati_ci
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:root@127.0.0.1:5432/dati_ci
+      APP_ENV: test
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef0123456789abcdef
+      MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.mod
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: PostgreSQL do runner e API
+        shell: pwsh
+        run: |
+          $svc = Get-Service postgresql* | Select-Object -First 1
+          Set-Service $svc.Name -StartupType Manual
+          Start-Service $svc.Name
+          & "$env:PGBIN\psql.exe" -U postgres -c "CREATE DATABASE dati_ci" 2>&1
+          python -m venv .venv
+          .venv\Scripts\pip install -r backend\requirements-dev.lock
+          .venv\Scripts\pip install --no-deps -e backend
+          Push-Location backend; ..\.venv\Scripts\python -m app.cli migrate; Pop-Location
+          Start-Process -FilePath .venv\Scripts\python.exe -WorkingDirectory backend -ArgumentList '-m', 'uvicorn', 'app.api.main:create_app', '--factory', '--port', '8000' -RedirectStandardOutput api.log -RedirectStandardError api-err.log
+          for ($i = 0; $i -lt 60; $i++) { try { Invoke-RestMethod http://127.0.0.1:8000/api/health | Out-Null; break } catch { Start-Sleep 1 } }
+        env:
+          PGPASSWORD: root
+      - name: Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+      - name: Instalador — testes completos (runner é administrador)
+        shell: pwsh
+        run: |
+          $code = (.venv\Scripts\python scripts\ci_enrollment_code.py).Trim()
+          scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code $code -Full

@@ -39,6 +39,28 @@ async def test_create_agent_returns_code_and_instructions(
     assert resp.status_code == 403
 
 
+async def test_installer_checks_code_without_using_it(client: httpx.AsyncClient, factory: Factory) -> None:
+    t = await factory.tenant()
+    admin = await login(client, t.admin_email)
+    created = await create_agent(client, admin, t.site_id, "Coletor Recepção")
+    code = created["enrollment"]["code"]
+    for _ in range(2):  # conferir não gasta o código
+        ok = await client.post("/api/agent/enroll/check", json={"v": 1, "code": code})
+        assert ok.status_code == 200, ok.text
+        assert (ok.json()["agent_name"], ok.json()["site_name"], ok.json()["customer_name"]) == (
+            "Coletor Recepção",
+            "Revenda A Local",
+            "Revenda A Cliente",
+        )
+    body = {"v": 1, "code": code, "hostname": "PC-01", "kind": "windows"}
+    assert (await client.post("/api/agent/enroll", json=body)).status_code == 200
+    used = await client.post("/api/agent/enroll/check", json={"v": 1, "code": code})
+    assert used.status_code == 401
+    assert used.json()["detail"]["code"] == "enrollment_code_invalid"
+    bad = await client.post("/api/agent/enroll/check", json={"v": 1, "code": "ZZZZ9999"})
+    assert bad.status_code == 401
+
+
 async def test_enrollment_is_single_use_and_secret_not_stored(
     client: httpx.AsyncClient, factory: Factory, sessionmaker: async_sessionmaker[AsyncSession]
 ) -> None:

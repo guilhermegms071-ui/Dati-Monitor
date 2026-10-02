@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AccountPage, AuditPage, CompaniesPage, ResellersPage } from './pages/admin/AdminPages';
 import { CustomFieldsPage, PermissionsPage } from './pages/admin/PermissionsPage';
+import { DownloadsPage } from './pages/admin/DownloadsPage';
 import { IntegrationPage } from './pages/admin/IntegrationPage';
 import { ReleasesPage } from './pages/admin/ReleasesPage';
 import { UsersPage } from './pages/admin/UsersPage';
@@ -80,6 +81,7 @@ export const routes: RouteObject[] = [
           { path: 'revendas', element: <ResellersPage />, handle: { crumb: 'Revendas' } },
           { path: 'empresas', element: <CompaniesPage />, handle: { crumb: 'Empresas' } },
           { path: 'auditoria', element: <AuditPage />, handle: { crumb: 'Auditoria' } },
+          { path: 'downloads', element: <DownloadsPage />, handle: { crumb: 'Downloads' } },
           { path: 'versoes', element: <ReleasesPage />, handle: { crumb: 'Versões' } },
           { path: 'conta', element: <AccountPage />, handle: { crumb: 'Minha conta' } },
           { path: '*', element: <NotFoundPage /> },

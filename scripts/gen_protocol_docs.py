@@ -21,6 +21,13 @@ SCHEMAS = DOCS / "protocol-schemas"
 
 ENDPOINTS = [
     ("POST", "/api/agent/enroll", "EnrollRequest", "EnrollResponse", "sem token (código de 8 caracteres)"),
+    (
+        "POST",
+        "/api/agent/enroll/check",
+        "EnrollCheckRequest",
+        "EnrollCheckResponse",
+        "sem token; instalador confere o código sem usá-lo",
+    ),
     ("POST", "/api/agent/token", "TokenRequest", "TokenResponse", "sem token (assinatura HMAC)"),
     ("POST", "/api/agent/heartbeat", "HeartbeatRequest", "HeartbeatResponse", "Bearer (token do agente)"),
     ("GET", "/api/agent/config", "-", "AgentConfig", "Bearer"),

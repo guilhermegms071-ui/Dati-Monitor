@@ -35,6 +35,19 @@ class EnrollResponse(Msg):
     ws_url: str = Field(description="Endereço do canal WebSocket (wss://…/ws/agent)")
 
 
+class EnrollCheckRequest(Msg):
+    """Instalador: confere o código antes de instalar, sem consumi-lo."""
+
+    code: str = Field(min_length=8, max_length=8, pattern=r"^[A-Z0-9]{8}$")
+
+
+class EnrollCheckResponse(Msg):
+    agent_name: str
+    customer_name: str
+    site_name: str
+    expires_at: datetime
+
+
 class TokenRequest(Msg):
     agent_id: str = Field(max_length=64)
     ts: int
@@ -501,6 +514,8 @@ class Welcome(Msg):
 PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "EnrollRequest": EnrollRequest,
     "EnrollResponse": EnrollResponse,
+    "EnrollCheckRequest": EnrollCheckRequest,
+    "EnrollCheckResponse": EnrollCheckResponse,
     "TokenRequest": TokenRequest,
     "TokenResponse": TokenResponse,
     "HeartbeatRequest": HeartbeatRequest,

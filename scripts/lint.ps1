@@ -35,7 +35,8 @@ Push-Location (Join-Path $RepoRoot 'backend')
 try {
     $scriptsPy = @('..\scripts\smtp_catcher.py', '..\scripts\sleepy_udp_proxy.py', '..\scripts\gen_protocol_docs.py',
         '..\scripts\gen_openapi.py', '..\scripts\e2e_seed.py', '..\scripts\e2e_sims.py',
-        '..\scripts\chaos.py', '..\scripts\printer_web_sim.py', '..\profiles\recordings\sim\generate.py')
+        '..\scripts\chaos.py', '..\scripts\printer_web_sim.py', '..\scripts\build_linux.py',
+        '..\scripts\ci_enrollment_code.py', '..\profiles\recordings\sim\generate.py')
     $pyTargets = @('app', 'tests', 'alembic') + $scriptsPy
     Invoke-Checked 'Python: ruff check' { & "$venvScripts\ruff.exe" check @pyTargets }
     Invoke-Checked 'Python: ruff format --check' { & "$venvScripts\ruff.exe" format --check @pyTargets }

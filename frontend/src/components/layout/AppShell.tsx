@@ -4,6 +4,7 @@ import {
   Building2,
   ChevronRight,
   ClipboardList,
+  Download,
   FileCode2,
   FileSpreadsheet,
   Map as MapIcon,
@@ -87,6 +88,7 @@ const NAV: NavItem[] = [
   },
   { to: '/integracao', label: 'Integração ERP', icon: <Plug className="h-4 w-4" />, permission: 'integration.read' },
   { to: '/auditoria', label: 'Auditoria', icon: <ClipboardList className="h-4 w-4" />, permission: 'audit.read' },
+  { to: '/downloads', label: 'Downloads', icon: <Download className="h-4 w-4" />, permission: 'agents.read' },
   { to: '/versoes', label: 'Versões', icon: <PackageCheck className="h-4 w-4" />, permission: 'agents.read' },
 ];
 

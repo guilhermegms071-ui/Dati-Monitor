@@ -109,6 +109,12 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await dialog.getByRole('button', { name: 'Gerar código' }).click();
   const code = ((await dialog.getByTestId('enrollment-code').textContent()) ?? '').trim();
   expect(code).toMatch(/^[A-Z0-9]{8}$/);
+  // Fase 8: link do instalador (sem login, preso ao código) e linha única do Linux.
+  await expect(dialog.getByTestId('installer-link')).toHaveAttribute(
+    'href',
+    new RegExp(`/api/public/installer\\?code=${code}&platform=windows$`),
+  );
+  await expect(dialog.getByText(`install.sh?code=${code}`)).toBeVisible();
   await dialog.getByRole('button', { name: 'Fechar' }).first().click();
 
   // 2. O agente real se cadastra com o código e passa a rodar, iniciado e vigiado pelo dm-watchdog.

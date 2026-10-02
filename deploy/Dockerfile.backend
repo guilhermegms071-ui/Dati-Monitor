@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r backend/requirements.lock
 
 COPY product.json product.json
 COPY profiles profiles
+# install.sh servido em /api/public/install.sh (preenchido com o servidor e o código).
+COPY installer/linux installer/linux
 COPY backend backend
 RUN pip install --no-cache-dir --no-deps -e backend \
     && useradd --system --home /srv --shell /usr/sbin/nologin dati

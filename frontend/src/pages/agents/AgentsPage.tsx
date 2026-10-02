@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, Plus, Search } from 'lucide-react';
+import { Copy, Download, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
@@ -298,11 +298,43 @@ export function EnrollmentInfo({ enrollment }: { enrollment: Schemas['Enrollment
           <li key={i}>{i.replace(/^\d+\.\s*/, '')}</li>
         ))}
       </ol>
-      <div>
-        <p className="mb-1 text-xs text-slate-500">Instalação por linha de comando:</p>
-        <code className="block break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-          {enrollment.install_command}
-        </code>
+      <a
+        href={enrollment.windows_url}
+        className="flex items-center justify-center gap-2 rounded-md bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-700"
+        data-testid="installer-link"
+      >
+        <Download className="h-4 w-4" /> Baixar o instalador do Windows
+      </a>
+      <CommandLine label="Instalação silenciosa (prompt como administrador):" text={enrollment.windows_silent} />
+      <CommandLine label="Linux (Debian, Ubuntu, Raspberry Pi OS):" text={enrollment.linux_command} />
+      <CommandLine label="Só cadastrar (coletor já instalado):" text={enrollment.install_command} />
+    </div>
+  );
+}
+
+function CommandLine({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <p className="mb-1 text-xs text-slate-500">{label}</p>
+      <div className="flex items-start gap-1">
+        <code className="block flex-1 break-all rounded bg-slate-900 p-2 text-xs text-slate-100">{text}</code>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Copiar: ${label}`}
+          onClick={() => {
+            navigator.clipboard
+              .writeText(text)
+              .then(() => {
+                showSuccess('Copiado');
+              })
+              .catch((err: unknown) => {
+                showError(err, 'Não foi possível copiar');
+              });
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
   );

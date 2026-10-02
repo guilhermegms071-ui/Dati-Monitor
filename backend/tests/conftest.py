@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import os
 import socket
+import sys
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
@@ -64,6 +65,7 @@ def load_script(name: str) -> ModuleType:
     assert spec is not None
     assert spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # dataclasses do script precisam do módulo registrado
     spec.loader.exec_module(mod)
     return mod
 
