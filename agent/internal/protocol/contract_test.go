@@ -141,6 +141,9 @@ func TestMessagesMatchServerSchemas(t *testing.T) {
 		"Hello":                    Hello{},
 		"WatchdogHeartbeatRequest": WatchdogHeartbeatRequest{Ts: now},
 		"WsMessage":                WSMessage{},
+		"WebResponseStart":         WebResponseStart{},
+		"WebChunk":                 WebChunk{},
+		"WebError":                 WebError{},
 	}
 	for name, msg := range sent {
 		schema := loadSchema(t, name)

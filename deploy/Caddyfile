@@ -5,9 +5,12 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
+	# A página da impressora (/devweb) pode usar frames dela mesma; o gateway já manda SAMEORIGIN e a
+	# CSP "sandbox" que a isola do portal. O resto do site nunca vai em frame.
+	@not_devweb not path /devweb/*
+	header @not_devweb X-Frame-Options "DENY"
 
 	handle /api/* {
 		reverse_proxy api:8000

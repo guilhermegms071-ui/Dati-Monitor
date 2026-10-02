@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "ActivateIn": {
+        "properties": {
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "ActivateIn",
+        "type": "object"
+      },
       "AdjustmentIn": {
         "properties": {
           "color": {
@@ -3344,6 +3358,84 @@
         "title": "CustomFieldUpdate",
         "type": "object"
       },
+      "CustomerImportError": {
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "line": {
+            "description": "Linha do arquivo (1 = cabeçalho)",
+            "title": "Line",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "column",
+          "message"
+        ],
+        "title": "CustomerImportError",
+        "type": "object"
+      },
+      "CustomerImportResult": {
+        "properties": {
+          "company_customers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Clientes da empresa após a importação",
+            "title": "Company Customers"
+          },
+          "customers": {
+            "title": "Customers",
+            "type": "integer"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerImportError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported": {
+            "description": "True quando gravou (sem nenhum erro no arquivo)",
+            "title": "Imported",
+            "type": "boolean"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "sites": {
+            "title": "Sites",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dry_run",
+          "imported",
+          "lines",
+          "customers",
+          "sites",
+          "errors"
+        ],
+        "title": "CustomerImportResult",
+        "type": "object"
+      },
       "CustomerIn": {
         "properties": {
           "active": {
@@ -3699,6 +3791,9 @@
             "title": "Ending 7 Days",
             "type": "array"
           },
+          "month_production": {
+            "$ref": "#/components/schemas/MonthProduction"
+          },
           "offline_agents": {
             "items": {
               "$ref": "#/components/schemas/OfflineAgent"
@@ -3717,6 +3812,7 @@
         "required": [
           "cards",
           "pages_per_day",
+          "month_production",
           "offline_agents",
           "critical_supplies",
           "ending_7_days",
@@ -5336,6 +5432,1125 @@
         "title": "EnrollmentCodeOut",
         "type": "object"
       },
+      "ErpConnectorSettings-Input": {
+        "properties": {
+          "company_code": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Código da empresa",
+            "title": "Company Code"
+          },
+          "counters_hour": {
+            "default": 6,
+            "description": "Hora do envio diário (Brasília)",
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Counters Hour",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "enabled_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Desde quando está ligado: alertas anteriores não são enviados",
+            "title": "Enabled Since"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operador",
+            "title": "Operator"
+          },
+          "send_counters": {
+            "default": false,
+            "description": "Enviar contadores (leitura de corte diária)",
+            "title": "Send Counters",
+            "type": "boolean"
+          },
+          "service_order": {
+            "$ref": "#/components/schemas/ServiceOrderParams-Input"
+          },
+          "supply_request": {
+            "$ref": "#/components/schemas/SupplyRequestParams-Input"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/TransportParams-Input"
+          }
+        },
+        "title": "ErpConnectorSettings",
+        "type": "object"
+      },
+      "ErpConnectorSettings-Output": {
+        "properties": {
+          "company_code": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Código da empresa",
+            "title": "Company Code"
+          },
+          "counters_hour": {
+            "default": 6,
+            "description": "Hora do envio diário (Brasília)",
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Counters Hour",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "enabled_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Desde quando está ligado: alertas anteriores não são enviados",
+            "title": "Enabled Since"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operador",
+            "title": "Operator"
+          },
+          "send_counters": {
+            "default": false,
+            "description": "Enviar contadores (leitura de corte diária)",
+            "title": "Send Counters",
+            "type": "boolean"
+          },
+          "service_order": {
+            "$ref": "#/components/schemas/ServiceOrderParams-Output"
+          },
+          "supply_request": {
+            "$ref": "#/components/schemas/SupplyRequestParams-Output"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/TransportParams-Output"
+          }
+        },
+        "required": [
+          "enabled",
+          "company_code",
+          "operator",
+          "send_counters",
+          "counters_hour",
+          "supply_request",
+          "service_order",
+          "transport",
+          "enabled_since"
+        ],
+        "title": "ErpConnectorSettings",
+        "type": "object"
+      },
+      "ErpCutoffItem": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "customer_erp_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Erp Code"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mono"
+          },
+          "read_at": {
+            "format": "date-time",
+            "title": "Read At",
+            "type": "string"
+          },
+          "reading_id": {
+            "format": "uuid",
+            "title": "Reading Id",
+            "type": "string"
+          },
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "device_id",
+          "serial",
+          "customer_erp_code",
+          "reading_id",
+          "read_at",
+          "total",
+          "mono",
+          "color"
+        ],
+        "title": "ErpCutoffItem",
+        "type": "object"
+      },
+      "ErpCutoffResponse": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ErpCutoffItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "items"
+        ],
+        "title": "ErpCutoffResponse",
+        "type": "object"
+      },
+      "ErpDevice": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "alt_serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Serial"
+          },
+          "asset_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Tag"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "customer_erp_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Erp Code"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "franchise_pages_color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Color"
+          },
+          "franchise_pages_mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Pages Mono"
+          },
+          "franchise_value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Franchise Value"
+          },
+          "is_color": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Color"
+          },
+          "last_color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Color"
+          },
+          "last_mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Mono"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Read At"
+          },
+          "last_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Total"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "overage_price_color": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Color"
+          },
+          "overage_price_mono": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Price Mono"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector"
+          },
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "site_name": {
+            "title": "Site Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "serial",
+          "alt_serial",
+          "asset_tag",
+          "brand",
+          "model",
+          "is_color",
+          "sector",
+          "active",
+          "customer_erp_code",
+          "customer_name",
+          "site_name",
+          "franchise_value",
+          "franchise_pages_mono",
+          "franchise_pages_color",
+          "overage_price_mono",
+          "overage_price_color",
+          "last_read_at",
+          "last_total",
+          "last_mono",
+          "last_color"
+        ],
+        "title": "ErpDevice",
+        "type": "object"
+      },
+      "ErpDevicePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ErpDevice"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Passe em `after` para a próxima página; null = fim",
+            "title": "Next After"
+          }
+        },
+        "required": [
+          "items",
+          "next_after"
+        ],
+        "title": "ErpDevicePage",
+        "type": "object"
+      },
+      "ErpQueueCounts": {
+        "properties": {
+          "error": {
+            "title": "Error",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "sent",
+          "error"
+        ],
+        "title": "ErpQueueCounts",
+        "type": "object"
+      },
+      "ErpQueueDetail": {
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivered_via": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered Via"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "counters",
+              "supply_request",
+              "service_order"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "sent",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "summary",
+          "device_id",
+          "alert_id",
+          "attempts",
+          "last_error",
+          "next_attempt_at",
+          "sent_at",
+          "delivered_via",
+          "created_at",
+          "payload"
+        ],
+        "title": "ErpQueueDetail",
+        "type": "object"
+      },
+      "ErpQueueItemOut": {
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivered_via": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered Via"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "counters",
+              "supply_request",
+              "service_order"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "sent",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "summary",
+          "device_id",
+          "alert_id",
+          "attempts",
+          "last_error",
+          "next_attempt_at",
+          "sent_at",
+          "delivered_via",
+          "created_at"
+        ],
+        "title": "ErpQueueItemOut",
+        "type": "object"
+      },
+      "ErpQueuePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ErpQueueItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ErpQueuePage",
+        "type": "object"
+      },
+      "ErpReading": {
+        "properties": {
+          "adjusted": {
+            "description": "Valores corrigidos por ajuste manual no portal",
+            "title": "Adjusted",
+            "type": "boolean"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "customer_erp_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Erp Code"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "mono": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mono"
+          },
+          "read_at": {
+            "format": "date-time",
+            "title": "Read At",
+            "type": "string"
+          },
+          "reading_id": {
+            "format": "uuid",
+            "title": "Reading Id",
+            "type": "string"
+          },
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "reading_id",
+          "read_at",
+          "device_id",
+          "serial",
+          "customer_erp_code",
+          "total",
+          "mono",
+          "color",
+          "adjusted"
+        ],
+        "title": "ErpReading",
+        "type": "object"
+      },
+      "ErpReadingPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ErpReading"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Passe em `cursor` para a próxima página; null = fim",
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ErpReadingPage",
+        "type": "object"
+      },
+      "ErpRetryIn": {
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "ErpRetryIn",
+        "type": "object"
+      },
+      "ErpRetryOut": {
+        "properties": {
+          "requeued": {
+            "title": "Requeued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requeued"
+        ],
+        "title": "ErpRetryOut",
+        "type": "object"
+      },
+      "ErpTokenCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "description": "Token completo: mostrado só agora, guarde no ERP",
+            "title": "Token",
+            "type": "string"
+          },
+          "token_prefix": {
+            "description": "Início do token, para reconhecer qual é qual",
+            "title": "Token Prefix",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "token_prefix",
+          "created_at",
+          "created_by",
+          "last_used_at",
+          "revoked_at",
+          "token"
+        ],
+        "title": "ErpTokenCreated",
+        "type": "object"
+      },
+      "ErpTokenIn": {
+        "properties": {
+          "name": {
+            "description": "Ex.: Dataclassic produção",
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ErpTokenIn",
+        "type": "object"
+      },
+      "ErpTokenOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token_prefix": {
+            "description": "Início do token, para reconhecer qual é qual",
+            "title": "Token Prefix",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "token_prefix",
+          "created_at",
+          "created_by",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "ErpTokenOut",
+        "type": "object"
+      },
       "ErrorDetail": {
         "additionalProperties": true,
         "properties": {
@@ -5384,6 +6599,67 @@
           "type"
         ],
         "title": "EventPayload",
+        "type": "object"
+      },
+      "FixtureIn": {
+        "properties": {
+          "counters": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Valores da folha de contadores impressa no momento do walk",
+            "title": "Counters",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 81,
+            "minLength": 3,
+            "title": "Name",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Perfil que deve ser escolhido",
+            "title": "Profile"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FixtureIn",
+        "type": "object"
+      },
+      "FixtureOut": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "FixtureOut",
         "type": "object"
       },
       "ForgotPasswordRequest": {
@@ -6369,6 +7645,17 @@
             "title": "Oid Count",
             "type": "integer"
           },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
           "root_oid": {
             "anyOf": [
               {
@@ -6387,11 +7674,47 @@
           "device_id",
           "command_id",
           "ip",
+          "port",
           "root_oid",
           "oid_count",
           "created_at"
         ],
         "title": "MibWalkOut",
+        "type": "object"
+      },
+      "MonthProduction": {
+        "properties": {
+          "color": {
+            "title": "Color",
+            "type": "integer"
+          },
+          "devices": {
+            "description": "Equipamentos com leitura no mês",
+            "title": "Devices",
+            "type": "integer"
+          },
+          "mono": {
+            "title": "Mono",
+            "type": "integer"
+          },
+          "month": {
+            "description": "AAAA-MM",
+            "title": "Month",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "mono",
+          "color",
+          "total",
+          "devices"
+        ],
+        "title": "MonthProduction",
         "type": "object"
       },
       "NotificationOut": {
@@ -6949,15 +8272,26 @@
             "title": "Day",
             "type": "string"
           },
+          "devices": {
+            "description": "Equipamentos que comunicaram (leitura válida) no dia",
+            "title": "Devices",
+            "type": "integer"
+          },
           "mono": {
             "title": "Mono",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
             "type": "integer"
           }
         },
         "required": [
           "day",
           "mono",
-          "color"
+          "color",
+          "total",
+          "devices"
         ],
         "title": "PagesPerDay",
         "type": "object"
@@ -7792,6 +9126,249 @@
         "title": "PrinterAlertPage",
         "type": "object"
       },
+      "ProfileDetail": {
+        "properties": {
+          "active_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileVersionOut"
+            },
+            "title": "Versions",
+            "type": "array"
+          },
+          "yaml": {
+            "title": "Yaml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "active_version",
+          "yaml",
+          "versions"
+        ],
+        "title": "ProfileDetail",
+        "type": "object"
+      },
+      "ProfileSummary": {
+        "properties": {
+          "active_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "latest_version": {
+            "title": "Latest Version",
+            "type": "integer"
+          },
+          "placeholders": {
+            "description": "OIDs ainda PREENCHER_PELO_WALK",
+            "title": "Placeholders",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "file = arquivo do repositório; portal = publicado nesta tela",
+            "title": "Source"
+          },
+          "sys_object_id_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sys Object Id Prefix"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "key",
+          "description",
+          "active_version",
+          "latest_version",
+          "source",
+          "sys_object_id_prefix",
+          "placeholders",
+          "updated_at"
+        ],
+        "title": "ProfileSummary",
+        "type": "object"
+      },
+      "ProfileText": {
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "yaml": {
+            "maxLength": 200000,
+            "minLength": 10,
+            "title": "Yaml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "yaml"
+        ],
+        "title": "ProfileText",
+        "type": "object"
+      },
+      "ProfileValidation": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Perfil validado (JSON), pronto para testar no coletor",
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "ok",
+          "error",
+          "profile"
+        ],
+        "title": "ProfileValidation",
+        "type": "object"
+      },
+      "ProfileVersionOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "source",
+          "active",
+          "created_at",
+          "created_by",
+          "notes"
+        ],
+        "title": "ProfileVersionOut",
+        "type": "object"
+      },
       "QuietHours-Input": {
         "description": "Silêncio (seção 9): fora do horário, só alertas críticos saem na hora; os outros esperam o fim.",
         "properties": {
@@ -8573,6 +10150,349 @@
         "title": "ReleaseUpdate",
         "type": "object"
       },
+      "ReportAppliedFilters": {
+        "properties": {
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "date_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Type"
+          },
+          "group_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group By"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "date_type",
+          "group_by",
+          "month",
+          "hours"
+        ],
+        "title": "ReportAppliedFilters",
+        "type": "object"
+      },
+      "ReportChart": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "bar",
+              "line"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "series": {
+            "description": "value = chave da coluna; label = legenda",
+            "items": {
+              "$ref": "#/components/schemas/ReportOption"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "stacked": {
+            "title": "Stacked",
+            "type": "boolean"
+          },
+          "x": {
+            "title": "X",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "x",
+          "series",
+          "stacked"
+        ],
+        "title": "ReportChart",
+        "type": "object"
+      },
+      "ReportColumn": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "int",
+              "decimal",
+              "money",
+              "percent",
+              "datetime",
+              "date",
+              "bool"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "kind"
+        ],
+        "title": "ReportColumn",
+        "type": "object"
+      },
+      "ReportInfo": {
+        "properties": {
+          "cutoff_date": {
+            "description": "Usa uma data de corte (campo 'até')",
+            "title": "Cutoff Date",
+            "type": "boolean"
+          },
+          "date_types": {
+            "items": {
+              "$ref": "#/components/schemas/ReportOption"
+            },
+            "title": "Date Types",
+            "type": "array"
+          },
+          "default_days": {
+            "title": "Default Days",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "group_by": {
+            "items": {
+              "$ref": "#/components/schemas/ReportOption"
+            },
+            "title": "Group By",
+            "type": "array"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "boolean"
+          },
+          "period": {
+            "description": "Usa o filtro de período (de/até)",
+            "title": "Period",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "group",
+          "description",
+          "period",
+          "cutoff_date",
+          "month",
+          "hours",
+          "default_days",
+          "date_types",
+          "group_by"
+        ],
+        "title": "ReportInfo",
+        "type": "object"
+      },
+      "ReportOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ReportOption",
+        "type": "object"
+      },
+      "ReportResult": {
+        "properties": {
+          "chart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportChart"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chart_rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Todas as linhas do gráfico (não paginadas)",
+            "title": "Chart Rows"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ReportColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ReportAppliedFilters"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totals"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "filters",
+          "columns",
+          "rows",
+          "total_rows",
+          "offset",
+          "limit",
+          "totals",
+          "chart",
+          "chart_rows",
+          "notes"
+        ],
+        "title": "ReportResult",
+        "type": "object"
+      },
       "ResellerIn": {
         "properties": {
           "cnpj": {
@@ -8870,6 +10790,185 @@
         "title": "RoleOut",
         "type": "object"
       },
+      "ServiceOrderParams-Input": {
+        "properties": {
+          "alert_types": {
+            "description": "Quais alertas viram OS",
+            "items": {
+              "enum": [
+                "service_call",
+                "consumable",
+                "jam_recurrent",
+                "parts",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Alert Types",
+            "type": "array"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "intervention_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo de intervenção",
+            "title": "Intervention Type"
+          },
+          "prt_alert_codes": {
+            "description": "Códigos prtAlert importáveis (vazio = todos); vale para os alertas da impressora",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Prt Alert Codes",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motivo",
+            "title": "Reason"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "technician_code": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Código do técnico",
+            "title": "Technician Code"
+          }
+        },
+        "title": "ServiceOrderParams",
+        "type": "object"
+      },
+      "ServiceOrderParams-Output": {
+        "properties": {
+          "alert_types": {
+            "description": "Quais alertas viram OS",
+            "items": {
+              "enum": [
+                "service_call",
+                "consumable",
+                "jam_recurrent",
+                "parts",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Alert Types",
+            "type": "array"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "intervention_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo de intervenção",
+            "title": "Intervention Type"
+          },
+          "prt_alert_codes": {
+            "description": "Códigos prtAlert importáveis (vazio = todos); vale para os alertas da impressora",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Prt Alert Codes",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motivo",
+            "title": "Reason"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "technician_code": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Código do técnico",
+            "title": "Technician Code"
+          }
+        },
+        "required": [
+          "enabled",
+          "technician_code",
+          "reason",
+          "intervention_type",
+          "status",
+          "alert_types",
+          "prt_alert_codes"
+        ],
+        "title": "ServiceOrderParams",
+        "type": "object"
+      },
       "SessionResponse": {
         "properties": {
           "access_token": {
@@ -9118,6 +11217,123 @@
           "name"
         ],
         "title": "SiteIn",
+        "type": "object"
+      },
+      "SiteMapItem": {
+        "properties": {
+          "agents": {
+            "title": "Agents",
+            "type": "integer"
+          },
+          "agents_online": {
+            "title": "Agents Online",
+            "type": "integer"
+          },
+          "alerts_open": {
+            "title": "Alerts Open",
+            "type": "integer"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "devices": {
+            "title": "Devices",
+            "type": "integer"
+          },
+          "devices_offline": {
+            "title": "Devices Offline",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "status": {
+            "description": "ok; warning = equipamento sem conexão ou alerta aberto; offline = nenhum coletor online; no_agent = local sem coletor",
+            "enum": [
+              "ok",
+              "warning",
+              "offline",
+              "no_agent"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "customer_id",
+          "customer_name",
+          "city",
+          "state",
+          "latitude",
+          "longitude",
+          "status",
+          "devices",
+          "devices_offline",
+          "agents",
+          "agents_online",
+          "alerts_open"
+        ],
+        "title": "SiteMapItem",
         "type": "object"
       },
       "SiteOut": {
@@ -10651,6 +12867,256 @@
         "title": "SupplyReplacementPage",
         "type": "object"
       },
+      "SupplyRequestParams-Input": {
+        "properties": {
+          "desc_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo desc",
+            "title": "Desc Type"
+          },
+          "email_only": {
+            "default": false,
+            "description": "Apenas enviar e-mail (não cria no ERP)",
+            "title": "Email Only",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "freight_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo de frete",
+            "title": "Freight Type"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "E-mail de notificação",
+            "title": "Notify Email"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operação",
+            "title": "Operation"
+          },
+          "payment_condition": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Condição de pagamento",
+            "title": "Payment Condition"
+          },
+          "seller": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Vendedor",
+            "title": "Seller"
+          },
+          "situation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Situação",
+            "title": "Situation"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "SupplyRequestParams",
+        "type": "object"
+      },
+      "SupplyRequestParams-Output": {
+        "properties": {
+          "desc_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo desc",
+            "title": "Desc Type"
+          },
+          "email_only": {
+            "default": false,
+            "description": "Apenas enviar e-mail (não cria no ERP)",
+            "title": "Email Only",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "freight_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tipo de frete",
+            "title": "Freight Type"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "E-mail de notificação",
+            "title": "Notify Email"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operação",
+            "title": "Operation"
+          },
+          "payment_condition": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Condição de pagamento",
+            "title": "Payment Condition"
+          },
+          "seller": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Vendedor",
+            "title": "Seller"
+          },
+          "situation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Situação",
+            "title": "Situation"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "enabled",
+          "operation",
+          "desc_type",
+          "status",
+          "situation",
+          "payment_condition",
+          "seller",
+          "freight_type",
+          "notify_email",
+          "email_only"
+        ],
+        "title": "SupplyRequestParams",
+        "type": "object"
+      },
       "TokenRequest": {
         "properties": {
           "agent_id": {
@@ -10838,6 +13304,122 @@
           "otpauth_uri"
         ],
         "title": "TotpSetupResponse",
+        "type": "object"
+      },
+      "TransportParams-Input": {
+        "properties": {
+          "auth_header": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Valor do cabeçalho Authorization (fica cifrado)",
+            "title": "Auth Header"
+          },
+          "directory": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pasta (transporte arquivo)",
+            "title": "Directory"
+          },
+          "kind": {
+            "default": "file",
+            "description": "file = pasta monitorada pelo ERP; http = POST JSON para a API do ERP",
+            "enum": [
+              "file",
+              "http"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL (transporte http)",
+            "title": "Url"
+          }
+        },
+        "title": "TransportParams",
+        "type": "object"
+      },
+      "TransportParams-Output": {
+        "properties": {
+          "auth_header": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Valor do cabeçalho Authorization (fica cifrado)",
+            "title": "Auth Header"
+          },
+          "directory": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pasta (transporte arquivo)",
+            "title": "Directory"
+          },
+          "kind": {
+            "default": "file",
+            "description": "file = pasta monitorada pelo ERP; http = POST JSON para a API do ERP",
+            "enum": [
+              "file",
+              "http"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL (transporte http)",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "kind",
+          "directory",
+          "url",
+          "auth_header"
+        ],
+        "title": "TransportParams",
         "type": "object"
       },
       "UploadResponse": {
@@ -11196,6 +13778,66 @@
         "title": "VersionSeen",
         "type": "object"
       },
+      "WalkRow": {
+        "properties": {
+          "oid": {
+            "title": "Oid",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "oid",
+          "type",
+          "value"
+        ],
+        "title": "WalkRow",
+        "type": "object"
+      },
+      "WalkTree": {
+        "properties": {
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WalkRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "oid_count": {
+            "title": "Oid Count",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "walk_id": {
+            "format": "uuid",
+            "title": "Walk Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "walk_id",
+          "ip",
+          "total",
+          "oid_count",
+          "items"
+        ],
+        "title": "WalkTree",
+        "type": "object"
+      },
       "WatchdogHeartbeatRequest": {
         "description": "dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o\nmesmo token do coletor (mesma credencial do PC).",
         "properties": {
@@ -11339,6 +13981,117 @@
         ],
         "title": "WatchdogRestart",
         "type": "object"
+      },
+      "WebSessionByIpIn": {
+        "properties": {
+          "ip": {
+            "description": "IP digitado pelo técnico",
+            "maxLength": 64,
+            "minLength": 7,
+            "title": "Ip",
+            "type": "string"
+          },
+          "port": {
+            "default": 80,
+            "description": "80, 443, 8000, 8080 ou 8443",
+            "title": "Port",
+            "type": "integer"
+          },
+          "scheme": {
+            "default": "http",
+            "enum": [
+              "http",
+              "https"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "title": "WebSessionByIpIn",
+        "type": "object"
+      },
+      "WebSessionIn": {
+        "properties": {
+          "port": {
+            "default": 80,
+            "description": "80, 443, 8000, 8080 ou 8443",
+            "title": "Port",
+            "type": "integer"
+          },
+          "scheme": {
+            "default": "http",
+            "enum": [
+              "http",
+              "https"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "title": "WebSessionIn",
+        "type": "object"
+      },
+      "WebSessionOut": {
+        "properties": {
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "scheme": {
+            "title": "Scheme",
+            "type": "string"
+          },
+          "url": {
+            "description": "Abra em nova aba; o link só vale para o primeiro navegador que o usar",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "device_id",
+          "ip",
+          "port",
+          "scheme",
+          "agent_name",
+          "expires_at"
+        ],
+        "title": "WebSessionOut",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "ErpToken": {
+        "description": "Token de integração criado no portal (Configurações > Integração). Somente leitura.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -12319,6 +15072,417 @@
         "summary": "Walk SNMP (.snmprec em gzip) pedido por mib_walk",
         "tags": [
           "coletores (protocolo)"
+        ]
+      }
+    },
+    "/api/erp/v1/cutoff": {
+      "get": {
+        "description": "Para cada equipamento, a leitura válida mais recente até o fim do dia `date` (horário de Brasília). Equipamento sem leitura até a data não aparece.",
+        "operationId": "cutoff_readings_api_erp_v1_cutoff_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Código ERP do cliente (Clientes > Código ERP)",
+            "in": "query",
+            "name": "customer_erp_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Código ERP do cliente (Clientes > Código ERP)",
+              "title": "Customer Erp Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpCutoffResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ErpToken": []
+          }
+        ],
+        "summary": "Leitura de corte",
+        "tags": [
+          "erp"
+        ]
+      }
+    },
+    "/api/erp/v1/devices": {
+      "get": {
+        "operationId": "devices_api_erp_v1_devices_get",
+        "parameters": [
+          {
+            "description": "Código ERP do cliente (Clientes > Código ERP)",
+            "in": "query",
+            "name": "customer_erp_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Código ERP do cliente (Clientes > Código ERP)",
+              "title": "Customer Erp Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpDevicePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ErpToken": []
+          }
+        ],
+        "summary": "Equipamentos ativos no parque",
+        "tags": [
+          "erp"
+        ]
+      }
+    },
+    "/api/erp/v1/readings": {
+      "get": {
+        "description": "Leituras entre `from` e `to` (dias no horário de Brasília, inclusive), da mais antiga para a mais recente. Ajustes manuais já aplicados; leituras com regressão de contador não classificadas como válidas ficam de fora. Paginação por `cursor`.",
+        "operationId": "readings_api_erp_v1_readings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Código ERP do cliente (Clientes > Código ERP)",
+            "in": "query",
+            "name": "customer_erp_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Código ERP do cliente (Clientes > Código ERP)",
+              "title": "Customer Erp Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpReadingPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ErpToken": []
+          }
+        ],
+        "summary": "Leituras válidas do período",
+        "tags": [
+          "erp"
         ]
       }
     },
@@ -18087,6 +21251,187 @@
         ]
       }
     },
+    "/api/v1/customers/import": {
+      "post": {
+        "description": "Corpo = o arquivo CSV (text/csv). Com `dry_run=true` só valida. Tudo ou nada: com qualquer erro, nada é gravado e a resposta lista as linhas com problema.",
+        "operationId": "import_customers_api_v1_customers_import_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Dry Run",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Importar clientes de um CSV (separador ;)",
+        "tags": [
+          "clientes"
+        ]
+      }
+    },
+    "/api/v1/customers/import/template": {
+      "get": {
+        "operationId": "import_template_api_v1_customers_import_template_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Modelo do CSV de importação de clientes",
+        "tags": [
+          "clientes"
+        ]
+      }
+    },
     "/api/v1/customers/{customer_id}": {
       "delete": {
         "operationId": "delete_customer_api_v1_customers__customer_id__delete",
@@ -19970,6 +23315,109 @@
         ]
       }
     },
+    "/api/v1/devices/{device_id}/web-session": {
+      "post": {
+        "operationId": "open_device_api_v1_devices__device_id__web_session_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebSessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abrir a página web da impressora (túnel pelo coletor)",
+        "tags": [
+          "acesso web"
+        ]
+      }
+    },
     "/api/v1/discoveries": {
       "get": {
         "operationId": "list_discoveries_api_v1_discoveries_get",
@@ -20328,6 +23776,832 @@
         "summary": "Ativar, descartar ou restaurar (individual ou em lote)",
         "tags": [
           "equipamentos"
+        ]
+      }
+    },
+    "/api/v1/erp-connector": {
+      "get": {
+        "operationId": "get_connector_api_v1_erp_connector_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpConnectorSettings-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Parâmetros do conector",
+        "tags": [
+          "integração"
+        ]
+      },
+      "put": {
+        "operationId": "put_connector_api_v1_erp_connector_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErpConnectorSettings-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpConnectorSettings-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar parâmetros",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-queue": {
+      "get": {
+        "operationId": "list_queue_api_v1_erp_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "sent",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "counters",
+                    "supply_request",
+                    "service_order"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpQueuePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fila do conector (recentes primeiro)",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-queue/counts": {
+      "get": {
+        "operationId": "queue_counts_api_v1_erp_queue_counts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpQueueCounts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Itens por status",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-queue/retry": {
+      "post": {
+        "operationId": "retry_api_v1_erp_queue_retry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErpRetryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpRetryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reenviar itens",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-queue/{item_id}": {
+      "get": {
+        "operationId": "queue_item_api_v1_erp_queue__item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpQueueDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Item com o conteúdo enviado",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-tokens": {
+      "get": {
+        "operationId": "list_tokens_api_v1_erp_tokens_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ErpTokenOut"
+                  },
+                  "title": "Response List Tokens Api V1 Erp Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Tokens de integração do ERP",
+        "tags": [
+          "integração"
+        ]
+      },
+      "post": {
+        "operationId": "create_token_api_v1_erp_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErpTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpTokenCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar token (o valor aparece só nesta resposta)",
+        "tags": [
+          "integração"
+        ]
+      }
+    },
+    "/api/v1/erp-tokens/{token_id}/revoke": {
+      "post": {
+        "operationId": "revoke_token_api_v1_erp_tokens__token_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpTokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revogar token",
+        "tags": [
+          "integração"
         ]
       }
     },
@@ -20879,6 +25153,282 @@
         "summary": "Baixar walk (.snmprec.gz)",
         "tags": [
           "comandos"
+        ]
+      }
+    },
+    "/api/v1/mib-walks/{walk_id}/fixture": {
+      "post": {
+        "operationId": "save_fixture_api_v1_mib_walks__walk_id__fixture_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "walk_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Walk Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FixtureIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixtureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salva como gravação de teste",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/mib-walks/{walk_id}/tree": {
+      "get": {
+        "operationId": "walk_tree_api_v1_mib_walks__walk_id__tree_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "walk_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Walk Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valor exato (ex.: contador da folha)",
+            "in": "query",
+            "name": "value",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Valor exato (ex.: contador da folha)",
+              "title": "Value"
+            }
+          },
+          {
+            "description": "Texto no OID ou no valor",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Texto no OID ou no valor",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Sub-árvore (OID)",
+            "in": "query",
+            "name": "prefix",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sub-árvore (OID)",
+              "title": "Prefix"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkTree"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explorador do walk",
+        "tags": [
+          "perfis"
         ]
       }
     },
@@ -22962,6 +27512,556 @@
         ]
       }
     },
+    "/api/v1/profiles": {
+      "get": {
+        "operationId": "list_profiles_api_v1_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileSummary"
+                  },
+                  "title": "Response List Profiles Api V1 Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Perfis de leitura (versão ativa)",
+        "tags": [
+          "perfis"
+        ]
+      },
+      "post": {
+        "operationId": "publish_profile_api_v1_profiles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publica nova versão (vai para os coletores)",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/profiles/validate": {
+      "post": {
+        "operationId": "validate_profile_api_v1_profiles_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileValidation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Valida o YAML sem publicar",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/profiles/{key}": {
+      "get": {
+        "operationId": "get_profile_api_v1_profiles__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Perfil com o histórico de versões",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/profiles/{key}/activate": {
+      "post": {
+        "operationId": "activate_profile_api_v1_profiles__key__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ativa uma versão do histórico",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/profiles/{key}/versions/{version}": {
+      "get": {
+        "operationId": "get_version_api_v1_profiles__key__versions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "YAML de uma versão",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
     "/api/v1/releases": {
       "get": {
         "operationId": "list_releases_api_v1_releases_get",
@@ -23316,6 +28416,591 @@
         "summary": "Canal, liberação gradual, retirar",
         "tags": [
           "versões"
+        ]
+      }
+    },
+    "/api/v1/reports": {
+      "get": {
+        "operationId": "list_reports_api_v1_reports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportInfo"
+                  },
+                  "title": "Response List Reports Api V1 Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          }
+        },
+        "summary": "Catálogo de relatórios",
+        "tags": [
+          "relatórios"
+        ]
+      }
+    },
+    "/api/v1/reports/{key}": {
+      "get": {
+        "operationId": "run_report_api_v1_reports__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Início do período (dia, horário de Brasília)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Início do período (dia, horário de Brasília)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Fim do período, inclusive; ou a data de corte",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fim do período, inclusive; ou a data de corte",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          },
+          {
+            "description": "Tipo de data (ver catálogo)",
+            "in": "query",
+            "name": "date_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tipo de data (ver catálogo)",
+              "title": "Date Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group By"
+            }
+          },
+          {
+            "description": "Mês da cobrança (AAAA-MM)",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mês da cobrança (AAAA-MM)",
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2160,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Relatório na tela (paginado)",
+        "tags": [
+          "relatórios"
+        ]
+      }
+    },
+    "/api/v1/reports/{key}/export": {
+      "get": {
+        "operationId": "export_report_api_v1_reports__key__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "xlsx",
+              "enum": [
+                "csv",
+                "xlsx",
+                "pdf"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Início do período (dia, horário de Brasília)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Início do período (dia, horário de Brasília)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Fim do período, inclusive; ou a data de corte",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fim do período, inclusive; ou a data de corte",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          },
+          {
+            "description": "Tipo de data (ver catálogo)",
+            "in": "query",
+            "name": "date_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tipo de data (ver catálogo)",
+              "title": "Date Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group By"
+            }
+          },
+          {
+            "description": "Mês da cobrança (AAAA-MM)",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mês da cobrança (AAAA-MM)",
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2160,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {},
+              "text/csv; charset=utf-8": {}
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exportar relatório (CSV, XLSX ou PDF) com os mesmos filtros",
+        "tags": [
+          "relatórios"
         ]
       }
     },
@@ -24172,6 +29857,110 @@
         "summary": "Create Site",
         "tags": [
           "locais"
+        ]
+      }
+    },
+    "/api/v1/sites/map": {
+      "get": {
+        "operationId": "map_sites_api_v1_sites_map_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SiteMapItem"
+                  },
+                  "title": "Response Map Sites Api V1 Sites Map Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Locais com coordenadas e situação (mapa)",
+        "tags": [
+          "clientes"
         ]
       }
     },
@@ -25145,6 +30934,109 @@
         "summary": "Create Credential",
         "tags": [
           "locais"
+        ]
+      }
+    },
+    "/api/v1/sites/{site_id}/web-session": {
+      "post": {
+        "operationId": "open_ip_api_v1_sites__site_id__web_session_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebSessionByIpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abrir pelo IP (só impressoras cadastradas no local; recusa é auditada)",
+        "tags": [
+          "acesso web"
         ]
       }
     },
@@ -26484,6 +32376,92 @@
         "summary": "Reset Totp",
         "tags": [
           "usuários"
+        ]
+      }
+    },
+    "/api/v1/web-sessions/{session_id}/close": {
+      "post": {
+        "operationId": "close_api_v1_web_sessions__session_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Encerrar a sessão",
+        "tags": [
+          "acesso web"
         ]
       }
     },

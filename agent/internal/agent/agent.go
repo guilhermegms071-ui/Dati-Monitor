@@ -30,6 +30,7 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/store"
 	"github.com/daticopy/dati-monitor/agent/internal/uploader"
 	"github.com/daticopy/dati-monitor/agent/internal/watchdog"
+	"github.com/daticopy/dati-monitor/agent/internal/webproxy"
 	"github.com/daticopy/dati-monitor/agent/internal/ws"
 )
 
@@ -55,6 +56,7 @@ type Agent struct {
 	Uploader  *uploader.Uploader
 	Health    *health.Registry
 	WS        *ws.Channel
+	Web       *webproxy.Proxy
 	Exec      *commands.Executor
 	// ContingencyAfter/PollInterval/ReconnectWait are fields so tests can shorten them.
 	ContingencyAfter time.Duration
@@ -112,6 +114,7 @@ func New(dir string, log *slog.Logger) (*Agent, error) {
 	a.Exec = commands.New(st, a.commandSpecs(), a.reportCommand, log, client.ServerNow)
 	a.WS = ws.New(client, a.wsURL, (*wsHandler)(a), log)
 	a.WS.OnError = func(msg string) { a.wsLastError.Store(msg) }
+	a.Web = webproxy.New(log, a.WS.Send)
 	a.WS.Capabilities = a.Exec.Types()
 	sort.Strings(a.WS.Capabilities)
 	a.Health.SetInfo(a.info)
@@ -426,6 +429,17 @@ func (h *wsHandler) OnCommand(cmd protocol.CommandMessage) {
 }
 
 func (h *wsHandler) OnCancel(id string) { (*Agent)(h).Exec.Cancel(id) }
+
+func (h *wsHandler) OnWebRequest(req protocol.WebRequest) {
+	a := (*Agent)(h)
+	a.mu.Lock()
+	ctx := a.runCtx
+	a.mu.Unlock()
+	if ctx == nil || ctx.Err() != nil {
+		return
+	}
+	go a.Web.Serve(ctx, req)
+}
 
 // installPath is the folder of the running executable (shown in the portal, PROMPT 16.10).
 func installPath() string {

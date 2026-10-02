@@ -1,5 +1,5 @@
 {
-  "description": "Envelope de toda mensagem do WebSocket. `data` segue o modelo do tipo:\nhello → Hello; heartbeat → HeartbeatRequest; command_update → CommandUpdate;\nwelcome → Welcome; heartbeat_ack → HeartbeatResponse; command → CommandMessage;\ncancel → {\"id\"}; command_update_ack → CommandUpdateResponse; error → {\"code\",\"message\"}.",
+  "description": "Envelope de toda mensagem do WebSocket. `data` segue o modelo do tipo:\nhello → Hello; heartbeat → HeartbeatRequest; command_update → CommandUpdate;\nwelcome → Welcome; heartbeat_ack → HeartbeatResponse; command → CommandMessage;\ncancel → {\"id\"}; command_update_ack → CommandUpdateResponse; error → {\"code\",\"message\"};\nweb_request → WebRequest; web_response → WebResponseStart; web_chunk → WebChunk; web_error → WebError\n(túnel da página web da impressora, seção 4.9).",
   "properties": {
     "data": {
       "additionalProperties": true,
@@ -11,12 +11,16 @@
         "hello",
         "heartbeat",
         "command_update",
+        "web_response",
+        "web_chunk",
+        "web_error",
         "welcome",
         "heartbeat_ack",
         "command",
         "cancel",
         "command_update_ack",
-        "error"
+        "error",
+        "web_request"
       ],
       "title": "Type",
       "type": "string"

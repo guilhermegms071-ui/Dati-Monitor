@@ -91,6 +91,7 @@ class MibWalk(Base, IdMixin, CreatedMixin):
     agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"))
     command_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("commands.id"))
     ip: Mapped[str] = mapped_column(String(64))
+    port: Mapped[int | None] = mapped_column(Integer)
     root_oid: Mapped[str | None] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(Text)
     oid_count: Mapped[int] = mapped_column(Integer)
@@ -138,3 +139,62 @@ class ErpToken(Base, IdMixin, TimestampMixin):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     last_used_at: Mapped[datetime | None] = mapped_column(default=None)
     revoked_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+ERP_QUEUE_KINDS = ("counters", "supply_request", "service_order")
+ERP_QUEUE_STATUSES = ("pending", "sent", "error")
+
+
+class ErpQueueItem(Base, IdMixin, TimestampMixin):
+    """Fila do conector do Dataclassic (seção 16.11): cada envio com status, tentativas, último erro e
+    reenvio pelo portal. `dedup_key` impede enfileirar o mesmo alerta/dia duas vezes."""
+
+    __tablename__ = "erp_queue"
+    __table_args__ = (
+        one_of("kind", ERP_QUEUE_KINDS),
+        one_of("status", ERP_QUEUE_STATUSES),
+        UniqueConstraint("reseller_id", "dedup_key"),
+        Index("ix_erp_queue_due", "next_attempt_at", postgresql_where=text("status = 'pending'")),
+        Index("ix_erp_queue_reseller_id_created_at", "reseller_id", text("created_at DESC")),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    kind: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), server_default=text("'pending'"), default="pending")
+    dedup_key: Mapped[str] = mapped_column(String(200))
+    device_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"))
+    alert_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("alerts.id", ondelete="SET NULL"))
+    summary: Mapped[str] = mapped_column(Text)
+    payload: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    next_attempt_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    sent_at: Mapped[datetime | None] = mapped_column(default=None)
+    delivered_via: Mapped[str | None] = mapped_column(String(16))  # file | http | email
+
+
+class WebSession(Base, IdMixin, TimestampMixin):
+    """Sessão de acesso à página web de uma impressora pelo túnel (seção 4.9). O token do caminho
+    `/devweb/{token}/` e a chave que prende a sessão a um navegador ficam só como hash."""
+
+    __tablename__ = "web_sessions"
+    __table_args__ = (
+        Index("ix_web_sessions_reseller_id_created_at", "reseller_id", text("created_at DESC")),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    command_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"))
+    ip: Mapped[str] = mapped_column(String(64))
+    port: Mapped[int] = mapped_column(Integer)
+    scheme: Mapped[str] = mapped_column(String(8))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    key_hash: Mapped[str] = mapped_column(String(64))
+    bound_at: Mapped[datetime | None] = mapped_column(default=None)  # 1º acesso do navegador
+    expires_at: Mapped[datetime]
+    closed_at: Mapped[datetime | None] = mapped_column(default=None)
+    last_used_at: Mapped[datetime | None] = mapped_column(default=None)
+    requests: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0)
+    bytes_out: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), default=0)

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.api import erp as erp_routes
 from app.api.agent import routes as agent_routes
 from app.api.v1 import alerts as alerts_routes
 from app.api.v1 import auth as auth_routes
@@ -16,9 +17,12 @@ from app.api.v1 import collection as collection_routes
 from app.api.v1 import commands as commands_routes
 from app.api.v1 import discovery as discovery_routes
 from app.api.v1 import park as park_routes
+from app.api.v1 import profiles as profiles_routes
 from app.api.v1 import releases as releases_routes
+from app.api.v1 import reports as reports_routes
 from app.api.v1 import tenancy as tenancy_routes
 from app.api.v1 import users as users_routes
+from app.api.v1 import web_access as web_access_routes
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.errors import install_error_handlers
@@ -120,16 +124,25 @@ def create_app(settings: Settings | None = None, *, run_bootstrap: bool = True) 
 
     app.include_router(health_router("/api/health", "api", _engine))
     v1 = APIRouter(prefix="/api/v1")
-    v1.include_router(auth_routes.router)
-    v1.include_router(tenancy_routes.router)
-    v1.include_router(users_routes.router)
-    v1.include_router(collection_routes.router)
-    v1.include_router(commands_routes.router)
-    v1.include_router(park_routes.router)
-    v1.include_router(releases_routes.router)
-    v1.include_router(discovery_routes.router)
-    v1.include_router(alerts_routes.router)
+    for module in (
+        auth_routes,
+        tenancy_routes,
+        users_routes,
+        collection_routes,
+        commands_routes,
+        park_routes,
+        releases_routes,
+        discovery_routes,
+        alerts_routes,
+        profiles_routes,
+        reports_routes,
+        web_access_routes,
+    ):
+        v1.include_router(module.router)
+    v1.include_router(erp_routes.tokens_router)
+    v1.include_router(erp_routes.connector_router)
     app.include_router(v1)
+    app.include_router(erp_routes.router)
     app.include_router(agent_routes.router)
     app.include_router(agent_routes.watchdog_router)
     return app

@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.api.deps import PrincipalDep, SessionDep, SettingsDep
 from app.models import Customer
@@ -12,6 +12,7 @@ from app.schemas.tenancy import (
     CompanyIn,
     CompanyOut,
     CompanyUpdate,
+    CustomerImportResult,
     CustomerIn,
     CustomerOut,
     CustomerUpdate,
@@ -19,9 +20,11 @@ from app.schemas.tenancy import (
     ResellerOut,
     ResellerUpdate,
     SiteIn,
+    SiteMapItem,
     SiteOut,
     SiteUpdate,
 )
+from app.services import customer_import, sites_map
 from app.services import tenancy as svc
 from app.services.export import ExportColumn, ExportFormat, export_response
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
@@ -188,6 +191,62 @@ async def create_customer(body: CustomerIn, p: PrincipalDep, session: SessionDep
     obj = await svc.create_customer(session, p, body)
     await session.commit()
     return CustomerOut.model_validate(obj)
+
+
+@router.get(
+    "/sites/map",
+    response_model=list[SiteMapItem],
+    summary="Locais com coordenadas e situação (mapa)",
+    tags=["clientes"],
+)
+async def map_sites(
+    p: PrincipalDep, session: SessionDep, customer_id: uuid.UUID | None = None
+) -> list[SiteMapItem]:
+    return await sites_map.site_map(session, p, customer_id)
+
+
+@router.get(
+    "/customers/import/template",
+    summary="Modelo do CSV de importação de clientes",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}}},
+    tags=["clientes"],
+)
+async def import_template(p: PrincipalDep) -> Response:
+    p.require("customers.create")
+    return Response(
+        content=("﻿" + customer_import.TEMPLATE).encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="modelo-importacao-clientes.csv"'},
+    )
+
+
+@router.post(
+    "/customers/import",
+    response_model=CustomerImportResult,
+    summary="Importar clientes de um CSV (separador ;)",
+    description=(
+        "Corpo = o arquivo CSV (text/csv). Com `dry_run=true` só valida. Tudo ou nada: com qualquer erro, "
+        "nada é gravado e a resposta lista as linhas com problema."
+    ),
+    openapi_extra={
+        "requestBody": {"required": True, "content": {"text/csv": {"schema": {"type": "string"}}}}
+    },
+    tags=["clientes"],
+)
+async def import_customers(
+    request: Request,
+    p: PrincipalDep,
+    session: SessionDep,
+    settings: SettingsDep,
+    company_id: uuid.UUID,
+    dry_run: bool = True,
+) -> CustomerImportResult:
+    raw = await request.body()
+    result = await customer_import.run(session, settings, p, raw, company_id=company_id, dry_run=dry_run)
+    if result.imported:
+        await session.commit()
+    return result
 
 
 @router.get("/customers/{customer_id}", response_model=CustomerOut, tags=["clientes"])

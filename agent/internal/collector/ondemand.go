@@ -231,8 +231,9 @@ func (c *Collector) connectAny(ctx context.Context, ip string, port int) (discov
 }
 
 // ReadRaw performs a full read of one address and returns everything read, without queuing it
-// (command read_device: "devolve o resultado bruto na tela").
-func (c *Collector) ReadRaw(ctx context.Context, ip string, port int) (map[string]any, error) {
+// (command read_device: "devolve o resultado bruto na tela"). A non-nil `draft` replaces the selected
+// profile (testing a profile in the portal before publishing it).
+func (c *Collector) ReadRaw(ctx context.Context, ip string, port int, draft *profile.Profile) (map[string]any, error) {
 	start := time.Now()
 	conn, cred, err := c.connectAny(ctx, ip, port)
 	if err != nil {
@@ -244,6 +245,10 @@ func (c *Collector) ReadRaw(ctx context.Context, ip string, port int) (map[strin
 		return nil, fmt.Errorf("ler identificação: %w", err)
 	}
 	out := map[string]any{"ip": ip, "port": port, "credential_id": cred.ID, "snmp_version": cred.Version, "identity": id}
+	if draft != nil {
+		p = draft
+		out["profile_draft"] = true
+	}
 	if p != nil {
 		out["profile"] = p.ID
 		res, err := profile.Evaluate(ctx, conn, p, id.Model)

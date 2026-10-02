@@ -1,10 +1,10 @@
 """Dashboard (PROMPT 10.2): cards, pages per day (PB x cor), collectors offline now, critical toners."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, literal_column, select, text, true
+from sqlalchemy import and_, func, literal_column, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal, customer_scope, reseller_scope
@@ -13,10 +13,13 @@ from app.schemas.park import (
     CriticalSupply,
     Dashboard,
     DashboardCards,
+    MonthProduction,
     OfflineAgent,
     PagesPerDay,
     TonersByColor,
 )
+from app.services.reports import counters
+from app.services.reports.base import Filters, sql_scope
 
 CRITICAL_PERCENT = 10
 # Previsão só entra no painel com confiança suficiente (16.6: incerta não é exibida como certa).
@@ -145,6 +148,7 @@ async def build(session: AsyncSession, p: Principal, days: int = 30) -> Dashboar
             toners_critical=critical_total,
         ),
         pages_per_day=await pages_per_day(session, p, days),
+        month_production=await month_production(session, p),
         offline_agents=offline,
         critical_supplies=critical,
         ending_7_days=await _ending(session, dev_scope, 7),
@@ -203,43 +207,39 @@ async def _by_color(session: AsyncSession, dev_scope: Any, days: int) -> TonersB
 
 
 async def pages_per_day(session: AsyncSession, p: Principal, days: int) -> list[PagesPerDay]:
-    """Sum over devices of the daily increase of the PB and color counters (last reading of each day
-    vs. last reading of the previous day), in São Paulo days. Regressions count as zero."""
-    since = datetime.now(UTC) - timedelta(days=days + 1)
-    scope = "true" if p.is_superadmin else "r.reseller_id = :reseller"
-    cust = "" if p.customer_id is None else " AND d.customer_id = :customer"
-    sql = text(
-        f"""
-        WITH daily AS (
-            SELECT r.device_id,
-                   (r.read_at AT TIME ZONE :tz)::date AS day,
-                   max(r.mono) AS mono,
-                   max(r.color) AS color
-            FROM readings r
-            JOIN devices d ON d.id = r.device_id AND d.deleted_at IS NULL
-                AND d.discovery_state = 'approved'{cust}
-            WHERE r.read_at >= :since AND {scope}
-            GROUP BY r.device_id, day
-        ), deltas AS (
-            SELECT day,
-                   greatest(mono - lag(mono) OVER w, 0) AS mono,
-                   greatest(color - lag(color) OVER w, 0) AS color
-            FROM daily
-            WINDOW w AS (PARTITION BY device_id ORDER BY day)
-        )
-        SELECT day, coalesce(sum(mono), 0)::bigint, coalesce(sum(color), 0)::bigint
-        FROM deltas GROUP BY day ORDER BY day
-        """  # noqa: S608 - só fragmentos fixos; valores vão por parâmetro
-    )
-    params: dict[str, object] = {"tz": DISPLAY_TZ, "since": since, "reseller": p.reseller_id}
-    if p.customer_id is not None:
-        params["customer"] = p.customer_id
-    rows = (await session.execute(sql, params)).all()
-    first_day = (datetime.now(UTC) - timedelta(days=days - 1)).astimezone(ZoneInfo(DISPLAY_TZ)).date()
-    by_day = {r[0]: (int(r[1]), int(r[2])) for r in rows}
+    """Pages per São Paulo day (PB x cor) and devices communicating per day, with the same counter rules
+    as the reports: valid readings only, regressions never count (app.services.reports.counters)."""
+    today = datetime.now(ZoneInfo(DISPLAY_TZ)).date()
+    first_day = today - timedelta(days=days - 1)
+    f = Filters(first_day, today, None, None, None, None, None, None)
+    scope, params = sql_scope(p, f)
+    by_day = await counters.production_by_day(session, scope, params, f.lo, f.hi)
     out = []
     for i in range(days):
         day = first_day + timedelta(days=i)
-        mono, color = by_day.get(day, (0, 0))
-        out.append(PagesPerDay(day=day, mono=mono, color=color))
+        dp = by_day.get(day)
+        out.append(
+            PagesPerDay(
+                day=day,
+                mono=dp.mono if dp else 0,
+                color=dp.color if dp else 0,
+                total=dp.total if dp else 0,
+                devices=dp.devices if dp else 0,
+            )
+        )
     return out
+
+
+async def month_production(session: AsyncSession, p: Principal) -> MonthProduction:
+    """Produção do mês corrente até agora (16.13)."""
+    today = datetime.now(ZoneInfo(DISPLAY_TZ)).date()
+    f = Filters(today.replace(day=1), today, None, None, None, None, None, None)
+    scope, params = sql_scope(p, f)
+    prod = await counters.production_by_device(session, scope, params, f.lo, f.hi)
+    return MonthProduction(
+        month=today.strftime("%Y-%m"),
+        mono=sum(x.mono for x in prod.values()),
+        color=sum(x.color for x in prod.values()),
+        total=sum(x.total for x in prod.values()),
+        devices=len(prod),
+    )

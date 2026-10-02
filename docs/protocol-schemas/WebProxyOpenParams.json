@@ -1,0 +1,45 @@
+{
+  "description": "Parâmetros do comando `web_proxy_open`: o coletor só atende pedidos desta sessão, só para este IP e\nporta, até `expires_at`, e respeita o limite de banda.",
+  "properties": {
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "ip": {
+      "title": "Ip",
+      "type": "string"
+    },
+    "max_bytes_per_second": {
+      "minimum": 1024,
+      "title": "Max Bytes Per Second",
+      "type": "integer"
+    },
+    "port": {
+      "title": "Port",
+      "type": "integer"
+    },
+    "scheme": {
+      "enum": [
+        "http",
+        "https"
+      ],
+      "title": "Scheme",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "ip",
+    "port",
+    "scheme",
+    "expires_at",
+    "max_bytes_per_second"
+  ],
+  "title": "WebProxyOpenParams",
+  "type": "object"
+}

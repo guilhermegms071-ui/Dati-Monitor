@@ -5,6 +5,7 @@
   "description": "Formato dos arquivos YAML em /profiles (PROMPT seção 6.4). O backend e o agente validam com este mesmo schema.",
   "type": "object",
   "required": ["id", "version"],
+  "anyOf": [{ "required": ["counters"] }, { "required": ["counter_sources"] }],
   "additionalProperties": false,
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },

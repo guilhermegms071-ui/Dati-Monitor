@@ -281,7 +281,26 @@ async def _prep_uninstall(
 
 
 _Preparer = Callable[[AsyncSession, Principal, Agent, dict[str, Any]], Awaitable[dict[str, Any]]]
+
+
+async def _prep_read_device(
+    _session: AsyncSession, _p: Principal, _agent: Agent, params: dict[str, Any]
+) -> dict[str, Any]:
+    """Perfil em teste: validado pelo mesmo schema do agente antes de sair do servidor (seção 6.6)."""
+    from app.services.catalog import ProfileError, validate_profile  # noqa: PLC0415 - evita ciclo
+
+    if params.get("profile") is None:
+        params.pop("profile", None)
+        return params
+    try:
+        validate_profile(params["profile"])
+    except ProfileError as exc:
+        raise bad_request("invalid_profile", f"Perfil inválido: {exc}") from exc
+    return params
+
+
 _PREPARERS: dict[str, _Preparer] = {
+    "read_device": _prep_read_device,
     "scan_now": _prep_scan,
     "read_now": _prep_read_now,
     "mib_walk": _prep_walk,
@@ -596,6 +615,7 @@ async def store_walk(
         agent_id=agent.id,
         command_id=cmd.id,
         ip=str(cmd.params.get("ip", "")),
+        port=cmd.params.get("port"),
         root_oid=cmd.params.get("root_oid"),
         file_path=str(path),
         oid_count=oids,

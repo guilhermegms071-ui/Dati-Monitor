@@ -191,6 +191,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/erp/v1/cutoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leitura de corte
+         * @description Para cada equipamento, a leitura válida mais recente até o fim do dia `date` (horário de Brasília). Equipamento sem leitura até a data não aparece.
+         */
+        get: operations["cutoff_readings_api_erp_v1_cutoff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/erp/v1/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Equipamentos ativos no parque */
+        get: operations["devices_api_erp_v1_devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/erp/v1/readings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leituras válidas do período
+         * @description Leituras entre `from` e `to` (dias no horário de Brasília, inclusive), da mais antiga para a mais recente. Ajustes manuais já aplicados; leituras com regressão de contador não classificadas como válidas ficam de fora. Paginação por `cursor`.
+         */
+        get: operations["readings_api_erp_v1_readings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -917,6 +974,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Importar clientes de um CSV (separador ;)
+         * @description Corpo = o arquivo CSV (text/csv). Com `dry_run=true` só valida. Tudo ou nada: com qualquer erro, nada é gravado e a resposta lista as linhas com problema.
+         */
+        post: operations["import_customers_api_v1_customers_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Modelo do CSV de importação de clientes */
+        get: operations["import_template_api_v1_customers_import_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers/{customer_id}": {
         parameters: {
             query?: never;
@@ -1142,6 +1236,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices/{device_id}/web-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abrir a página web da impressora (túnel pelo coletor) */
+        post: operations["open_device_api_v1_devices__device_id__web_session_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/discoveries": {
         parameters: {
             query?: never;
@@ -1187,6 +1298,127 @@ export interface paths {
         put?: never;
         /** Ativar, descartar ou restaurar (individual ou em lote) */
         post: operations["decide_api_v1_discoveries_decide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-connector": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Parâmetros do conector */
+        get: operations["get_connector_api_v1_erp_connector_get"];
+        /** Salvar parâmetros */
+        put: operations["put_connector_api_v1_erp_connector_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fila do conector (recentes primeiro) */
+        get: operations["list_queue_api_v1_erp_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-queue/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Itens por status */
+        get: operations["queue_counts_api_v1_erp_queue_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-queue/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reenviar itens */
+        post: operations["retry_api_v1_erp_queue_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Item com o conteúdo enviado */
+        get: operations["queue_item_api_v1_erp_queue__item_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tokens de integração do ERP */
+        get: operations["list_tokens_api_v1_erp_tokens_get"];
+        put?: never;
+        /** Criar token (o valor aparece só nesta resposta) */
+        post: operations["create_token_api_v1_erp_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp-tokens/{token_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revogar token */
+        post: operations["revoke_token_api_v1_erp_tokens__token_id__revoke_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1271,6 +1503,40 @@ export interface paths {
         };
         /** Baixar walk (.snmprec.gz) */
         get: operations["download_walk_api_v1_mib_walks__walk_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mib-walks/{walk_id}/fixture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Salva como gravação de teste */
+        post: operations["save_fixture_api_v1_mib_walks__walk_id__fixture_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mib-walks/{walk_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Explorador do walk */
+        get: operations["walk_tree_api_v1_mib_walks__walk_id__tree_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1503,6 +1769,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Perfis de leitura (versão ativa) */
+        get: operations["list_profiles_api_v1_profiles_get"];
+        put?: never;
+        /** Publica nova versão (vai para os coletores) */
+        post: operations["publish_profile_api_v1_profiles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Valida o YAML sem publicar */
+        post: operations["validate_profile_api_v1_profiles_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Perfil com o histórico de versões */
+        get: operations["get_profile_api_v1_profiles__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{key}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ativa uma versão do histórico */
+        post: operations["activate_profile_api_v1_profiles__key__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{key}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** YAML de uma versão */
+        get: operations["get_version_api_v1_profiles__key__versions__version__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/releases": {
         parameters: {
             query?: never;
@@ -1536,6 +1888,57 @@ export interface paths {
         head?: never;
         /** Canal, liberação gradual, retirar */
         patch: operations["update_release_api_v1_releases__release_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catálogo de relatórios */
+        get: operations["list_reports_api_v1_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Relatório na tela (paginado) */
+        get: operations["run_report_api_v1_reports__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{key}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exportar relatório (CSV, XLSX ou PDF) com os mesmos filtros */
+        get: operations["export_report_api_v1_reports__key__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/resellers": {
@@ -1604,6 +2007,23 @@ export interface paths {
         put?: never;
         /** Create Site */
         post: operations["create_site_api_v1_sites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Locais com coordenadas e situação (mapa) */
+        get: operations["map_sites_api_v1_sites_map_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1710,6 +2130,23 @@ export interface paths {
         put?: never;
         /** Create Credential */
         post: operations["create_credential_api_v1_sites__site_id__snmp_credentials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/{site_id}/web-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abrir pelo IP (só impressoras cadastradas no local; recusa é auditada) */
+        post: operations["open_ip_api_v1_sites__site_id__web_session_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1839,6 +2276,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web-sessions/{session_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Encerrar a sessão */
+        post: operations["close_api_v1_web_sessions__session_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/watchdog/heartbeat": {
         parameters: {
             query?: never;
@@ -1860,6 +2314,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActivateIn */
+        ActivateIn: {
+            /** Version */
+            version: number;
+        };
         /** AdjustmentIn */
         AdjustmentIn: {
             /** Color */
@@ -3099,6 +3558,41 @@ export interface components {
             /** Position */
             position?: number | null;
         };
+        /** CustomerImportError */
+        CustomerImportError: {
+            /** Column */
+            column: string;
+            /**
+             * Line
+             * @description Linha do arquivo (1 = cabeçalho)
+             */
+            line: number;
+            /** Message */
+            message: string;
+        };
+        /** CustomerImportResult */
+        CustomerImportResult: {
+            /**
+             * Company Customers
+             * @description Clientes da empresa após a importação
+             */
+            company_customers?: number | null;
+            /** Customers */
+            customers: number;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Errors */
+            errors: components["schemas"]["CustomerImportError"][];
+            /**
+             * Imported
+             * @description True quando gravou (sem nenhum erro no arquivo)
+             */
+            imported: boolean;
+            /** Lines */
+            lines: number;
+            /** Sites */
+            sites: number;
+        };
         /** CustomerIn */
         CustomerIn: {
             /**
@@ -3211,6 +3705,7 @@ export interface components {
              * @description Toners que acabam em até 7 dias (previsão confiável)
              */
             ending_7_days: components["schemas"]["CriticalSupply"][];
+            month_production: components["schemas"]["MonthProduction"];
             /** Offline Agents */
             offline_agents: components["schemas"]["OfflineAgent"][];
             /** Pages Per Day */
@@ -3728,6 +4223,400 @@ export interface components {
             /** Instructions */
             instructions: string[];
         };
+        /** ErpConnectorSettings */
+        "ErpConnectorSettings-Input": {
+            /**
+             * Company Code
+             * @description Código da empresa
+             */
+            company_code?: string | null;
+            /**
+             * Counters Hour
+             * @description Hora do envio diário (Brasília)
+             * @default 6
+             */
+            counters_hour?: number;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled?: boolean;
+            /**
+             * Enabled Since
+             * @description Desde quando está ligado: alertas anteriores não são enviados
+             */
+            enabled_since?: string | null;
+            /**
+             * Operator
+             * @description Operador
+             */
+            operator?: string | null;
+            /**
+             * Send Counters
+             * @description Enviar contadores (leitura de corte diária)
+             * @default false
+             */
+            send_counters?: boolean;
+            service_order?: components["schemas"]["ServiceOrderParams-Input"];
+            supply_request?: components["schemas"]["SupplyRequestParams-Input"];
+            transport?: components["schemas"]["TransportParams-Input"];
+        };
+        /** ErpConnectorSettings */
+        "ErpConnectorSettings-Output": {
+            /**
+             * Company Code
+             * @description Código da empresa
+             */
+            company_code: string | null;
+            /**
+             * Counters Hour
+             * @description Hora do envio diário (Brasília)
+             * @default 6
+             */
+            counters_hour: number;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Enabled Since
+             * @description Desde quando está ligado: alertas anteriores não são enviados
+             */
+            enabled_since: string | null;
+            /**
+             * Operator
+             * @description Operador
+             */
+            operator: string | null;
+            /**
+             * Send Counters
+             * @description Enviar contadores (leitura de corte diária)
+             * @default false
+             */
+            send_counters: boolean;
+            service_order: components["schemas"]["ServiceOrderParams-Output"];
+            supply_request: components["schemas"]["SupplyRequestParams-Output"];
+            transport: components["schemas"]["TransportParams-Output"];
+        };
+        /** ErpCutoffItem */
+        ErpCutoffItem: {
+            /** Color */
+            color: number | null;
+            /** Customer Erp Code */
+            customer_erp_code: string | null;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Mono */
+            mono: number | null;
+            /**
+             * Read At
+             * Format: date-time
+             */
+            read_at: string;
+            /**
+             * Reading Id
+             * Format: uuid
+             */
+            reading_id: string;
+            /** Serial */
+            serial: string;
+            /** Total */
+            total: number | null;
+        };
+        /** ErpCutoffResponse */
+        ErpCutoffResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Items */
+            items: components["schemas"]["ErpCutoffItem"][];
+        };
+        /** ErpDevice */
+        ErpDevice: {
+            /** Active */
+            active: boolean;
+            /** Alt Serial */
+            alt_serial: string | null;
+            /** Asset Tag */
+            asset_tag: string | null;
+            /** Brand */
+            brand: string | null;
+            /** Customer Erp Code */
+            customer_erp_code: string | null;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Franchise Pages Color */
+            franchise_pages_color: number | null;
+            /** Franchise Pages Mono */
+            franchise_pages_mono: number | null;
+            /** Franchise Value */
+            franchise_value: string | null;
+            /** Is Color */
+            is_color: boolean | null;
+            /** Last Color */
+            last_color: number | null;
+            /** Last Mono */
+            last_mono: number | null;
+            /** Last Read At */
+            last_read_at: string | null;
+            /** Last Total */
+            last_total: number | null;
+            /** Model */
+            model: string | null;
+            /** Overage Price Color */
+            overage_price_color: string | null;
+            /** Overage Price Mono */
+            overage_price_mono: string | null;
+            /** Sector */
+            sector: string | null;
+            /** Serial */
+            serial: string;
+            /** Site Name */
+            site_name: string;
+        };
+        /** ErpDevicePage */
+        ErpDevicePage: {
+            /** Items */
+            items: components["schemas"]["ErpDevice"][];
+            /**
+             * Next After
+             * @description Passe em `after` para a próxima página; null = fim
+             */
+            next_after: string | null;
+        };
+        /** ErpQueueCounts */
+        ErpQueueCounts: {
+            /** Error */
+            error: number;
+            /** Pending */
+            pending: number;
+            /** Sent */
+            sent: number;
+        };
+        /** ErpQueueDetail */
+        ErpQueueDetail: {
+            /** Alert Id */
+            alert_id: string | null;
+            /** Attempts */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Delivered Via */
+            delivered_via: string | null;
+            /** Device Id */
+            device_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "counters" | "supply_request" | "service_order";
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "sent" | "error";
+            /** Summary */
+            summary: string;
+        };
+        /** ErpQueueItemOut */
+        ErpQueueItemOut: {
+            /** Alert Id */
+            alert_id: string | null;
+            /** Attempts */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Delivered Via */
+            delivered_via: string | null;
+            /** Device Id */
+            device_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "counters" | "supply_request" | "service_order";
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "sent" | "error";
+            /** Summary */
+            summary: string;
+        };
+        /** ErpQueuePage */
+        ErpQueuePage: {
+            /** Items */
+            items: components["schemas"]["ErpQueueItemOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** ErpReading */
+        ErpReading: {
+            /**
+             * Adjusted
+             * @description Valores corrigidos por ajuste manual no portal
+             */
+            adjusted: boolean;
+            /** Color */
+            color: number | null;
+            /** Customer Erp Code */
+            customer_erp_code: string | null;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Mono */
+            mono: number | null;
+            /**
+             * Read At
+             * Format: date-time
+             */
+            read_at: string;
+            /**
+             * Reading Id
+             * Format: uuid
+             */
+            reading_id: string;
+            /** Serial */
+            serial: string;
+            /** Total */
+            total: number | null;
+        };
+        /** ErpReadingPage */
+        ErpReadingPage: {
+            /** Items */
+            items: components["schemas"]["ErpReading"][];
+            /**
+             * Next Cursor
+             * @description Passe em `cursor` para a próxima página; null = fim
+             */
+            next_cursor: string | null;
+        };
+        /** ErpRetryIn */
+        ErpRetryIn: {
+            /** Ids */
+            ids: string[];
+        };
+        /** ErpRetryOut */
+        ErpRetryOut: {
+            /** Requeued */
+            requeued: number;
+        };
+        /** ErpTokenCreated */
+        ErpTokenCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /**
+             * Token
+             * @description Token completo: mostrado só agora, guarde no ERP
+             */
+            token: string;
+            /**
+             * Token Prefix
+             * @description Início do token, para reconhecer qual é qual
+             */
+            token_prefix: string;
+        };
+        /** ErpTokenIn */
+        ErpTokenIn: {
+            /**
+             * Name
+             * @description Ex.: Dataclassic produção
+             */
+            name: string;
+        };
+        /** ErpTokenOut */
+        ErpTokenOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /**
+             * Token Prefix
+             * @description Início do token, para reconhecer qual é qual
+             */
+            token_prefix: string;
+        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -3752,6 +4641,30 @@ export interface components {
              * @constant
              */
             type: "read_failed";
+        };
+        /** FixtureIn */
+        FixtureIn: {
+            /**
+             * Counters
+             * @description Valores da folha de contadores impressa no momento do walk
+             */
+            counters?: {
+                [key: string]: number;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Profile
+             * @description Perfil que deve ser escolhido
+             */
+            profile?: string | null;
+            /** Serial */
+            serial?: string | null;
+        };
+        /** FixtureOut */
+        FixtureOut: {
+            /** File */
+            file: string;
         };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
@@ -4144,8 +5057,29 @@ export interface components {
             ip: string;
             /** Oid Count */
             oid_count: number;
+            /** Port */
+            port: number | null;
             /** Root Oid */
             root_oid: string | null;
+        };
+        /** MonthProduction */
+        MonthProduction: {
+            /** Color */
+            color: number;
+            /**
+             * Devices
+             * @description Equipamentos com leitura no mês
+             */
+            devices: number;
+            /** Mono */
+            mono: number;
+            /**
+             * Month
+             * @description AAAA-MM
+             */
+            month: string;
+            /** Total */
+            total: number;
         };
         /** NotificationOut */
         NotificationOut: {
@@ -4335,8 +5269,15 @@ export interface components {
              * Format: date
              */
             day: string;
+            /**
+             * Devices
+             * @description Equipamentos que comunicaram (leitura válida) no dia
+             */
+            devices: number;
             /** Mono */
             mono: number;
+            /** Total */
+            total: number;
         };
         /** ParkCounts */
         ParkCounts: {
@@ -4610,6 +5551,81 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number;
+        };
+        /** ProfileDetail */
+        ProfileDetail: {
+            /** Active Version */
+            active_version: number | null;
+            /** Key */
+            key: string;
+            /** Versions */
+            versions: components["schemas"]["ProfileVersionOut"][];
+            /** Yaml */
+            yaml: string;
+        };
+        /** ProfileSummary */
+        ProfileSummary: {
+            /** Active Version */
+            active_version: number | null;
+            /** Description */
+            description: string | null;
+            /** Key */
+            key: string;
+            /** Latest Version */
+            latest_version: number;
+            /**
+             * Placeholders
+             * @description OIDs ainda PREENCHER_PELO_WALK
+             */
+            placeholders: number;
+            /**
+             * Source
+             * @description file = arquivo do repositório; portal = publicado nesta tela
+             */
+            source: string | null;
+            /** Sys Object Id Prefix */
+            sys_object_id_prefix: string | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** ProfileText */
+        ProfileText: {
+            /** Notes */
+            notes?: string | null;
+            /** Yaml */
+            yaml: string;
+        };
+        /** ProfileValidation */
+        ProfileValidation: {
+            /** Error */
+            error: string | null;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Profile
+             * @description Perfil validado (JSON), pronto para testar no coletor
+             */
+            profile: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ProfileVersionOut */
+        ProfileVersionOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Source */
+            source: string;
+            /** Version */
+            version: number;
         };
         /**
          * QuietHours
@@ -4948,6 +5964,122 @@ export interface components {
              */
             yanked?: boolean | null;
         };
+        /** ReportAppliedFilters */
+        ReportAppliedFilters: {
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Date Type */
+            date_type: string | null;
+            /** Group By */
+            group_by: string | null;
+            /** Hours */
+            hours: number | null;
+            /** Month */
+            month: string | null;
+        };
+        /** ReportChart */
+        ReportChart: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bar" | "line";
+            /**
+             * Series
+             * @description value = chave da coluna; label = legenda
+             */
+            series: components["schemas"]["ReportOption"][];
+            /** Stacked */
+            stacked: boolean;
+            /** X */
+            x: string;
+        };
+        /** ReportColumn */
+        ReportColumn: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "int" | "decimal" | "money" | "percent" | "datetime" | "date" | "bool";
+            /** Label */
+            label: string;
+        };
+        /** ReportInfo */
+        ReportInfo: {
+            /**
+             * Cutoff Date
+             * @description Usa uma data de corte (campo 'até')
+             */
+            cutoff_date: boolean;
+            /** Date Types */
+            date_types: components["schemas"]["ReportOption"][];
+            /** Default Days */
+            default_days: number;
+            /** Description */
+            description: string;
+            /** Group */
+            group: string;
+            /** Group By */
+            group_by: components["schemas"]["ReportOption"][];
+            /** Hours */
+            hours: boolean;
+            /** Key */
+            key: string;
+            /** Month */
+            month: boolean;
+            /**
+             * Period
+             * @description Usa o filtro de período (de/até)
+             */
+            period: boolean;
+            /** Title */
+            title: string;
+        };
+        /** ReportOption */
+        ReportOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** ReportResult */
+        ReportResult: {
+            chart: components["schemas"]["ReportChart"] | null;
+            /**
+             * Chart Rows
+             * @description Todas as linhas do gráfico (não paginadas)
+             */
+            chart_rows: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Columns */
+            columns: components["schemas"]["ReportColumn"][];
+            filters: components["schemas"]["ReportAppliedFilters"];
+            /** Key */
+            key: string;
+            /** Limit */
+            limit: number;
+            /** Notes */
+            notes: string[];
+            /** Offset */
+            offset: number;
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /** Title */
+            title: string;
+            /** Total Rows */
+            total_rows: number;
+            /** Totals */
+            totals: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** ResellerIn */
         ResellerIn: {
             /** Cnpj */
@@ -5057,6 +6189,76 @@ export interface components {
             /** Permissions */
             permissions: string[];
         };
+        /** ServiceOrderParams */
+        "ServiceOrderParams-Input": {
+            /**
+             * Alert Types
+             * @description Quais alertas viram OS
+             */
+            alert_types?: ("service_call" | "consumable" | "jam_recurrent" | "parts" | "other")[];
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled?: boolean;
+            /**
+             * Intervention Type
+             * @description Tipo de intervenção
+             */
+            intervention_type?: string | null;
+            /**
+             * Prt Alert Codes
+             * @description Códigos prtAlert importáveis (vazio = todos); vale para os alertas da impressora
+             */
+            prt_alert_codes?: number[];
+            /**
+             * Reason
+             * @description Motivo
+             */
+            reason?: string | null;
+            /** Status */
+            status?: string | null;
+            /**
+             * Technician Code
+             * @description Código do técnico
+             */
+            technician_code?: string | null;
+        };
+        /** ServiceOrderParams */
+        "ServiceOrderParams-Output": {
+            /**
+             * Alert Types
+             * @description Quais alertas viram OS
+             */
+            alert_types: ("service_call" | "consumable" | "jam_recurrent" | "parts" | "other")[];
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Intervention Type
+             * @description Tipo de intervenção
+             */
+            intervention_type: string | null;
+            /**
+             * Prt Alert Codes
+             * @description Códigos prtAlert importáveis (vazio = todos); vale para os alertas da impressora
+             */
+            prt_alert_codes: number[];
+            /**
+             * Reason
+             * @description Motivo
+             */
+            reason: string | null;
+            /** Status */
+            status: string | null;
+            /**
+             * Technician Code
+             * @description Código do técnico
+             */
+            technician_code: string | null;
+        };
         /** SessionResponse */
         SessionResponse: {
             /** Access Token */
@@ -5130,6 +6332,47 @@ export interface components {
              * @default America/Sao_Paulo
              */
             timezone?: string;
+        };
+        /** SiteMapItem */
+        SiteMapItem: {
+            /** Agents */
+            agents: number;
+            /** Agents Online */
+            agents_online: number;
+            /** Alerts Open */
+            alerts_open: number;
+            /** City */
+            city: string | null;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Devices */
+            devices: number;
+            /** Devices Offline */
+            devices_offline: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Latitude */
+            latitude: string | null;
+            /** Longitude */
+            longitude: string | null;
+            /** Name */
+            name: string;
+            /** State */
+            state: string | null;
+            /**
+             * Status
+             * @description ok; warning = equipamento sem conexão ou alerta aberto; offline = nenhum coletor online; no_agent = local sem coletor
+             * @enum {string}
+             */
+            status: "ok" | "warning" | "offline" | "no_agent";
         };
         /** SiteOut */
         SiteOut: {
@@ -5586,6 +6829,108 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** SupplyRequestParams */
+        "SupplyRequestParams-Input": {
+            /**
+             * Desc Type
+             * @description Tipo desc
+             */
+            desc_type?: string | null;
+            /**
+             * Email Only
+             * @description Apenas enviar e-mail (não cria no ERP)
+             * @default false
+             */
+            email_only?: boolean;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled?: boolean;
+            /**
+             * Freight Type
+             * @description Tipo de frete
+             */
+            freight_type?: string | null;
+            /**
+             * Notify Email
+             * @description E-mail de notificação
+             */
+            notify_email?: string | null;
+            /**
+             * Operation
+             * @description Operação
+             */
+            operation?: string | null;
+            /**
+             * Payment Condition
+             * @description Condição de pagamento
+             */
+            payment_condition?: string | null;
+            /**
+             * Seller
+             * @description Vendedor
+             */
+            seller?: string | null;
+            /**
+             * Situation
+             * @description Situação
+             */
+            situation?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** SupplyRequestParams */
+        "SupplyRequestParams-Output": {
+            /**
+             * Desc Type
+             * @description Tipo desc
+             */
+            desc_type: string | null;
+            /**
+             * Email Only
+             * @description Apenas enviar e-mail (não cria no ERP)
+             * @default false
+             */
+            email_only: boolean;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Freight Type
+             * @description Tipo de frete
+             */
+            freight_type: string | null;
+            /**
+             * Notify Email
+             * @description E-mail de notificação
+             */
+            notify_email: string | null;
+            /**
+             * Operation
+             * @description Operação
+             */
+            operation: string | null;
+            /**
+             * Payment Condition
+             * @description Condição de pagamento
+             */
+            payment_condition: string | null;
+            /**
+             * Seller
+             * @description Vendedor
+             */
+            seller: string | null;
+            /**
+             * Situation
+             * @description Situação
+             */
+            situation: string | null;
+            /** Status */
+            status: string | null;
+        };
         /** TokenRequest */
         TokenRequest: {
             /** Agent Id */
@@ -5682,6 +7027,56 @@ export interface components {
             otpauth_uri: string;
             /** Secret */
             secret: string;
+        };
+        /** TransportParams */
+        "TransportParams-Input": {
+            /**
+             * Auth Header
+             * @description Valor do cabeçalho Authorization (fica cifrado)
+             */
+            auth_header?: string | null;
+            /**
+             * Directory
+             * @description Pasta (transporte arquivo)
+             */
+            directory?: string | null;
+            /**
+             * Kind
+             * @description file = pasta monitorada pelo ERP; http = POST JSON para a API do ERP
+             * @default file
+             * @enum {string}
+             */
+            kind?: "file" | "http";
+            /**
+             * Url
+             * @description URL (transporte http)
+             */
+            url?: string | null;
+        };
+        /** TransportParams */
+        "TransportParams-Output": {
+            /**
+             * Auth Header
+             * @description Valor do cabeçalho Authorization (fica cifrado)
+             */
+            auth_header: string | null;
+            /**
+             * Directory
+             * @description Pasta (transporte arquivo)
+             */
+            directory: string | null;
+            /**
+             * Kind
+             * @description file = pasta monitorada pelo ERP; http = POST JSON para a API do ERP
+             * @default file
+             * @enum {string}
+             */
+            kind: "file" | "http";
+            /**
+             * Url
+             * @description URL (transporte http)
+             */
+            url: string | null;
         };
         /** UploadResponse */
         UploadResponse: {
@@ -5822,6 +7217,31 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** WalkRow */
+        WalkRow: {
+            /** Oid */
+            oid: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: string;
+        };
+        /** WalkTree */
+        WalkTree: {
+            /** Ip */
+            ip: string;
+            /** Items */
+            items: components["schemas"]["WalkRow"][];
+            /** Oid Count */
+            oid_count: number;
+            /** Total */
+            total: number;
+            /**
+             * Walk Id
+             * Format: uuid
+             */
+            walk_id: string;
+        };
         /**
          * WatchdogHeartbeatRequest
          * @description dm-watchdog → POST /api/watchdog/heartbeat a cada 60 s (canal próprio, seção 5.1). Autentica com o
@@ -5920,6 +7340,72 @@ export interface components {
             at: string;
             /** Reason */
             reason: string;
+        };
+        /** WebSessionByIpIn */
+        WebSessionByIpIn: {
+            /**
+             * Ip
+             * @description IP digitado pelo técnico
+             */
+            ip: string;
+            /**
+             * Port
+             * @description 80, 443, 8000, 8080 ou 8443
+             * @default 80
+             */
+            port?: number;
+            /**
+             * Scheme
+             * @default http
+             * @enum {string}
+             */
+            scheme?: "http" | "https";
+        };
+        /** WebSessionIn */
+        WebSessionIn: {
+            /**
+             * Port
+             * @description 80, 443, 8000, 8080 ou 8443
+             * @default 80
+             */
+            port?: number;
+            /**
+             * Scheme
+             * @default http
+             * @enum {string}
+             */
+            scheme?: "http" | "https";
+        };
+        /** WebSessionOut */
+        WebSessionOut: {
+            /** Agent Name */
+            agent_name: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ip */
+            ip: string;
+            /** Port */
+            port: number;
+            /** Scheme */
+            scheme: string;
+            /**
+             * Url
+             * @description Abra em nova aba; o link só vale para o primeiro navegador que o usar
+             */
+            url: string;
         };
     };
     responses: never;
@@ -6699,6 +8185,244 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["UploadResponse"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cutoff_readings_api_erp_v1_cutoff_get: {
+        parameters: {
+            query: {
+                date: string;
+                /** @description Código ERP do cliente (Clientes > Código ERP) */
+                customer_erp_code?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpCutoffResponse"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    devices_api_erp_v1_devices_get: {
+        parameters: {
+            query?: {
+                /** @description Código ERP do cliente (Clientes > Código ERP) */
+                customer_erp_code?: string | null;
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpDevicePage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    readings_api_erp_v1_readings_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                /** @description Código ERP do cliente (Clientes > Código ERP) */
+                customer_erp_code?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpReadingPage"];
                 };
             };
             /** @description Requisição inválida */
@@ -10858,6 +12582,152 @@ export interface operations {
             };
         };
     };
+    import_customers_api_v1_customers_import_post: {
+        parameters: {
+            query: {
+                company_id: string;
+                dry_run?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["CustomerImportResult"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_template_api_v1_customers_import_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_customer_api_v1_customers__customer_id__get: {
         parameters: {
             query?: never;
@@ -12185,6 +14055,86 @@ export interface operations {
             };
         };
     };
+    open_device_api_v1_devices__device_id__web_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebSessionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["WebSessionOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_discoveries_api_v1_discoveries_get: {
         parameters: {
             query?: {
@@ -12353,6 +14303,666 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["DecisionOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connector_api_v1_erp_connector_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpConnectorSettings-Output"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_connector_api_v1_erp_connector_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ErpConnectorSettings-Input"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpConnectorSettings-Output"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_queue_api_v1_erp_queue_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "sent" | "error") | null;
+                kind?: ("counters" | "supply_request" | "service_order") | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpQueuePage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_counts_api_v1_erp_queue_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpQueueCounts"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_api_v1_erp_queue_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ErpRetryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpRetryOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_item_api_v1_erp_queue__item_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpQueueDetail"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tokens_api_v1_erp_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpTokenOut"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_token_api_v1_erp_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ErpTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpTokenCreated"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_token_api_v1_erp_tokens__token_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErpTokenOut"];
                 };
             };
             /** @description Requisição inválida */
@@ -12842,6 +15452,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_fixture_api_v1_mib_walks__walk_id__fixture_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                walk_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FixtureIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["FixtureOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    walk_tree_api_v1_mib_walks__walk_id__tree_get: {
+        parameters: {
+            query?: {
+                /** @description Valor exato (ex.: contador da folha) */
+                value?: string | null;
+                /** @description Texto no OID ou no valor */
+                q?: string | null;
+                /** @description Sub-árvore (OID) */
+                prefix?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                walk_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["WalkTree"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14079,6 +16854,460 @@ export interface operations {
             };
         };
     };
+    list_profiles_api_v1_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ProfileSummary"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publish_profile_api_v1_profiles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ProfileDetail"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_profile_api_v1_profiles_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ProfileValidation"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_profile_api_v1_profiles__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ProfileDetail"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_profile_api_v1_profiles__key__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ProfileDetail"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_version_api_v1_profiles__key__versions__version__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_releases_api_v1_releases_get: {
         parameters: {
             query?: never;
@@ -14298,6 +17527,254 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reports_api_v1_reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ReportInfo"][];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    run_report_api_v1_reports__key__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                /** @description Início do período (dia, horário de Brasília) */
+                date_from?: string | null;
+                /** @description Fim do período, inclusive; ou a data de corte */
+                date_to?: string | null;
+                customer_id?: string | null;
+                site_id?: string | null;
+                /** @description Tipo de data (ver catálogo) */
+                date_type?: string | null;
+                group_by?: string | null;
+                /** @description Mês da cobrança (AAAA-MM) */
+                month?: string | null;
+                hours?: number | null;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ReportResult"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_api_v1_reports__key__export_get: {
+        parameters: {
+            query?: {
+                format?: "csv" | "xlsx" | "pdf";
+                /** @description Início do período (dia, horário de Brasília) */
+                date_from?: string | null;
+                /** @description Fim do período, inclusive; ou a data de corte */
+                date_to?: string | null;
+                customer_id?: string | null;
+                site_id?: string | null;
+                /** @description Tipo de data (ver catálogo) */
+                date_type?: string | null;
+                group_by?: string | null;
+                /** @description Mês da cobrança (AAAA-MM) */
+                month?: string | null;
+                hours?: number | null;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                    "text/csv; charset=utf-8": unknown;
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14867,6 +18344,82 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["SiteOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    map_sites_api_v1_sites_map_get: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["SiteMapItem"][];
                 };
             };
             /** @description Requisição inválida */
@@ -15645,6 +19198,86 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["SnmpCredentialOut"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_ip_api_v1_sites__site_id__web_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebSessionByIpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["WebSessionOut"];
                 };
             };
             /** @description Requisição inválida */
@@ -16511,6 +20144,80 @@ export interface operations {
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["OkResponse"];
                 };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_api_v1_web_sessions__session_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Requisição inválida */
             400: {

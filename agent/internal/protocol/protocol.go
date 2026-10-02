@@ -311,7 +311,58 @@ const (
 	WSCancel           = "cancel"
 	WSCommandUpdateAck = "command_update_ack"
 	WSError            = "error"
+	// Túnel da página web da impressora (PROMPT 4.9).
+	WSWebRequest  = "web_request"
+	WSWebResponse = "web_response"
+	WSWebChunk    = "web_chunk"
+	WSWebError    = "web_error"
 )
+
+// WebPorts are the only ports the tunnel opens (PROMPT 4.9).
+var WebPorts = []int{80, 443, 8000, 8080, 8443}
+
+// WebProxyOpenParams are the parameters of the web_proxy_open command.
+type WebProxyOpenParams struct {
+	SessionID         string    `json:"session_id"`
+	IP                string    `json:"ip"`
+	Port              int       `json:"port"`
+	Scheme            string    `json:"scheme"`
+	ExpiresAt         time.Time `json:"expires_at"`
+	MaxBytesPerSecond int       `json:"max_bytes_per_second"`
+}
+
+// WebRequest is a browser request forwarded by the gateway (body in base64).
+type WebRequest struct {
+	StreamID  string      `json:"stream_id"`
+	SessionID string      `json:"session_id"`
+	Method    string      `json:"method"`
+	Path      string      `json:"path"`
+	Headers   [][2]string `json:"headers"`
+	BodyB64   *string     `json:"body_b64"`
+}
+
+// WebResponseStart carries the printer's status line and headers.
+type WebResponseStart struct {
+	V        int         `json:"v"`
+	StreamID string      `json:"stream_id"`
+	Status   int         `json:"status"`
+	Headers  [][2]string `json:"headers,omitempty"`
+}
+
+// WebChunk is a piece of the response body (End marks the last one).
+type WebChunk struct {
+	V        int    `json:"v"`
+	StreamID string `json:"stream_id"`
+	DataB64  string `json:"data_b64"`
+	End      bool   `json:"end"`
+}
+
+// WebError ends a stream that could not be served.
+type WebError struct {
+	V        int    `json:"v"`
+	StreamID string `json:"stream_id"`
+	Message  string `json:"message"`
+}
 
 // WSMessage is the envelope of every WebSocket message.
 type WSMessage struct {

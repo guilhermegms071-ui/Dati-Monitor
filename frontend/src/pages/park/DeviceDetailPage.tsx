@@ -47,6 +47,7 @@ import { showError, showSuccess } from '../../lib/notify';
 import { AlertsList } from '../alerts/AlertsList';
 
 import { AttributesCard, DeviceForm, DeviceTonerCard } from './DeviceRegistration';
+import { WebAccessButton } from './WebAccess';
 
 type Row = Schemas['ParkRow'];
 
@@ -74,7 +75,10 @@ export function DeviceDetailPage() {
           </span>
         }
         actions={
-          d.last_agent_id && can('agents.command') ? <DeviceActions device={d} agentId={d.last_agent_id} /> : null
+          <>
+            {d.last_agent_id && can('agents.command') ? <DeviceActions device={d} agentId={d.last_agent_id} /> : null}
+            {d.ip && can('devices.web_access') ? <WebAccessButton deviceId={d.id} /> : null}
+          </>
         }
       />
       <div className="grid gap-4 lg:grid-cols-3">

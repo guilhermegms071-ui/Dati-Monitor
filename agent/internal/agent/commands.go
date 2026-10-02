@@ -20,6 +20,7 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/netdiag"
 	"github.com/daticopy/dati-monitor/agent/internal/osinfo"
 	"github.com/daticopy/dati-monitor/agent/internal/product"
+	"github.com/daticopy/dati-monitor/agent/internal/profile"
 	"github.com/daticopy/dati-monitor/agent/internal/protocol"
 	"github.com/daticopy/dati-monitor/agent/internal/snmp"
 	"github.com/daticopy/dati-monitor/agent/internal/svc"
@@ -78,6 +79,7 @@ func (a *Agent) commandSpecs() map[string]commands.Spec {
 		"wake_host":        {Handler: a.cmdWakeHost},
 		"ping_host":        {Handler: a.cmdPingHost, Timeout: 2 * time.Minute},
 		"update":           {Handler: a.cmdUpdate, Timeout: 10 * time.Minute}, // só do watchdog (processo inverso)
+		"web_proxy_open":   {Handler: a.cmdWebProxyOpen},
 	}
 }
 
@@ -104,6 +106,18 @@ func (a *Agent) cmdReconnect(ctx context.Context, _ protocol.CommandMessage, pro
 	}
 	pending, _ := a.Store.Count(ctx)
 	return commands.Result{Data: map[string]any{"reconnected": true, "queue_pending": pending}}, nil
+}
+
+// cmdWebProxyOpen registers a printer web page session (PROMPT 4.9); requests come by web_request.
+func (a *Agent) cmdWebProxyOpen(_ context.Context, cmd protocol.CommandMessage, _ func(string)) (commands.Result, error) {
+	p, err := decode[protocol.WebProxyOpenParams](cmd)
+	if err != nil {
+		return commands.Result{}, err
+	}
+	if err := a.Web.Open(p); err != nil {
+		return commands.Result{}, err
+	}
+	return commands.Result{Data: map[string]any{"session_id": p.SessionID, "expires_at": p.ExpiresAt}}, nil
 }
 
 func (a *Agent) cmdRestartWatchdog(_ context.Context, _ protocol.CommandMessage, _ func(string)) (commands.Result, error) {
@@ -146,15 +160,28 @@ func (a *Agent) cmdReadNow(ctx context.Context, cmd protocol.CommandMessage, pro
 	return commands.Result{Data: toMap(sum)}, nil
 }
 
+// readDeviceParams: `profile` is a draft being tested in the portal (Perfis de modelos, PROMPT 6.6).
+type readDeviceParams struct {
+	target
+	Profile json.RawMessage `json:"profile,omitempty"`
+}
+
 func (a *Agent) cmdReadDevice(ctx context.Context, cmd protocol.CommandMessage, _ func(string)) (commands.Result, error) {
-	t, err := decode[target](cmd)
-	if err == nil {
-		t, err = t.check()
-	}
+	params, err := decode[readDeviceParams](cmd)
 	if err != nil {
 		return commands.Result{}, err
 	}
-	raw, err := a.Collector.ReadRaw(ctx, t.IP, t.Port)
+	t, err := params.check()
+	if err != nil {
+		return commands.Result{}, err
+	}
+	var draft *profile.Profile
+	if len(params.Profile) > 0 && string(params.Profile) != "null" {
+		if draft, err = profile.FromJSON(params.Profile); err != nil {
+			return commands.Result{}, fmt.Errorf("perfil em teste inválido: %w", err)
+		}
+	}
+	raw, err := a.Collector.ReadRaw(ctx, t.IP, t.Port, draft)
 	if err != nil {
 		return commands.Result{}, err
 	}

@@ -1,0 +1,61 @@
+{
+  "description": "Servidor → coletor: um pedido HTTP do navegador para a impressora (corpo inteiro em base64).",
+  "properties": {
+    "body_b64": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Body B64"
+    },
+    "headers": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Headers",
+      "type": "array"
+    },
+    "method": {
+      "maxLength": 10,
+      "title": "Method",
+      "type": "string"
+    },
+    "path": {
+      "description": "Caminho + query, sempre começando com /",
+      "maxLength": 8192,
+      "title": "Path",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "stream_id": {
+      "title": "Stream Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stream_id",
+    "session_id",
+    "method",
+    "path"
+  ],
+  "title": "WebRequest",
+  "type": "object"
+}

@@ -68,7 +68,7 @@ class Brand(Base, IdMixin, TimestampMixin):
 
 class ReadProfile(Base, IdMixin, TimestampMixin):
     __tablename__ = "read_profiles"
-    __table_args__ = (UniqueConstraint("profile_key", "version"),)
+    __table_args__ = (UniqueConstraint("profile_key", "version"), one_of("source", ("file", "portal")))
 
     profile_key: Mapped[str] = mapped_column(String(100))
     version: Mapped[int] = mapped_column(Integer)
@@ -76,6 +76,9 @@ class ReadProfile(Base, IdMixin, TimestampMixin):
     content: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # file = sincronizado de /profiles; portal = publicado na tela Perfis de modelos (sobrevive ao reinício).
+    source: Mapped[str] = mapped_column(String(16), server_default=text("'file'"), default="file")
+    notes: Mapped[str | None] = mapped_column(Text)
 
 
 class DeviceModel(Base, IdMixin, TimestampMixin):

@@ -1,0 +1,37 @@
+# Perfil-base Epson (PROMPT seção 6.4). Estrutura pronta; os OIDs proprietários ficam
+# PREENCHER_PELO_WALK até existir uma gravação real do modelo (dm-tool walk / tela Perfis de modelos).
+# Enquanto isso, a fonte "standard" garante o total (prtMarkerLifeCount). Nenhum OID é inventado.
+id: epson
+version: 1
+description: Epson — perfil-base; contadores PB/cor a preencher a partir de walk real
+
+match:
+  sys_object_id_prefix: "1.3.6.1.4.1.1248"
+
+identity:
+  serial:
+    - { oid: "1.3.6.1.2.1.43.5.1.1.17.1" }   # prtGeneralSerialNumber
+    - { oid: "PREENCHER_PELO_WALK", note: "serial proprietário, se o padrão vier vazio" }
+  model:
+    - { oid: "1.3.6.1.2.1.25.3.2.1.3.1" }    # hrDeviceDescr
+
+counter_sources:
+  - name: epson_counters
+    detect_oid: "PREENCHER_PELO_WALK"
+    counters:
+      total: { oid: "PREENCHER_PELO_WALK", note: "total conferido com a folha de contadores" }
+      mono:  { oid: "PREENCHER_PELO_WALK", note: "PB conferido com a folha de contadores" }
+      color: { oid: "PREENCHER_PELO_WALK", note: "cor conferida com a folha de contadores" }
+    store_all_rows_in_extra: true
+
+  - name: standard
+    counters:
+      total: { oid: "1.3.6.1.2.1.43.10.2.1.4.1.1" }   # prtMarkerLifeCount
+
+rules:
+  validate_sum_tolerance_percent: 2
+
+status:
+  energy_saving_text_regex: "(?i)sleep|economia|energy|saving|repouso|power save|standby"
+supplies:
+  use_standard: true

@@ -16,6 +16,7 @@ from app.core.logging import configure_logging
 from app.services import alert_engine
 from app.services import cluster as cluster_svc
 from app.services import commands as commands_svc
+from app.services import erp_connector as erp_svc
 from app.services import forecast as forecast_svc
 from app.services import notifications as notif_svc
 from app.services import park as park_svc
@@ -185,6 +186,23 @@ async def notify_job(ctx: WorkerContext) -> notif_svc.DeliveryResult:
     return result
 
 
+async def erp_job(ctx: WorkerContext) -> tuple[int, int, int]:
+    """Conector do Dataclassic (16.11): queues new alerts / daily counters and sends the due items."""
+    try:
+        async with ctx.sessionmaker() as session:
+            now = datetime.now(UTC)
+            queued = await erp_svc.enqueue(session, ctx.settings, now)
+            await session.commit()
+            sent, failed = await erp_svc.deliver_due(session, ctx.settings, ctx.http, now)
+            await session.commit()
+    except Exception:
+        logger.exception("worker: falha no conector do ERP")
+        raise
+    if queued or sent or failed:
+        logger.info("worker: ERP %d na fila, %d enviado(s), %d falha(s)", queued, sent, failed)
+    return queued, sent, failed
+
+
 async def forecast_job(ctx: WorkerContext) -> int:
     """Toner forecast (PROMPT 8/16.6): window, pages left, method and confidence."""
     try:
@@ -249,6 +267,7 @@ def build_scheduler(ctx: WorkerContext) -> AsyncIOScheduler:
     scheduler.add_job(
         notify_job, "interval", seconds=ctx.settings.notify_interval_seconds, args=[ctx], id="notify"
     )
+    scheduler.add_job(erp_job, "interval", seconds=ctx.settings.erp_interval_seconds, args=[ctx], id="erp")
     scheduler.add_job(
         forecast_job,
         "interval",

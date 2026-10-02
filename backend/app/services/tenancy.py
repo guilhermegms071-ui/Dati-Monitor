@@ -356,7 +356,7 @@ async def get_customer(session: AsyncSession, p: Principal, customer_id: uuid.UU
     return obj
 
 
-async def _company_in_scope(session: AsyncSession, p: Principal, company_id: uuid.UUID) -> Company:
+async def company_in_scope(session: AsyncSession, p: Principal, company_id: uuid.UUID) -> Company:
     company = await session.get(Company, company_id)
     if company is None or company.deleted_at is not None or not p.can_access_reseller(company.reseller_id):
         raise not_found("Empresa")
@@ -376,7 +376,7 @@ async def create_customer(session: AsyncSession, p: Principal, data: CustomerIn)
     p.require("customers.create")
     if p.customer_id is not None:
         raise forbidden("Usuários com escopo de cliente não criam clientes")
-    company = await _company_in_scope(session, p, data.company_id)
+    company = await company_in_scope(session, p, data.company_id)
     obj = Customer(reseller_id=company.reseller_id, **data.model_dump())
     session.add(obj)
     await _flush_unique(session)
@@ -402,7 +402,7 @@ async def update_customer(
     if {"toner_monitoring", "toner_thresholds"} & changes.keys():
         p.require("supplies.monitor")  # limiares de toner (seção 16.5)
     if changes.get("company_id") is not None:
-        company = await _company_in_scope(session, p, changes["company_id"])
+        company = await company_in_scope(session, p, changes["company_id"])
         if company.reseller_id != obj.reseller_id:
             raise bad_request("company_other_reseller", "A empresa pertence a outra revenda")
     _apply(obj, changes)

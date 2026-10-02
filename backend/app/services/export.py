@@ -4,7 +4,7 @@ import csv
 import io
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -46,7 +46,11 @@ def to_csv[T](rows: Iterable[T], columns: Sequence[ExportColumn[T]]) -> bytes:
         values = []
         for c in columns:
             v = _cell(c.value(row))
-            values.append(v.strftime("%d/%m/%Y %H:%M:%S") if isinstance(v, datetime) else v)
+            if isinstance(v, datetime):
+                v = v.strftime("%d/%m/%Y %H:%M:%S")
+            elif isinstance(v, date):
+                v = v.strftime("%d/%m/%Y")
+            values.append(v)
         writer.writerow(values)
     return ("﻿" + buf.getvalue()).encode("utf-8")
 

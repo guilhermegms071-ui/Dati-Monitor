@@ -357,6 +357,9 @@ WsType = Literal[
     "hello",
     "heartbeat",
     "command_update",
+    "web_response",
+    "web_chunk",
+    "web_error",
     # servidor → coletor
     "welcome",
     "heartbeat_ack",
@@ -364,6 +367,7 @@ WsType = Literal[
     "cancel",
     "command_update_ack",
     "error",
+    "web_request",
 ]
 
 
@@ -371,10 +375,62 @@ class WsMessage(Msg):
     """Envelope de toda mensagem do WebSocket. `data` segue o modelo do tipo:
     hello → Hello; heartbeat → HeartbeatRequest; command_update → CommandUpdate;
     welcome → Welcome; heartbeat_ack → HeartbeatResponse; command → CommandMessage;
-    cancel → {"id"}; command_update_ack → CommandUpdateResponse; error → {"code","message"}."""
+    cancel → {"id"}; command_update_ack → CommandUpdateResponse; error → {"code","message"};
+    web_request → WebRequest; web_response → WebResponseStart; web_chunk → WebChunk; web_error → WebError
+    (túnel da página web da impressora, seção 4.9)."""
 
     type: WsType
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ----------------------------------------------------------------------------- página web da impressora (4.9)
+
+WEB_PORTS = (80, 443, 8000, 8080, 8443)
+
+
+class WebProxyOpenParams(BaseModel):
+    """Parâmetros do comando `web_proxy_open`: o coletor só atende pedidos desta sessão, só para este IP e
+    porta, até `expires_at`, e respeita o limite de banda."""
+
+    session_id: str
+    ip: str
+    port: int
+    scheme: Literal["http", "https"]
+    expires_at: datetime
+    max_bytes_per_second: int = Field(ge=1024)
+
+
+class WebRequest(BaseModel):
+    """Servidor → coletor: um pedido HTTP do navegador para a impressora (corpo inteiro em base64)."""
+
+    stream_id: str
+    session_id: str
+    method: str = Field(max_length=10)
+    path: str = Field(max_length=8192, description="Caminho + query, sempre começando com /")
+    headers: list[tuple[str, str]] = Field(default_factory=list)
+    body_b64: str | None = None
+
+
+class WebResponseStart(Msg):
+    """Coletor → servidor: status e cabeçalhos da resposta da impressora; o corpo vem em WebChunk."""
+
+    stream_id: str
+    status: int = Field(ge=100, le=599)
+    headers: list[tuple[str, str]] = Field(default_factory=list)
+
+
+class WebChunk(Msg):
+    stream_id: str
+    data_b64: str = ""
+    end: bool = False
+
+
+class WebError(Msg):
+    """Coletor → servidor: o pedido não pôde ser atendido (sessão desconhecida, destino recusado, erro de
+    conexão com a impressora)."""
+
+    stream_id: str
+    message: str = Field(max_length=2000)
 
 
 # ----------------------------------------------------------------------------- watchdog e atualização
@@ -463,9 +519,14 @@ PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "Welcome": Welcome,
     "WatchdogHeartbeatRequest": WatchdogHeartbeatRequest,
     "WatchdogHeartbeatResponse": WatchdogHeartbeatResponse,
+    "WebResponseStart": WebResponseStart,
+    "WebChunk": WebChunk,
+    "WebError": WebError,
 }
 
 # Parâmetros de comandos (vão dentro de CommandMessage.params; não são mensagens e não levam "v").
 COMMAND_PARAMS: dict[str, type[BaseModel]] = {
     "UpdateParams": UpdateParams,
+    "WebProxyOpenParams": WebProxyOpenParams,
+    "WebRequest": WebRequest,
 }

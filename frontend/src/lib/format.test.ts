@@ -2,6 +2,7 @@ import {
   dayKey,
   fmtBytes,
   fmtCommunication,
+  fmtDate,
   fmtDateTime,
   fmtDayTime,
   fmtInt,
@@ -45,5 +46,11 @@ describe('formatação pt-BR no fuso de São Paulo', () => {
     expect(fmtRelative('2026-09-27T14:55:00Z', now)).toBe('há 5 min');
     expect(fmtRelative('2026-09-27T13:00:00Z', now)).toBe('há 2 h');
     expect(fmtRelative(null, now)).toBe('nunca');
+  });
+});
+
+describe('fmtDate com data sem hora', () => {
+  it('não muda o dia por causa do fuso', () => {
+    expect(fmtDate('2026-09-10')).toBe('10/09/2026');
   });
 });

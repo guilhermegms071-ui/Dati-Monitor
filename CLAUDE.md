@@ -36,6 +36,10 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/tests/` | pytest contra o PostgreSQL real (`dati_test`). |
 | `backend/app/services/{discoveries,counter_lines,supply_replacements,printer_alerts,custom_fields,permissions}.py` | Auditoria do Datacount (PROMPT seção 16): Descobertas, contadores como linhas (`reading_counters`), trocas de suprimento, alertas da `prtAlertTable`, campos personalizados e matriz de permissões por revenda. |
 | `backend/app/services/{alert_rules,alert_engine,notifications,notifiers,forecast,retention,alerts_portal}.py` | Alertas e notificações (Fase 6): regras centralizadas, motor de avaliação (job de 1 min), fila e entrega (SMTP, webhook, WhatsApp), previsão de toner, retenção e as telas de alertas, trocas e alertas da impressora. |
+| `backend/app/services/reports/` | Relatórios (Fase 7): `base.py` (filtros, registro, escopo), `counters.py` (**regra única de contadores**: leituras válidas, produção por pares, leitura de corte — usada por relatórios, dashboard, API do ERP e conector), `definitions.py` (os 18 relatórios) e `render.py` (CSV/XLSX/PDF com reportlab). |
+| `backend/app/services/{erp_api,erp_connector}.py` + `api/erp.py` | API somente leitura do ERP (`/api/erp/v1`, token `dmerp_` com hash) e conector Dataclassic (fila `erp_queue`, transportes arquivo/HTTP/e-mail). Formato em `docs/erp-dataclassic.md`. |
+| `backend/app/services/{profiles,customer_import,sites_map,web_access}.py` | Perfis de modelos (versões, publicar/ativar, explorador de walk, gravação de teste), importação de clientes por CSV, mapa dos locais e sessões de acesso à página web da impressora. |
+| `backend/app/gateway/devweb.py` + `agent/internal/webproxy/` | Túnel da página web da impressora (4.9): `/devweb/{token}/` no gateway, quadros `web_request`/`web_response`/`web_chunk` no WebSocket, reescrita de links/cookies e isolamento por `CSP sandbox`. |
 | `backend/app/services/{park,dashboard,agent_ops,live}.py` | Tela de parque, dashboard, operações de coletor (Reativar, cluster, comandos em massa) e eventos ao vivo (SSE `/api/v1/events` sobre LISTEN/NOTIFY). |
 | `frontend/` | Portal React 18 + TS + Vite + Tailwind 4. Testes: Vitest (`src/**/*.test.tsx`) e Playwright (`e2e/`). |
 | `frontend/src/api/` | `openapi.json` (gerado da API por `scripts/gen_openapi.py`) e `schema.d.ts` (gerado por `npm run gen:api`). **Não editar à mão.** |
@@ -44,7 +48,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `frontend/src/{components,pages}/` | UI (`components/ui` = primitivos Radix; `domain.tsx` = status, níveis, comandos) e telas por menu. Rotas em `src/router.tsx`. |
 | `profiles/` | Perfis de leitura YAML. `canon.yaml` e `konica-minolta.yaml` são fornecidos: **não alterar OIDs**. |
 | `profiles/recordings/sim/NN-nome/public.snmprec` | Impressoras simuladas (snmpsim), porta UDP `1160+NN`. **Geradas** por `generate.py` (edite o gerador, não o arquivo). Pasta com `sleepy.json` = economia de energia (proxy UDP na porta `1160+NN`, snmpsim em `11100+NN`). |
-| `profiles/recordings/real/` | Walks de impressoras reais (Fase 10). |
+| `profiles/recordings/real/` | Walks de impressoras reais (Fase 10), salvos pela tela Perfis de modelos; `<nome>.expected.json` = valores da folha de contadores. Rodam no `TestRealRecordings` do Go. |
 | `scripts/` | PowerShell do dia a dia + `smtp_catcher.py`. |
 | `deploy/` | Dockerfiles, compose e Caddyfile da hospedagem futura (**não usados agora**). |
 | `installer/` | Inno Setup / systemd (Fase 8). |
@@ -133,6 +137,12 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
   schemas gerados; coleção com padrão no servidor vai `omitempty`, coleção obrigatória nunca vai `null` (D59).
 - A chave PRIVADA de versões fica fora do repositório (`%USERPROFILE%\.dati-monitor\release-signing.key`);
   nunca a copie para o projeto, para o servidor ou para logs.
+- Contadores (produção, corte, cobrança, ERP): use sempre `services/reports/counters.py`; nunca some contador
+  por conta própria (regressão, ajuste manual e troca de placa já estão tratados lá).
+- Relatório novo: função em `services/reports/definitions.py` que devolve `ReportData` (colunas tipadas) e
+  `register(ReportDef(...))`; a tela, a paginação e as exportações já funcionam.
+- Página web da impressora: a resposta do túnel **sempre** sai com `Content-Security-Policy: sandbox` sem
+  `allow-same-origin` (a página da impressora não pode agir como o usuário do portal). Não remova.
 - Go: o lint roda também com `GOOS=linux` (arquivos `_windows.go`/`_other.go`); testes que falam SNMP de
   verdade levam `//go:build integration` e usam `internal/simtest`. Rodar `-race` exige o GCC no PATH
   (o `test.ps1` acha o WinLibs sozinho).
@@ -142,6 +152,7 @@ Dependências Python: declare em `backend/pyproject.toml` e regenere os locks co
 Windows 10 Pro **sem virtualização**: nada de Docker/WSL. PostgreSQL 16 nativo (serviço
 `postgresql-x64-16`, início automático). Go 1.27, Python 3.12 (`py -3.12`; o `python` padrão é 3.11),
 Node 24 LTS, golangci-lint v2 em `%GOPATH%\bin`, GCC (WinLibs, via winget) para `go test -race`.
-Portas: API 8000, gateway 8001, portal 5173, SMTP 1025, e-mails 8025, snmpsim 1161–1168 (E2E: 12161–12168, pronto em 12160).
+Portas: API 8000, gateway 8001 (também `/devweb`, que o Vite repassa), portal 5173, SMTP 1025, e-mails 8025, snmpsim 1161–1168
+(E2E: 12161–12168, pronto em 12160), página de impressora simulada 8080 (`scripts/printer_web_sim.py`).
 A sessão do Claude Code aqui roda com `__COMPAT_LAYER=Win7RTM` herdado pelos processos filhos: o
 `RtlGetVersion` responde 6.1. Por isso o agente usa `RtlGetNtVersionNumbers` (D49).

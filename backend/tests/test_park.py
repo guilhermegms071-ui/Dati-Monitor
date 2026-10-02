@@ -360,6 +360,12 @@ async def test_dashboard(
     assert len(d["pages_per_day"]) == 30
     assert sum(p["mono"] for p in d["pages_per_day"]) == 650
     assert sum(p["color"] for p in d["pages_per_day"]) == 381
+    # Equipamentos comunicando por dia e produção do mês (16.13), com as regras dos relatórios.
+    assert max(p["devices"] for p in d["pages_per_day"]) >= 1
+    assert all(p["total"] >= p["mono"] for p in d["pages_per_day"])
+    month = d["month_production"]
+    assert month["month"] == datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m")
+    assert month["total"] >= 0
     # Coletor sem sinal há muito tempo aparece na lista "offline agora".
     async with sessionmaker() as s:
         await s.execute(update(Device).values(last_read_at=now - timedelta(hours=10)))

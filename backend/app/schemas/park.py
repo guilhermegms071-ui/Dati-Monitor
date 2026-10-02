@@ -156,6 +156,16 @@ class PagesPerDay(BaseModel):
     day: date
     mono: int
     color: int
+    total: int
+    devices: int = Field(description="Equipamentos que comunicaram (leitura válida) no dia")
+
+
+class MonthProduction(BaseModel):
+    month: str = Field(description="AAAA-MM")
+    mono: int
+    color: int
+    total: int
+    devices: int = Field(description="Equipamentos com leitura no mês")
 
 
 class OfflineAgent(BaseModel):
@@ -193,6 +203,7 @@ class TonersByColor(BaseModel):
 class Dashboard(BaseModel):
     cards: DashboardCards
     pages_per_day: list[PagesPerDay]
+    month_production: MonthProduction
     offline_agents: list[OfflineAgent]
     critical_supplies: list[CriticalSupply]
     ending_7_days: list[CriticalSupply] = Field(

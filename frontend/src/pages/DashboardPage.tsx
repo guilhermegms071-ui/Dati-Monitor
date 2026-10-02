@@ -60,7 +60,13 @@ export function DashboardPage() {
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
-  const chart = d.pages_per_day.map((p) => ({ dia: fmtDate(p.day).slice(0, 5), PB: p.mono, Cor: p.color }));
+  const chart = d.pages_per_day.map((p) => ({
+    dia: fmtDate(p.day).slice(0, 5),
+    PB: p.mono,
+    Cor: p.color,
+    Equipamentos: p.devices,
+  }));
+  const month = d.month_production;
   return (
     <div className="space-y-4">
       <PageHeader title="Dashboard" subtitle="Visão geral do parque monitorado" />
@@ -115,6 +121,27 @@ export function DashboardPage() {
 
       <Card>
         <CardHeader
+          title={`Produção do mês (${month.month.slice(5)}/${month.month.slice(0, 4)})`}
+          subtitle={`${fmtInt(month.devices)} equipamento(s) com leitura; regressões de contador não entram`}
+        />
+        <div className="grid grid-cols-3 gap-3 p-4" data-testid="month-production">
+          {(
+            [
+              ['PB', month.mono],
+              ['Cor', month.color],
+              ['Total', month.total],
+            ] as const
+          ).map(([label, v]) => (
+            <div key={label}>
+              <p className="text-2xl font-semibold tabular-nums">{fmtInt(v)}</p>
+              <p className="text-xs text-slate-500">{label}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="Páginas por dia (últimos 30 dias)"
           subtitle="Soma dos contadores de todos os equipamentos, PB × cor"
         />
@@ -128,6 +155,21 @@ export function DashboardPage() {
               <Legend />
               <Bar dataKey="PB" stackId="p" fill="#334155" />
               <Bar dataKey="Cor" stackId="p" fill="#0ea5e9" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Equipamentos comunicando por dia" subtitle="Equipamentos com leitura válida em cada dia" />
+        <div className="h-56 p-3" data-testid="devices-per-day">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#94a3b833" />
+              <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={50} />
+              <ChartTooltip formatter={(v) => fmtInt(Number(v))} />
+              <Bar dataKey="Equipamentos" fill="#22c55e" />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -148,22 +148,34 @@ async def sync_profiles(session: AsyncSession, directory: Path = PROFILES_DIR) -
             raise ProfileError(f"{path.name}: {exc}") from exc
         key = doc["id"]
         content = {k: v for k, v in doc.items() if k != "version"}
-        latest = (
+        # Compara com a última versão vinda do ARQUIVO: uma versão publicada na tela Perfis de modelos
+        # continua valendo depois do reinício, a menos que o YAML do repositório mude de verdade.
+        latest_file = (
             await session.execute(
                 select(ReadProfile)
-                .where(ReadProfile.profile_key == key)
+                .where(ReadProfile.profile_key == key, ReadProfile.source == "file")
                 .order_by(ReadProfile.version.desc())
                 .limit(1)
             )
         ).scalar_one_or_none()
-        if latest is not None and {k: v for k, v in latest.content.items() if k != "version"} == content:
+        if (
+            latest_file is not None
+            and {k: v for k, v in latest_file.content.items() if k != "version"} == content
+        ):
             unchanged.append(key)
             continue
-        version = (latest.version + 1) if latest else 1
+        top = (
+            await session.execute(select(func.max(ReadProfile.version)).where(ReadProfile.profile_key == key))
+        ).scalar_one()
+        version = (top or 0) + 1
         await session.execute(update(ReadProfile).where(ReadProfile.profile_key == key).values(active=False))
         session.add(
             ReadProfile(
-                profile_key=key, version=version, content_yaml=text, content={**content, "version": version}
+                profile_key=key,
+                version=version,
+                content_yaml=text,
+                content={**content, "version": version},
+                source="file",
             )
         )
         created.append(f"{key} v{version}")

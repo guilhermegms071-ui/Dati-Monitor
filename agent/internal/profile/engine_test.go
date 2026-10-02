@@ -248,8 +248,9 @@ func TestSelectionRules(t *testing.T) {
 		{"1.3.6.1.4.1.1602.9", "iR-ADV C5540", "canon-c5540"},
 		{"1.3.6.1.4.1.1602.9", "iR 1643i", "canon"},
 		{"1.3.6.1.4.1.18334.1", "bizhub", "konica-minolta"},
-		{"1.3.6.1.4.1.11.2", "HP", "generic"},
-		{"1.3.6.1.4.1.16020", "x", "generic"}, // prefixo por componente, não por texto
+		{"1.3.6.1.4.1.11.2", "HP", "hp"},
+		{"1.3.6.1.4.1.8072.3.2.10", "Net-SNMP", "generic"}, // fabricante sem perfil
+		{"1.3.6.1.4.1.16020", "x", "generic"},              // prefixo por componente, não por texto
 	}
 	for _, c := range cases {
 		if got := Select(all, c.oid, c.model); got == nil || got.ID != c.want {
@@ -377,5 +378,31 @@ func TestCounterLinesFromProfile(t *testing.T) {
 		`"attributes":{"ssid":[{"oid":"1.2.3"}],"parts":{"drum_k":{"oid":"1.2.4","part":"drum","unit":"percent","color":"black"}}}}`)
 	if _, err := FromJSON(raw); err != nil {
 		t.Fatalf("atributos do perfil: %v", err)
+	}
+}
+
+// TestBaseVendorProfiles: the base profiles of the other vendors (PROMPT 6.4) match their enterprise id and,
+// while the proprietary OIDs are still PREENCHER_PELO_WALK, read the total from the standard source.
+func TestBaseVendorProfiles(t *testing.T) {
+	profiles := loadProfiles(t)
+	vendors := map[string]string{
+		"hp": "11", "ricoh": "367", "kyocera": "1347", "xerox": "253", "brother": "2435", "samsung": "236",
+		"lexmark": "641", "sharp": "2385", "epson": "1248", "oki": "2001", "toshiba": "1129",
+	}
+	src := snmp.NewMemSource([]snmp.PDU{
+		{OID: "1.3.6.1.2.1.43.10.2.1.4.1.1", Kind: snmp.KindCounter32, Int: 4321},
+	})
+	for id, ent := range vendors {
+		p := Select(profiles, "1.3.6.1.4.1."+ent+".1.1", "Modelo qualquer")
+		if p == nil || p.ID != id {
+			t.Fatalf("enterprise %s: perfil %v, esperado %s", ent, p, id)
+		}
+		res, err := Evaluate(context.Background(), src, p, "Modelo qualquer")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Source != "standard" || res.Counters["total"] != 4321 {
+			t.Fatalf("%s: fonte %q total %d", id, res.Source, res.Counters["total"])
+		}
 	}
 }

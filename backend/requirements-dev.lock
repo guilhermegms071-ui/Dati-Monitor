@@ -46,7 +46,9 @@ cffi==2.1.1
     #   argon2-cffi-bindings
     #   cryptography
 charset-normalizer==3.5.1
-    # via requests
+    # via
+    #   reportlab
+    #   requests
 click==8.5.0
     # via uvicorn
 colorama==0.4.6
@@ -104,6 +106,8 @@ packaging==26.3
     # via pytest
 pathspec==1.1.1
     # via mypy
+pillow==12.3.0
+    # via reportlab
 pluggy==1.6.0
     # via
     #   pytest
@@ -153,6 +157,8 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
     #   types-jsonschema
+reportlab==5.0.1
+    # via dati-monitor-backend (pyproject.toml)
 requests==2.34.2
     # via pysmi
 rpds-py==2026.6.3
@@ -174,6 +180,8 @@ types-jsonschema==4.26.0.20260518
 types-openpyxl==3.1.5.20260827
     # via dati-monitor-backend (pyproject.toml)
 types-pyyaml==6.0.12.20260906
+    # via dati-monitor-backend (pyproject.toml)
+types-reportlab==5.0.0.20260911
     # via dati-monitor-backend (pyproject.toml)
 typing-extensions==4.16.0
     # via

@@ -28,22 +28,14 @@ from app.services import devices as devices_svc
 from app.services import live
 from app.services import park as svc
 from app.services.export import ExportColumn, ExportFormat, export_response
+from app.services.labels import DEVICE_STATUS_LABELS
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
 
 router = APIRouter(responses=ERROR_RESPONSES)
 Limit = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)]
 Text = Annotated[str | None, Query(max_length=200)]
 
-STATUS_LABELS = {
-    "ready": "Pronta",
-    "printing": "Imprimindo",
-    "warmup": "Aquecendo",
-    "energy_saving": "Economia de energia",
-    "warning": "Atenção",
-    "error": "Erro",
-    "offline": "Sem resposta",
-    "unknown": "Desconhecido",
-}
+STATUS_LABELS = DEVICE_STATUS_LABELS
 
 
 def _filters(

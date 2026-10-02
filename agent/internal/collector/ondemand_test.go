@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/daticopy/dati-monitor/agent/internal/profile"
 	"github.com/daticopy/dati-monitor/agent/internal/protocol"
 	"github.com/daticopy/dati-monitor/agent/internal/snmp"
 )
@@ -110,7 +111,7 @@ func TestReadRawSNMPTestAndWalk(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.net.set("10.0.0.1:161", "03-konica-cor")
-	raw, err := f.c.ReadRaw(ctx, "10.0.0.1", 161)
+	raw, err := f.c.ReadRaw(ctx, "10.0.0.1", 161, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,6 +121,20 @@ func TestReadRawSNMPTestAndWalk(t *testing.T) {
 	}
 	if raw["status"] == nil || raw["supplies"] == nil {
 		t.Fatalf("status/suprimentos: %+v", raw)
+	}
+	// Rascunho de perfil (tela Perfis de modelos): substitui o perfil escolhido só nesta leitura.
+	draft, err := profile.FromJSON([]byte(`{"id":"rascunho","version":1,"counters":{` +
+		`"total":{"oid":"1.3.6.1.4.1.18334.1.1.1.5.7.2.1.1.0"},"duplex":{"oid":"1.3.6.1.4.1.18334.1.1.1.5.7.2.1.3.0"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tested, err := f.c.ReadRaw(ctx, "10.0.0.1", 161, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc, _ := tested["counters"].(map[string]int64)
+	if tested["profile"] != "rascunho" || tested["profile_draft"] != true || tc["total"] != 217031 || tc["duplex"] != 5000 {
+		t.Fatalf("leitura com rascunho: %+v", tested)
 	}
 	if n := len(f.items(t)); n != 0 {
 		t.Fatalf("leitura bruta não entra na fila: %d itens", n)
@@ -149,7 +164,7 @@ func TestReadRawSNMPTestAndWalk(t *testing.T) {
 	if _, _, err := f.c.Walk(ctx, "10.0.0.1", 161, "1.3.6.1.9.9.9", nil); err == nil {
 		t.Fatal("subárvore vazia deveria dar erro claro")
 	}
-	if _, err := f.c.ReadRaw(ctx, "10.0.0.99", 161); err == nil || !strings.Contains(err.Error(), "nenhuma credencial") {
+	if _, err := f.c.ReadRaw(ctx, "10.0.0.99", 161, nil); err == nil || !strings.Contains(err.Error(), "nenhuma credencial") {
 		t.Fatalf("sem resposta: %v", err)
 	}
 	cfg.Credentials = nil
@@ -159,7 +174,7 @@ func TestReadRawSNMPTestAndWalk(t *testing.T) {
 	if _, err := f.c.SNMPTest(ctx, "10.0.0.1", 161); err == nil {
 		t.Fatal("sem credenciais")
 	}
-	if _, err := f.c.ReadRaw(ctx, "10.0.0.1", 161); err == nil {
+	if _, err := f.c.ReadRaw(ctx, "10.0.0.1", 161, nil); err == nil {
 		t.Fatal("sem credenciais")
 	}
 }

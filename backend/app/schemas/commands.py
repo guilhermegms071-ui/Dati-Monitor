@@ -53,6 +53,13 @@ class TargetParams(_Params):
         return lan_ipv4(v)
 
 
+class ReadDeviceParams(TargetParams):
+    profile: dict[str, Any] | None = Field(
+        default=None,
+        description="Perfil em teste (tela Perfis de modelos); vazio = o perfil que o coletor escolheu",
+    )
+
+
 class MibWalkParams(TargetParams):
     root_oid: str | None = Field(default=None, max_length=255, description="Subárvore; vazio = walk completo")
 
@@ -140,7 +147,7 @@ PARAMS_BY_TYPE: dict[str, type[_Params]] = {
     "restart_watchdog": NoParams,
     "scan_now": ScanNowParams,
     "read_now": ReadNowParams,
-    "read_device": TargetParams,
+    "read_device": ReadDeviceParams,
     "snmp_test": TargetParams,
     "mib_walk": MibWalkParams,
     "set_config": NoParams,
@@ -238,6 +245,7 @@ class MibWalkOut(ORMModel):
     device_id: uuid.UUID | None
     command_id: uuid.UUID | None
     ip: str
+    port: int | None
     root_oid: str | None
     oid_count: int
     created_at: datetime

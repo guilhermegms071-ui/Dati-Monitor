@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, Search } from 'lucide-react';
+import { Download, Plus, Search, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
@@ -33,6 +33,7 @@ import { siteAddress } from '../../lib/viacep';
 
 import { AlertsList } from '../alerts/AlertsList';
 
+import { CustomerImportDialog } from './CustomerImport';
 import { SiteDialog } from './SiteDialog';
 import { CustomerTonerCard } from './TonerThresholds';
 
@@ -42,6 +43,7 @@ export function CustomersPage() {
   const { can } = useAuth();
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
+  const [importing, setImporting] = useState(false);
   const { query: list, rows } = useCursorList<Customer>(['customers', q], (cursor) =>
     unwrap(api.GET('/api/v1/customers', { params: { query: { q: q || null, limit: PAGE_SIZE, cursor } } })),
   );
@@ -66,18 +68,36 @@ export function CustomersPage() {
               <Download className="h-3.5 w-3.5" /> Exportar
             </Button>
             {can('customers.create') ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditing('new');
-                }}
-              >
-                <Plus className="h-4 w-4" /> Novo cliente
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setImporting(true);
+                  }}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Importar CSV
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditing('new');
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Novo cliente
+                </Button>
+              </>
             ) : null}
           </>
         }
       />
+      {importing ? (
+        <CustomerImportDialog
+          onClose={() => {
+            setImporting(false);
+          }}
+        />
+      ) : null}
       <Card className="p-3">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />

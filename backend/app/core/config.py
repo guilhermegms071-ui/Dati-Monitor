@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # Alertas e notificações (seções 8 e 9).
     alerts_interval_seconds: int = Field(default=60, ge=1)
     notify_interval_seconds: int = Field(default=10, ge=1)
+    erp_interval_seconds: int = Field(default=60, ge=1)  # conector do Dataclassic (16.11)
+    # Acesso à página web da impressora (4.9).
+    web_session_minutes: int = Field(default=30, ge=1, le=240)
+    web_max_bytes_per_second: int = Field(default=1_048_576, ge=16_384)
+    web_max_bytes_per_session: int = Field(default=200 * 1_048_576, ge=1_048_576)
+    web_response_timeout_seconds: int = Field(default=30, ge=5)
     notification_max_attempts: int = Field(default=6, ge=1, le=20)
     forecast_interval_minutes: int = Field(default=60, ge=1)
     # WhatsApp Meta Cloud API (o endereço fica configurável para testes e proxies).

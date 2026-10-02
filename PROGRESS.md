@@ -12,8 +12,9 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 5 — Confiabilidade | ✅ concluída (28/09/2026) — falta só instalar os serviços num terminal de administrador |
 | 5.1 — Auditoria do Datacount (ajustes nas fases concluídas) | ✅ concluída (29/09/2026) |
 | 6 — Alertas e notificações | ✅ concluída (29/09/2026) |
-| 7 — Perfis, relatórios e acesso web | ⏳ próxima |
-| 8 a 11 | pendentes |
+| 7 — Perfis, relatórios e acesso web | ✅ concluída (02/10/2026) |
+| 8 — Instaladores | ⏳ próxima |
+| 9 a 11 | pendentes |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -864,6 +865,119 @@ scripts\dev.ps1            # Alertas: crie um canal de e-mail, clique em Testar 
 
 ---
 
+## Fase 7 — Perfis, relatórios e acesso web ✅
+
+Seguiu a instrução do usuário de 29/09: **nada de revenda** (o sistema é só da Daticopy). Os parâmetros que o
+PROMPT descrevia "por revenda" ficaram como parâmetros da empresa; a estrutura multi-revenda que já existia
+continua só como detalhe interno.
+
+### Plano executado
+Perfis (motor, perfis-base, editor e explorador de walk) → regra única de contadores → relatórios → API do
+ERP → conector Dataclassic → importação CSV e mapa → Visão geral → túnel da página web → telas → E2E.
+
+### O que foi feito
+- **Perfis de modelos** (6.6):
+  - perfis-base de HP, Ricoh, Kyocera, Xerox, Brother, Samsung, Lexmark, Sharp, Epson, OKI e Toshiba
+    (casam pelo enterprise ID; OIDs proprietários `PREENCHER_PELO_WALK`; total pela fonte `standard`);
+  - versões no banco (`source` arquivo/portal + observação): publicar pela tela vai para todos os coletores,
+    ativar uma versão antiga é o rollback, e a versão do portal sobrevive ao reinício enquanto o YAML do
+    repositório não mudar;
+  - o schema compartilhado passou a exigir `counters` ou `counter_sources` (um perfil sem contadores
+    zeraria a leitura da marca);
+  - explorador de walk: busca pelo valor da folha de contadores (aceita "217.031"), por texto ou
+    sub-árvore, com paginação, texto hex legível e OIDs arrastáveis para o editor;
+  - rascunho testado no equipamento sem publicar (`read_device` com perfil);
+  - "Salvar como gravação de teste": o walk vai para `profiles/recordings/real/` com os valores da folha
+    (`.expected.json`), e o `TestRealRecordings` do Go passa a conferir contador a contador.
+- **Regra única de contadores** (`services/reports/counters.py`), usada por relatórios, dashboard, API do ERP
+  e conector: só leituras válidas, ajuste manual aplicado campo a campo, regressão fora (a menos que
+  classificada válida ou troca de placa), produção pela soma dos aumentos entre leituras consecutivas.
+- **Relatórios** (10.9 e 16.12): 18 relatórios em quatro grupos:
+  - Produção e cobrança: produção por equipamento, local ou cliente; contador diário com gráfico;
+    leitura de corte; cobrança do mês com franquia e excedente;
+  - Suprimentos: trocas com rendimento; consumo e rendimento por modelo e cartucho; alertas de suprimento;
+  - Parque: visão do parque, status, online, sem conexão, desativados, sem leitura há N horas,
+    descobertas, trocas de IP/equipamento, regressões;
+  - Coletores: status e disponibilidade.
+
+  Na tela, a lista é paginada no servidor. CSV, XLSX e PDF (reportlab) saem com os mesmos filtros e a
+  exportação é auditada. Há tipo de data onde faz sentido.
+- **API do ERP** (7): `/api/erp/v1/readings` (cursor), `/cutoff`, `/devices`. O token `dmerp_` aparece uma
+  vez, o banco guarda só o hash, a revogação vale na hora, há limite de requisições e o uso é registrado.
+  A API está documentada no OpenAPI.
+- **Conector Dataclassic** (16.11):
+  - parâmetros da empresa (requisição de suprimento, OS, código da empresa, operador, contadores diários);
+  - fila `erp_queue` com status por item, tentativas, último erro, conteúdo enviado e reenvio;
+  - transportes arquivo (gravação atômica), HTTP (Authorization cifrado e `Idempotency-Key`) e "apenas
+    e-mail";
+  - formato provisório em `docs/erp-dataclassic.md`.
+- **Importação de clientes por CSV** (16.9): `;`, UTF-8 ou Windows-1252, validação linha a linha com as regras
+  do formulário, vários locais por cliente, botão Validar antes de Importar, tudo ou nada, modelo para
+  baixar.
+- **Mapa dos locais**: Leaflet + OpenStreetMap, cor pela situação do local (OK, atenção, coletor offline, sem
+  coletor) e lista dos locais sem coordenadas.
+- **Visão geral** (16.13): produção do mês (PB, cor, total) e equipamentos comunicando por dia. O gráfico de
+  páginas por dia passou a usar a regra única de contadores.
+- **Acesso remoto à página web da impressora** (4.9, critério 14):
+  - **abertura**: o portal cria a sessão (30 min, só portas 80/443/8000/8080/8443, só técnico em diante, só
+    impressoras ativas do local); o servidor manda `web_proxy_open` a um coletor conectado do local
+    (MASTER primeiro);
+  - **túnel**: o navegador usa `/devweb/{token}/` no gateway; o HTTP vai em quadros `web_request`,
+    `web_response` e `web_chunk` dentro do WebSocket;
+  - **coletor**: o destino vem sempre da sessão; aceita TLS autoassinado, não segue redirecionamentos e
+    tem limite de banda;
+  - **reescrita**: links, redirecionamentos, cookies e meta refresh ficam sob o prefixo; um script corrige
+    XHR, fetch e window.open;
+  - **segurança**:
+    - o link vale só para o primeiro navegador que o abre (cookie);
+    - a página da impressora roda isolada por `Content-Security-Policy: sandbox` sem `allow-same-origin`;
+    - abrir pelo IP só funciona para impressora cadastrada no local; a recusa é auditada;
+    - pedidos e bytes são contados por sessão, com teto de dados.
+- **Correções encontradas no caminho**:
+  - `fmtDate` mostrava o dia anterior para datas sem hora, por causa do fuso; o erro afetava o portal
+    inteiro;
+  - o link da página web podia ser reaberto em outro navegador depois de usado.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go `go test -race -tags integration` | cobertura de `internal/` **82,3%**; novos: `webproxy` (HTTP, HTTPS autoassinado, limite de banda, recusas, sessão expirada), quadros do túnel no canal WS, `web_proxy_open`, gravações reais com folha de contadores, perfis-base, rascunho de perfil no `read_device`, contrato das mensagens novas |
+| pytest | **216** testes; cobertura **91%**. Novos: perfis (versões, publicação, rollback, sincronia com o arquivo, explorador, gravação de teste, permissões), relatórios (produção sem regressão e com ajuste, corte, cobrança, listas, coletores, escopo, exportações), API do ERP, conector (arquivo, HTTP com backoff até erro e reenvio, e-mail, contadores diários, segredo cifrado), importação CSV, mapa, túnel de ponta a ponta pelo gateway real |
+| Vitest | **39** (novos: formatação das células dos relatórios, data sem hora) |
+| Playwright | **6**; o fluxo do coletor real agora abre a página da impressora simulada pelo túnel, confere a recusa auditada de um IP não cadastrado, faz o walk da Konica, acha o OID pelo valor da folha e testa o rascunho do perfil no equipamento |
+| Lint | golangci-lint (Windows e Linux), ruff, mypy --strict, eslint, prettier, tsc, OpenAPI/tipos: sem problemas |
+
+### Fluxo manual executado (02/10/2026) e resultado
+1. **E2E completo (6/6).** A primeira execução falhou no passo de perfis porque o teste procurava o PB da
+   Konica (100.150) no walk. Esse valor é a soma de dois OIDs (cópia + impressão), então nenhum OID o guarda
+   sozinho. O passo passou a procurar o total da folha (217.031), que existe num OID.
+2. **Revisão das telas** com o banco de desenvolvimento (`frontend/e2e/manual-f7.mjs`), sem nenhum erro no
+   console:
+   - telas: Visão geral, Relatórios (produção, contador diário, cobrança, status dos coletores), Perfis,
+     editor da Konica, Integração ERP (parâmetros e fila), mapa, Clientes com Importar CSV;
+   - os números da produção batem entre a Visão geral e o relatório;
+   - **exportações reais pelos botões**: o PDF e o XLSX da produção foram conferidos. A linha de Total do
+     PDF mostrava "—" nas colunas de texto e foi corrigida para ficar em branco.
+3. **Mapa**: os mapas do OpenStreetMap carregam desta máquina (8 de 8 respostas 200).
+
+### Como testar
+```powershell
+scripts\test.ps1 -E2E     # inclui a página da impressora pelo túnel e o editor de perfis com walk real
+scripts\dev.ps1           # sobe também a página de impressora simulada em http://127.0.0.1:8080
+# Equipamento → "Abrir página web" (porta 8080 nos simuladores); Relatórios; Integração ERP; Perfis de modelos
+# API do ERP: crie um token em Integração ERP → Tokens e chame /api/erp/v1/cutoff?date=AAAA-MM-DD
+```
+
+### O que falta / pendências
+- Layout do Dataclassic: depende da Databit. Até lá vale o JSON documentado; o transporte por banco de
+  dados entra quando o layout chegar.
+- OIDs proprietários dos perfis-base (`PREENCHER_PELO_WALK`): saem dos walks reais da Fase 10.
+- Com mais de uma instância do gateway, o `/devweb` precisa cair na instância do coletor da sessão (hoje
+  aparece uma mensagem clara pedindo para tentar de novo).
+- Pendências de administrador das Fases 2 e 5 continuam.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -955,3 +1069,20 @@ scripts\dev.ps1            # Alertas: crie um canal de e-mail, clique em Testar 
 | D85 | Tempos do worker por variável de ambiente (offline 180 s, avaliação 60 s, envio 10 s); o E2E usa 15/3/2 s | O critério 8 é medido com os padrões; o E2E não pode levar minutos esperando |
 | D86 | Resumo diário só em canais de e-mail, desligável por canal e por revenda | WhatsApp não é lugar para relatório longo |
 | D87 | O limiar de troca de suprimento (16.3) é editado em Alertas > Configurações e gravado na chave lida pela ingestão | Uma tela só para os parâmetros de alerta da revenda |
+| D88 | Nada de funcionalidade de revenda (instrução do usuário em 29/09); parâmetros "por revenda" do PROMPT viram parâmetros da empresa; a estrutura multi-revenda existente fica como detalhe interno até o usuário decidir removê-la | O sistema é de uso exclusivo da Daticopy |
+| D89 | Uma regra de contadores só (`services/reports/counters.py`) para relatórios, dashboard, API do ERP e conector; produção = soma dos aumentos entre leituras válidas consecutivas, queda conta zero | Critério 10 (regressão não entra) sem perder páginas depois de troca de placa; todos os números do sistema batem entre si |
+| D90 | Leitura de corte inclui o próprio dia (até 23:59 de Brasília) | É o uso na cobrança: a leitura do dia do corte vale |
+| D91 | Relatórios calculados no servidor e paginados na tela (até 500 linhas por página); exportações com todas as linhas; PDF limitado a 5.000 linhas com mensagem para usar CSV/XLSX | Regra 13 (nada de lista inteira no navegador) e PDF legível |
+| D92 | PDF com reportlab | Licença BSD, rodas para Windows e Linux, fontes padrão com acentos pt-BR |
+| D93 | Versão de perfil publicada no portal sobrevive ao reinício; só uma mudança real no YAML do repositório cria versão nova por cima | O ajuste feito na tela com um walk real não pode sumir no próximo deploy |
+| D94 | Schema dos perfis exige `counters` ou `counter_sources` | Publicar um perfil vazio pela tela zeraria a leitura de toda a marca |
+| D95 | Token da API do ERP com prefixo `dmerp_`, mostrado uma vez, só o SHA-256 no banco, `last_used_at` no máximo uma vez por minuto | Igual a tokens de API comuns; vazamento do banco não entrega o token |
+| D96 | Conector só envia alertas abertos depois de ligado (`enabled_since`) | Ligar a integração não pode criar centenas de OS do histórico |
+| D97 | Transporte do conector plugável (arquivo e HTTP prontos, e-mail para "apenas e-mail"); banco de dados só com o layout da Databit | Seção 16.11; um transporte "de banco" sem layout seria um stub |
+| D98 | Importação CSV tudo ou nada, com botão Validar antes | Arquivo meio importado é pior que nenhum; o relatório de erros diz o que corrigir |
+| D99 | Mapa com Leaflet e quadros do OpenStreetMap (com atribuição), carregados pelo navegador | Sem chave de API nem custo; o servidor não precisa de internet |
+| D100 | Túnel web por quadros JSON (base64) no WebSocket existente; quadros do túnel fora do limite de mensagens, com limite de banda próprio (1 MiB/s) e teto por sessão (200 MiB) | Seção 4.9; o canal do coletor já existe e atravessa qualquer firewall |
+| D101 | Página da impressora servida com `CSP: sandbox` sem `allow-same-origin`, cookies da impressora reescritos para `SameSite=None; Secure` sob o prefixo da sessão; Caddy deixa `X-Frame-Options` como SAMEORIGIN só em `/devweb` | A página da impressora fica na mesma origem do portal: sem o sandbox, um script dela poderia agir como o usuário logado |
+| D102 | Link `/devweb/{token}/?dm_key=` vale para o primeiro navegador (cookie HttpOnly no caminho da sessão) | "Token de uso por usuário" da seção 4.9: um link vazado não abre em outro navegador |
+| D103 | Abrir por IP digitado só para impressora ativa cadastrada no local; a recusa é auditada (`web_session.denied`) e confirmada antes do erro | Critério 14 |
+| D104 | O gateway reconhece os quadros do túnel pelo campo `type` da mensagem, não pelos bytes | A primeira versão dependia da ordem e dos espaços do JSON, e o teste com outro cliente mostrou que isso é frágil |

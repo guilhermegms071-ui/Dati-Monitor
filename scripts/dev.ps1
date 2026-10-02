@@ -39,6 +39,8 @@ $services.Add(@{ Name = 'gateway'; Color = 'Blue'; Port = 8001; Cwd = 'backend';
 $services.Add(@{ Name = 'worker'; Color = 'Magenta'; Cwd = 'backend'; File = $VenvPython; Args = @('-m', 'app.worker.main') })
 $services.Add(@{ Name = 'portal'; Color = 'Green'; Port = 5173; Cwd = 'frontend'; File = 'npm.cmd'; Args = @('run', 'dev') })
 $services.Add(@{ Name = 'smtp'; Color = 'Yellow'; Port = 8025; ExtraPort = 1025; Cwd = '.'; File = $VenvPython; Args = @('scripts\smtp_catcher.py') })
+# Página web de impressora simulada (acesso remoto pelo túnel, seção 4.9): http://127.0.0.1:8080/
+$services.Add(@{ Name = 'webprinter'; Color = 'DarkYellow'; Port = 8080; Cwd = '.'; File = $VenvPython; Args = @('scripts\printer_web_sim.py', '--port', '8080') })
 
 $simRoot = Join-Path $RepoRoot 'profiles\recordings\sim'
 $sims = Get-ChildItem $simRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(\d{2})-' -and (Test-Path (Join-Path $_.FullName 'public.snmprec')) }

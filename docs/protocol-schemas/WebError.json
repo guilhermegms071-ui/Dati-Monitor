@@ -1,0 +1,26 @@
+{
+  "description": "Coletor → servidor: o pedido não pôde ser atendido (sessão desconhecida, destino recusado, erro de\nconexão com a impressora).",
+  "properties": {
+    "message": {
+      "maxLength": 2000,
+      "title": "Message",
+      "type": "string"
+    },
+    "stream_id": {
+      "title": "Stream Id",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "stream_id",
+    "message"
+  ],
+  "title": "WebError",
+  "type": "object"
+}

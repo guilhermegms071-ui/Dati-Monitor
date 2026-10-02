@@ -233,7 +233,10 @@ func TestScanRegistersPrintersAndReadsEveryTask(t *testing.T) {
 	if f.c.LastScan().IsZero() || f.c.LastRead().IsZero() {
 		t.Fatal("LastScan/LastRead deveriam estar preenchidos")
 	}
-	if !slices.Equal(f.c.Profiles(), []string{"canon", "generic", "konica-minolta"}) {
+	if !slices.Equal(f.c.Profiles(), []string{
+		"brother", "canon", "epson", "generic", "hp", "konica-minolta", "kyocera", "lexmark", "oki", "ricoh",
+		"samsung", "sharp", "toshiba", "xerox",
+	}) {
 		t.Fatalf("perfis: %v", f.c.Profiles())
 	}
 	if s := f.c.d.Health.Snapshot(); s.Status != "ok" {

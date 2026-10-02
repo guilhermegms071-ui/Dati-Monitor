@@ -6,17 +6,21 @@ import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AccountPage, AuditPage, CompaniesPage, ResellersPage } from './pages/admin/AdminPages';
 import { CustomFieldsPage, PermissionsPage } from './pages/admin/PermissionsPage';
+import { IntegrationPage } from './pages/admin/IntegrationPage';
 import { ReleasesPage } from './pages/admin/ReleasesPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AgentDetailPage } from './pages/agents/AgentDetailPage';
 import { AgentsPage } from './pages/agents/AgentsPage';
 import { ForgotPasswordPage, LimitedSessionPage, LoginPage, ResetPasswordPage } from './pages/auth/AuthPages';
 import { CustomerDetailPage, CustomersPage } from './pages/customers/CustomersPages';
+import { SitesMapPage } from './pages/customers/SitesMapPage';
 import { DeviceDetailPage } from './pages/park/DeviceDetailPage';
 import { DiscoveriesPage } from './pages/park/DiscoveriesPage';
 import { PrinterAlertsPage, ReplacementsPage } from './pages/park/SupplyPages';
 import { AlertsPage } from './pages/alerts/AlertsPage';
 import { ParkPage } from './pages/park/ParkPage';
+import { ProfileDetailPage, ProfilesPage } from './pages/profiles/ProfilesPages';
+import { ReportsPage } from './pages/reports/ReportsPage';
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -55,6 +59,17 @@ export const routes: RouteObject[] = [
               { path: ':customerId', element: <CustomerDetailPage />, handle: { crumb: 'Cliente' } },
             ],
           },
+          {
+            path: 'perfis',
+            handle: { crumb: 'Perfis de modelos' },
+            children: [
+              { index: true, element: <ProfilesPage /> },
+              { path: ':profileKey', element: <ProfileDetailPage />, handle: { crumb: 'Perfil' } },
+            ],
+          },
+          { path: 'relatorios', element: <ReportsPage />, handle: { crumb: 'Relatórios' } },
+          { path: 'mapa', element: <SitesMapPage />, handle: { crumb: 'Mapa dos locais' } },
+          { path: 'integracao', element: <IntegrationPage />, handle: { crumb: 'Integração ERP' } },
           { path: 'descobertas', element: <DiscoveriesPage />, handle: { crumb: 'Descobertas' } },
           { path: 'alertas', element: <AlertsPage />, handle: { crumb: 'Alertas' } },
           { path: 'trocas-de-toner', element: <ReplacementsPage />, handle: { crumb: 'Trocas de toner' } },

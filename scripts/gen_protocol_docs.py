@@ -118,6 +118,19 @@ por `POST /api/agent/commands/{{id}}/update`.
   no servidor por até 2 min; se falhar, volta sozinho para `previous` e informa `failed`.
 - `output` é texto livre limitado a 1 MB; `result` é JSON; erros vão em `error`.
 
+## Página web da impressora (túnel, seção 4.9)
+- O portal cria a sessão (`POST /api/v1/devices/{{id}}/web-session`) e o servidor manda ao coletor do local
+  (o MASTER primeiro, sempre um com WebSocket conectado) o comando `web_proxy_open` com
+  [WebProxyOpenParams](protocol-schemas/WebProxyOpenParams.json): um IP, uma porta (80, 443, 8000, 8080 ou
+  8443), o protocolo, a validade (30 min) e o limite de banda.
+- O navegador abre `/devweb/{{token}}/...` no gateway, que envia `web_request`
+  ([WebRequest](protocol-schemas/WebRequest.json)) pelo WebSocket. O coletor faz o pedido **só ao destino
+  da sessão** (o caminho nunca muda o host), aceita certificado autoassinado da impressora, não segue
+  redirecionamentos e responde `web_response` ([WebResponseStart](protocol-schemas/WebResponseStart.json)),
+  depois `web_chunk` ([WebChunk](protocol-schemas/WebChunk.json), 32 KiB em base64, `end` no último) ou
+  `web_error` ([WebError](protocol-schemas/WebError.json)). Esses quadros não contam no limite de
+  mensagens do canal; têm o limite de banda da sessão.
+
 ## Endpoints
 
 | Método | Caminho | Corpo | Resposta | Autenticação |

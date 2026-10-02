@@ -200,6 +200,63 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await expect(page.getByText('Controller 1.20')).toBeVisible();
   await expect(page.getByText('HDD: ')).toBeVisible();
 
+  const konicaUrl = page.url();
+
+  // 7a. Acesso remoto à página web da impressora (4.9 / critério 14): pelo túnel do coletor real até a
+  //     página simulada (porta 8080), com redirecionamento, cookie e links reescritos sob /devweb.
+  await page.getByRole('button', { name: 'Abrir página web' }).click();
+  const webDialog = page.getByRole('dialog');
+  await webDialog.getByLabel('Porta').selectOption({ label: 'http (8080)' });
+  const [tab] = await Promise.all([
+    page.context().waitForEvent('page'),
+    webDialog.getByRole('button', { name: 'Abrir em nova aba' }).click(),
+  ]);
+  await expect(tab).toHaveURL(/\/devweb\/[^/]+\/web\/index\.html$/, { timeout: 60_000 });
+  await expect(tab.getByRole('heading', { name: /página de teste/ })).toBeVisible();
+  await tab.getByRole('link', { name: 'Contadores' }).click();
+  await expect(tab.getByText('Contador total: 217.031')).toBeVisible();
+  await tab.close();
+  // IP que não é de impressora cadastrada no local: recusado e auditado.
+  const auth = (await (
+    await fetch('http://127.0.0.1:8000/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: env('DM_E2E_EMAIL'), password: env('DM_E2E_PASSWORD') }),
+    })
+  ).json()) as { access_token: string };
+  const denied = await fetch(`http://127.0.0.1:8000/api/v1/sites/${env('DM_E2E_REAL_SITE')}/web-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.access_token}` },
+    body: JSON.stringify({ ip: '127.0.0.99', port: 80 }),
+  });
+  expect(denied.status).toBe(403);
+  await page.goto('/auditoria');
+  await page.getByLabel('Ação').fill('web_session.denied');
+  await expect(page.getByRole('cell', { name: 'web_session.denied' }).first()).toBeVisible();
+  await page.goto(konicaUrl);
+
+  // 7b. Perfis de modelos (6.6): walk da Konica pelo coletor real, OID achado pelo valor da folha de
+  //     contadores (total 217.031; o PB da Konica é soma de dois OIDs) e rascunho testado sem publicar.
+  await page.getByRole('button', { name: 'Walk', exact: true }).click();
+  const walkDialog = page.getByRole('dialog');
+  await expect(walkDialog.getByText('Concluído', { exact: true })).toBeVisible({ timeout: 120_000 });
+  await page.keyboard.press('Escape');
+  await page.goto('/perfis');
+  await page.getByTestId('profiles-table').getByRole('link', { name: 'konica-minolta' }).click();
+  await expect(page.getByTestId('profile-versions')).toContainText('ativa');
+  await page.getByLabel('Walk').selectOption({ index: 1 });
+  await page.getByLabel('Valor da folha').fill('217.031');
+  await expect(page.getByTestId('walk-rows').getByRole('row')).not.toHaveCount(0);
+  await expect(page.getByTestId('walk-rows')).toContainText('1.3.6.1.4.1.18334.1.1.1.5.7.2.1.1.0');
+  await page.getByRole('button', { name: 'Validar' }).click();
+  await expect(page.getByTestId('profile-valid')).toBeVisible();
+  await page.getByRole('button', { name: 'Testar rascunho (sem publicar)' }).click();
+  const draftDialog = page.getByRole('dialog');
+  await expect(draftDialog.getByText('Concluído', { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(draftDialog).toContainText('"profile_draft": true');
+  await expect(draftDialog).toContainText('217031');
+  await page.keyboard.press('Escape');
+
   // 8. Reiniciar o coletor pelo watchdog: comando entregue no canal do vigia, coletor volta saudável.
   await page.goto('/coletores');
   await page.getByRole('link', { name: AGENT_NAME }).first().click();

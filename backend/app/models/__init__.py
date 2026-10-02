@@ -22,7 +22,16 @@ from app.models.devices import (
     PrinterAlert,
     ReadProfile,
 )
-from app.models.operations import AgentRelease, AuditLog, Command, ErpToken, MibWalk, Setting
+from app.models.operations import (
+    AgentRelease,
+    AuditLog,
+    Command,
+    ErpQueueItem,
+    ErpToken,
+    MibWalk,
+    Setting,
+    WebSession,
+)
 from app.models.readings import (
     Reading,
     ReadingAdjustment,
@@ -77,6 +86,7 @@ __all__ = [
     "DeviceAttributeSnapshot",
     "DeviceEvent",
     "DeviceModel",
+    "ErpQueueItem",
     "ErpToken",
     "IpRange",
     "MibWalk",
@@ -103,4 +113,5 @@ __all__ = [
     "SupplyReading",
     "SupplyReplacement",
     "User",
+    "WebSession",
 ]

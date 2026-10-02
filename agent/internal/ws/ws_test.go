@@ -30,10 +30,11 @@ type fakeGateway struct {
 	// closeWith, when set, closes new connections right after the handshake with this code.
 	closeWith atomic.Int32
 	// stall, when set, makes the NEXT established connection stop reading (so pongs are never sent).
-	stall    atomic.Bool
-	mu       sync.Mutex
-	conns    []*websocket.Conn
-	received chan protocol.WSMessage
+	stall     atomic.Bool
+	mu        sync.Mutex
+	conns     []*websocket.Conn
+	received  chan protocol.WSMessage
+	rawByType sync.Map // tipo → bytes exatos da última mensagem desse tipo
 }
 
 func newGateway(t *testing.T) (*fakeGateway, *httptest.Server) {
@@ -84,6 +85,7 @@ func newGateway(t *testing.T) (*fakeGateway, *httptest.Server) {
 				t.Errorf("mensagem inválida do agente: %s", raw)
 				return
 			}
+			g.rawByType.Store(msg.Type, string(raw))
 			g.received <- msg
 			switch msg.Type {
 			case protocol.WSHeartbeat:
@@ -125,11 +127,13 @@ type recorder struct {
 	connected atomic.Int32
 	commands  chan protocol.CommandMessage
 	cancels   chan string
+	web       chan protocol.WebRequest
 }
 
 func (r *recorder) OnConnected()                          { r.connected.Add(1) }
 func (r *recorder) OnCommand(cmd protocol.CommandMessage) { r.commands <- cmd }
 func (r *recorder) OnCancel(id string)                    { r.cancels <- id }
+func (r *recorder) OnWebRequest(req protocol.WebRequest)  { r.web <- req }
 
 func start(t *testing.T, g *fakeGateway, srv *httptest.Server) (*Channel, *recorder, context.CancelFunc) {
 	t.Helper()
@@ -137,7 +141,9 @@ func start(t *testing.T, g *fakeGateway, srv *httptest.Server) (*Channel, *recor
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := &recorder{commands: make(chan protocol.CommandMessage, 8), cancels: make(chan string, 8)}
+	rec := &recorder{
+		commands: make(chan protocol.CommandMessage, 8), cancels: make(chan string, 8), web: make(chan protocol.WebRequest, 8),
+	}
 	url := Endpoint(srv.URL, "")
 	ch := New(client, func() string { return url }, rec, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ch.Capabilities = []string{"reconnect", "diagnostics"}
@@ -278,7 +284,9 @@ func TestPingMeasuresRTTAndDetectsDeadServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := &recorder{commands: make(chan protocol.CommandMessage, 8), cancels: make(chan string, 8)}
+	rec := &recorder{
+		commands: make(chan protocol.CommandMessage, 8), cancels: make(chan string, 8), web: make(chan protocol.WebRequest, 8),
+	}
 	url := Endpoint(srv.URL, "")
 	ch := New(client, func() string { return url }, rec, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ch.PingEvery, ch.PingWait = 50*time.Millisecond, 200*time.Millisecond
@@ -306,5 +314,31 @@ func TestEndpoint(t *testing.T) {
 		if got := Endpoint(in[0], in[1]); got != want {
 			t.Errorf("%v -> %s, esperado %s", in, got, want)
 		}
+	}
+}
+
+// TestWebTunnelFrames: web_request from the gateway reaches the handler; the answer frames go out with
+// "v" and "type" first (the gateway recognizes tunnel frames by that prefix).
+func TestWebTunnelFrames(t *testing.T) {
+	g, srv := newGateway(t)
+	ch, rec, _ := start(t, g, srv)
+	waitFor(t, "conexão", ch.Connected)
+	next(t, g, protocol.WSHello)
+	g.send(g.last(), protocol.WSWebRequest, protocol.WebRequest{StreamID: "s1", SessionID: "x", Method: "GET", Path: "/"})
+	select {
+	case req := <-rec.web:
+		if req.StreamID != "s1" || req.Path != "/" {
+			t.Fatalf("pedido: %+v", req)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("web_request não chegou ao handler")
+	}
+	if err := ch.Send(context.Background(), protocol.WSWebChunk, protocol.WebChunk{V: 1, StreamID: "s1", End: true}); err != nil {
+		t.Fatal(err)
+	}
+	next(t, g, protocol.WSWebChunk)
+	raw, _ := g.rawByType.Load(protocol.WSWebChunk)
+	if !strings.HasPrefix(raw.(string), `{"v":1,"type":"web_chunk"`) {
+		t.Fatalf("prefixo do quadro: %s", raw)
 	}
 }

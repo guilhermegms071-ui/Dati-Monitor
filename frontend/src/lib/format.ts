@@ -48,7 +48,10 @@ export function fmtDateTime(value: string | Date | null | undefined): string {
 }
 
 export function fmtDate(value: string | Date | null | undefined): string {
-  return value ? dateFmt.format(toDate(value)) : '—';
+  if (!value) return '—';
+  // Data sem hora ("2026-09-10", dia de Brasília vindo da API): não converter de fuso.
+  const day = typeof value === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  return day ? `${day[3] ?? ''}/${day[2] ?? ''}/${day[1] ?? ''}` : dateFmt.format(toDate(value));
 }
 
 const dayTimeFmt = new Intl.DateTimeFormat('pt-BR', {

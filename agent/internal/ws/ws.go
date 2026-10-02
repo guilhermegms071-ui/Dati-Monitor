@@ -52,6 +52,8 @@ type Handler interface {
 	OnConnected()
 	OnCommand(cmd protocol.CommandMessage)
 	OnCancel(id string)
+	// OnWebRequest receives a forwarded browser request of the printer web page tunnel (PROMPT 4.9).
+	OnWebRequest(req protocol.WebRequest)
 }
 
 // Channel is the WebSocket connection manager.
@@ -319,6 +321,13 @@ func (c *Channel) dispatch(msg protocol.WSMessage) {
 		if json.Unmarshal(msg.Data, &d) == nil && d.ID != "" {
 			c.Handler.OnCancel(d.ID)
 		}
+	case protocol.WSWebRequest:
+		var req protocol.WebRequest
+		if err := json.Unmarshal(msg.Data, &req); err != nil || req.StreamID == "" {
+			c.Log.Error("pedido do túnel web mal formado", "erro", err)
+			return
+		}
+		c.Handler.OnWebRequest(req)
 	case protocol.WSHeartbeatAck:
 		var r protocol.HeartbeatResponse
 		if err := json.Unmarshal(msg.Data, &r); err != nil {
@@ -379,6 +388,15 @@ func (c *Channel) current() (*websocket.Conn, <-chan struct{}) {
 		return nil, nil
 	}
 	return c.conn, c.sessDone
+}
+
+// Send writes one message on the current connection (frames of the web tunnel).
+func (c *Channel) Send(ctx context.Context, typ string, data any) error {
+	conn, _ := c.current()
+	if conn == nil {
+		return ErrNotConnected
+	}
+	return c.write(ctx, conn, typ, data)
 }
 
 // Heartbeat sends a heartbeat and waits for the server's answer.

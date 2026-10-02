@@ -52,6 +52,14 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
+      // Página web de impressora simulada (acesso remoto pelo túnel, seção 4.9 / critério 14).
+      command: `"${python}" scripts/printer_web_sim.py --port 8080`,
+      cwd: repoRoot,
+      url: 'http://127.0.0.1:8080/health',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
       command: 'npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: true,

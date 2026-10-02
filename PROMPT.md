@@ -9,7 +9,7 @@
 > Diga ao Claude Code: `Leia PROMPT.md inteiro e execute. Comece pela Fase 0.`
 > Em sessões seguintes: `Leia PROMPT.md e PROGRESS.md e continue de onde parou.`
 >
-> **Decisões já tomadas (não reabrir):** coletor em **Go**; backend **Python/FastAPI + PostgreSQL**; portal **React**; sem hardware dedicado no cliente (o coletor roda em PCs do cliente, com watchdog e cluster); faturamento fica no ERP; hospedagem decidida depois; **sem Docker por enquanto** (a máquina de desenvolvimento é Windows 10 Pro sem virtualização — tudo roda nativo, ver seção 0.1); **sem versão para Windows 7/8/2008/2012 por enquanto**.
+> **Decisões já tomadas (não reabrir):** coletor em **Go**; backend **Python/FastAPI + PostgreSQL**; portal **React**; sem hardware dedicado no cliente (o coletor roda em PCs do cliente, com watchdog e cluster); faturamento fica no ERP; hospedagem decidida depois; **sem Docker por enquanto** (a máquina de desenvolvimento é Windows 10 Pro sem virtualização — tudo roda nativo, ver seção 0.1); **sem versão para Windows 7/8/2008/2012 por enquanto**. **Uso exclusivo da Daticopy (decisão do usuário em 29/09/2026): o sistema não será revendido — nada de funcionalidades, telas ou parâmetros de revenda; o que este PROMPT descreve "por revenda" vale para a empresa como um todo. A camada interna `reseller_id` já construída fica como inquilino único, sem novos investimentos.**
 
 ---
 
@@ -583,7 +583,7 @@ Levantadas na auditoria do Datacount em uso. A coluna "Fase" diz onde cada parte
 - "Monitorar redes conectadas", IPs e hostnames avulsos, importação de faixas por `.txt`, tentativas SNMP (1–5) e timeouts configuráveis no portal; mostrar IP público, SO, versão, local de instalação e estatísticas (leituras, falhas, equipamentos offline).
 
 ### 16.11 Integração Dataclassic — `ErpConnector` (Fase 7)
-- Parâmetros por revenda: habilitar; enviar contadores; **requisição de suprimento** (operação, tipo desc, status, situação, condição de pagamento, vendedor, tipo de frete, e-mail de notificação, opção "apenas enviar e-mail"); **ordem de serviço** (código do técnico, motivo, tipo de intervenção, status, quais tipos de alerta viram OS: chamado técnico, consumíveis, atolamento recorrente, outros; lista de códigos prtAlert importáveis); código da empresa e operador.
+- Parâmetros da empresa (sistema de uso exclusivo da Daticopy): habilitar; enviar contadores; **requisição de suprimento** (operação, tipo desc, status, situação, condição de pagamento, vendedor, tipo de frete, e-mail de notificação, opção "apenas enviar e-mail"); **ordem de serviço** (código do técnico, motivo, tipo de intervenção, status, quais tipos de alerta viram OS: chamado técnico, consumíveis, atolamento recorrente, outros; lista de códigos prtAlert importáveis); código da empresa e operador.
 - **Fila** (`erp_queue`) com status por item (pendente/enviado/erro), reenvio e log visível — nada de flags soltas.
 - Transporte (arquivo/API/banco) **plugável** até a Databit informar o layout.
 

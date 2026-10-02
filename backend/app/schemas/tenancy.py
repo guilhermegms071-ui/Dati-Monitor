@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -240,3 +240,39 @@ class SiteOut(ORMModel):
     master_lease_expires_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class CustomerImportError(BaseModel):
+    line: int = Field(description="Linha do arquivo (1 = cabeçalho)")
+    column: str
+    message: str
+
+
+class CustomerImportResult(BaseModel):
+    dry_run: bool
+    imported: bool = Field(description="True quando gravou (sem nenhum erro no arquivo)")
+    lines: int
+    customers: int
+    sites: int
+    errors: list[CustomerImportError]
+    company_customers: int | None = Field(default=None, description="Clientes da empresa após a importação")
+
+
+class SiteMapItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    customer_id: uuid.UUID
+    customer_name: str
+    city: str | None
+    state: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
+    status: Literal["ok", "warning", "offline", "no_agent"] = Field(
+        description="ok; warning = equipamento sem conexão ou alerta aberto; "
+        "offline = nenhum coletor online; no_agent = local sem coletor"
+    )
+    devices: int
+    devices_offline: int
+    agents: int
+    agents_online: int
+    alerts_open: int

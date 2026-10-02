@@ -14,7 +14,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -26,6 +27,7 @@ from app.core.logging import configure_logging
 from app.core.product import get_product
 from app.core.responses import UTF8JSONResponse
 from app.core.version import backend_version
+from app.gateway import devweb
 from app.gateway.hub import (
     CLOSE_PROTOCOL,
     CLOSE_RATE_LIMITED,
@@ -49,6 +51,7 @@ HEARTBEAT_SECONDS = 30
 RATE_WINDOW_SECONDS = 10.0
 RATE_MAX_MESSAGES = 100
 MAX_PROTOCOL_ERRORS = 10
+WEB_FRAME_TYPES = frozenset({"web_response", "web_chunk", "web_error"})  # túnel da página web (4.9)
 
 
 def _engine(request: Request) -> AsyncEngine:
@@ -68,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         hub = Hub(sessionmaker, gateway_id)
         listener = Listener(settings.database_url, hub)
         app.state.engine, app.state.hub, app.state.listener = engine, hub, listener
+        app.state.tunnel = devweb.WebTunnel()
 
         async def periodic_sweep() -> None:
             while True:
@@ -102,6 +106,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.websocket("/ws/agent")
     async def ws_agent(ws: WebSocket) -> None:
         await accept_agent(ws, settings)
+
+    @app.api_route(
+        "/devweb/{token}/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+        include_in_schema=False,
+    )
+    async def devweb_route(request: Request, token: str, path: str) -> Response:
+        return await devweb.handle(request, token, path, settings)
+
+    @app.get("/devweb/{token}", include_in_schema=False)
+    async def devweb_root(token: str) -> Response:
+        return RedirectResponse(f"/devweb/{token}/", status_code=308)
 
     return app
 
@@ -145,6 +161,7 @@ async def accept_agent(ws: WebSocket, settings: Settings) -> None:
     except WebSocketDisconnect as exc:
         logger.info("coletor %s desconectou (código %s)", agent_id, exc.code)
     finally:
+        ws.app.state.tunnel.drop_agent(agent_id)
         if hub.unregister(conn):
             try:
                 async with hub.sessionmaker() as session:
@@ -187,15 +204,24 @@ class AgentSession:
             raise WebSocketDisconnect(CLOSE_PROTOCOL)
 
     async def loop(self) -> None:
+        tunnel: devweb.WebTunnel = self.ws.app.state.tunnel
         while True:
             raw = await self.ws.receive_text()
+            try:
+                msg = proto.WsMessage.model_validate_json(raw)
+            except ValidationError:
+                msg = None
+            if msg is not None and msg.type in WEB_FRAME_TYPES:
+                # Túnel da página web (4.9): fora do limite de mensagens (tem limite de banda próprio).
+                problem = tunnel.on_frame(self.agent_id, msg.type, msg.data)
+                if problem:
+                    await self._error("invalid_web_frame", problem)
+                continue
             if not self._rate_ok():
                 logger.warning("coletor %s excedeu o limite de mensagens; conexão encerrada", self.agent_id)
                 await self.ws.close(code=CLOSE_RATE_LIMITED, reason="rate_limited")
                 return
-            try:
-                msg = proto.WsMessage.model_validate_json(raw)
-            except ValidationError:
+            if msg is None:
                 await self._error("invalid_message", "Mensagem inválida (esperado JSON com v=1 e type)")
                 continue
             match msg.type:

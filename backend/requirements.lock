@@ -32,6 +32,8 @@ cffi==2.1.1
     # via
     #   argon2-cffi-bindings
     #   cryptography
+charset-normalizer==3.5.1
+    # via reportlab
 click==8.5.0
     # via uvicorn
 cryptography==50.0.1
@@ -58,6 +60,8 @@ markupsafe==3.0.3
     # via mako
 openpyxl==3.1.5
     # via dati-monitor-backend (pyproject.toml)
+pillow==12.3.0
+    # via reportlab
 pycparser==3.0
     # via cffi
 pydantic==2.13.5
@@ -85,6 +89,8 @@ referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
+reportlab==5.0.1
+    # via dati-monitor-backend (pyproject.toml)
 rpds-py==2026.6.3
     # via
     #   jsonschema
