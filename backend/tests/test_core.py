@@ -11,6 +11,7 @@ from app.core import version as version_mod
 from app.core.config import Settings
 from app.core.logging import JsonFormatter, configure_logging
 from app.core.product import get_product, load_product
+from tests.conftest import PYPROJECT_VERSION
 
 
 def test_product_from_repo_json() -> None:
@@ -40,7 +41,7 @@ def test_settings_reject_invalid_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_backend_version_installed() -> None:
-    assert version_mod.backend_version() == "0.1.0"
+    assert version_mod.backend_version() == PYPROJECT_VERSION
 
 
 def test_backend_version_not_installed(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.api.main import create_app
 from app.core.config import Settings
 from app.gateway.main import create_app as create_gateway
+from tests.conftest import PYPROJECT_VERSION
 
 
 def create_api(settings: Settings) -> FastAPI:
@@ -38,7 +39,7 @@ async def test_health_ok_with_real_database(
     assert body["status"] == "ok"
     assert body["service"] == service
     assert body["product"] == "Dati Monitor"
-    assert body["version"] == "0.1.0"
+    assert body["version"] == PYPROJECT_VERSION
     assert body["database"]["ok"] is True
     assert body["database"]["server_version"].startswith("16")
     assert body["database"]["error"] is None

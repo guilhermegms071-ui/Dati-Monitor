@@ -55,6 +55,13 @@ def log(msg: str) -> None:
 def env() -> dict[str, str]:
     e = {k: v for k, v in os.environ.items() if k != "__COMPAT_LAYER"}
     e["PYTHONIOENCODING"] = "utf-8"
+    if not shutil.which("sh", path=e.get("PATH")):
+        # O teste do install.sh roda num shell POSIX: no Windows, o do Git for Windows (Git\usr\bin).
+        git = shutil.which("git", path=e.get("PATH"))
+        if git:
+            usr_bin = Path(git).resolve().parents[1] / "usr" / "bin"
+            if (usr_bin / "sh.exe").exists():
+                e["PATH"] = f"{e.get('PATH', '')}{os.pathsep}{usr_bin}"
     return e
 
 

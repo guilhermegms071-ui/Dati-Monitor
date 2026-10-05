@@ -262,13 +262,32 @@ class SimAgent:
 @dataclass
 class Stats:
     retries_429: int = 0
+    retries_network: int = 0
     rejected: list[str] = field(default_factory=list)
+
+
+NETWORK_ATTEMPTS = 5
+
+
+async def post_net(client: httpx.AsyncClient, url: str, stats: Stats, **kw: Any) -> httpx.Response:
+    """POST que repete em falha de rede, como o dm-agent (backoff): com centenas de conexões, o servidor
+    pode fechar uma conexão keep-alive no instante em que o cliente a reutiliza. Cada repetição é contada
+    no relatório; esgotadas as tentativas, o erro sobe."""
+    for attempt in range(NETWORK_ATTEMPTS):
+        try:
+            return await client.post(url, **kw)
+        except httpx.TransportError:
+            if attempt == NETWORK_ATTEMPTS - 1:
+                raise
+            stats.retries_network += 1
+            await asyncio.sleep(2**attempt)
+    raise AssertionError  # inalcançável
 
 
 async def post_retry(client: httpx.AsyncClient, url: str, stats: Stats, **kw: Any) -> httpx.Response:
     """Cadastro e token têm limite por IP (todos os 500 coletores aqui vêm do mesmo IP): espera e repete."""
     for _ in range(30):
-        r = await client.post(url, **kw)
+        r = await post_net(client, url, stats, **kw)
         if r.status_code != HTTP_TOO_MANY:
             return r
         stats.retries_429 += 1
@@ -445,7 +464,7 @@ async def send_hour(
                     "Content-Type": "application/json",
                     "Content-Encoding": "gzip",
                 }
-                r = await client.post("/api/agent/readings", content=raw, headers=headers)
+                r = await post_net(client, "/api/agent/readings", stats, content=raw, headers=headers)
                 if r.status_code == HTTP_UNAUTHORIZED:  # token de 15 min venceu: renova como o agente
                     await refresh_token(client, a, stats)
                     continue
@@ -617,6 +636,7 @@ async def scenario(args: argparse.Namespace, db_url: str, password: str, servers
             "park": park,
             **ws,
             "retries_429": waits + stats.retries_429,
+            "retries_network": setup_stats.retries_network + stats.retries_network,
             "problems": problems,
         }
 

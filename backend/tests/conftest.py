@@ -5,9 +5,11 @@ import importlib.util
 import os
 import socket
 import sys
+import tomllib
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -22,6 +24,11 @@ from app.core.db import make_engine, make_sessionmaker
 from app.core.product import REPO_ROOT
 from app.core.security import hash_password
 from tests.release_helpers import TEST_RELEASE_PUBLIC_B64
+
+# Versão declarada em backend/pyproject.toml: os testes conferem a versão exposta contra ela.
+PYPROJECT_VERSION: str = tomllib.loads(
+    (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
 
 
 def _load_repo_env() -> None:
