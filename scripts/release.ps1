@@ -45,14 +45,17 @@ foreach ($dir in Get-ChildItem $dist -Directory | Where-Object { $_.Name -match 
         if ($comp -eq 'tool') { continue }
         $json = Join-Path $rel "assinaturas\$goos-$goarch-dm-$comp.json"
         Invoke-Checked "assinatura dm-$comp $goos/$goarch" {
-            & $tool sign --file $exe --version $Version --os $goos --arch $goarch --key $key | Out-File -Encoding utf8 $json
+            $out = & $tool sign --file $exe --version $Version --os $goos --arch $goarch --key $key
+            # Sem BOM: o JSON é colado na tela Versões.
+            [IO.File]::WriteAllText($json, (($out -join "`n") + "`n"))
         }
     }
 }
 
-$installerArgs = @('-Version', $Version, '-SkipBuild', '-OutDir', (Join-Path $rel 'instaladores'))
-if ($Server) { $installerArgs += @('-Server', $Server) }
-if ($SignCode) { $installerArgs += '-Sign' }
+# Splat por hashtable: com array, o PowerShell passa '-Version' como valor posicional.
+$installerArgs = @{ Version = $Version; SkipBuild = $true; OutDir = (Join-Path $rel 'instaladores') }
+if ($Server) { $installerArgs.Server = $Server }
+if ($SignCode) { $installerArgs.Sign = $true }
 Invoke-Checked 'instalador Windows' { & (Join-Path $PSScriptRoot 'build-installer.ps1') @installerArgs }
 Invoke-Checked 'pacotes Linux (.deb e .tar.gz)' {
     & $VenvPython (Join-Path $PSScriptRoot 'build_linux.py') --version $Version --out (Join-Path $rel 'instaladores')
