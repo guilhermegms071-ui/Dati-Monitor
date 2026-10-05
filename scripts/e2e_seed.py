@@ -37,7 +37,7 @@ from app.core.config import get_settings  # noqa: E402
 from app.core.db import make_engine, make_sessionmaker  # noqa: E402
 from app.core.permissions import RESELLER_ADMIN  # noqa: E402
 from app.core.security import agent_signature, derive_agent_key, hash_password  # noqa: E402
-from app.models import Device, Reseller, User  # noqa: E402
+from app.models import Device, Reseller, Site, User  # noqa: E402
 from app.services.bootstrap import ensure_bootstrap  # noqa: E402
 
 E2E_EMAIL = "e2e@dati.local"
@@ -51,6 +51,17 @@ SERIAL = "E2E-0001"
 ALERT_CHANNEL = "E-mail do E2E"
 ALERT_EMAIL = "alertas-e2e@dati.local"
 MIN_PASSWORD = 12
+# As 8 impressoras simuladas (profiles/recordings/sim): o teste de caos usa as mesmas, em outro local.
+SIM_SERIALS = (
+    "SIMCAN0001",
+    "SIMCAN0002",
+    "A797019500624",
+    "SIMKM0004",
+    "SIMGEN0005",
+    "SIMSLEEP06",
+    "SIMERR07",
+    "SIMREG08",
+)
 USB_PJL_SERIAL = "E2EUSBPJL01"
 USB_MANUAL_SERIAL = "USB-E2E000000001"
 
@@ -151,13 +162,27 @@ async def ensure_site(
 
 
 async def reset_discoveries(site_id: str) -> None:
-    """Impressoras simuladas de execuções anteriores voltam a ser pendentes (banco de desenvolvimento)."""
+    """Impressoras simuladas de execuções anteriores voltam a ser pendentes neste local (banco de
+    desenvolvimento), inclusive as que outro teste (o de caos) deixou ativas em outro local: o mesmo serial
+    na revenda é o mesmo equipamento e chegaria aqui já aprovado, sem passar por Descobertas."""
     engine = make_engine(get_settings().database_url)
     try:
         async with make_sessionmaker(engine)() as session:
+            site = await session.get(Site, uuid.UUID(site_id))
+            if site is None:
+                raise SystemExit(f"Local do E2E não encontrado: {site_id}")
             await session.execute(
                 update(Device)
-                .where(Device.site_id == uuid.UUID(site_id))
+                .where(
+                    Device.reseller_id == site.reseller_id,
+                    Device.serial.in_(SIM_SERIALS),
+                    Device.site_id != site.id,
+                )
+                .values(site_id=site.id, customer_id=site.customer_id, deleted_at=None)
+            )
+            await session.execute(
+                update(Device)
+                .where(Device.site_id == site.id)
                 .values(
                     discovery_state="pending",
                     discovery_decided_at=None,
