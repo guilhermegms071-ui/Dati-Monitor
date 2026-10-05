@@ -39,6 +39,7 @@ import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useSendCommand } from '../../lib/commands';
 import { dayKey, fmtCommunication, fmtDate, fmtDateTime, fmtInt, fmtPercent } from '../../lib/format';
+import { printerName } from '../../lib/printers';
 import { describeForecast } from '../../lib/forecast';
 import { DEVICE_EVENT } from '../../lib/labels';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
@@ -65,7 +66,7 @@ export function DeviceDetailPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={`${d.brand ?? ''} ${d.model ?? d.serial}`.trim()}
+        title={printerName(d.brand, d.model) || d.serial}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-mono">{d.serial}</span>· {d.ip ?? 'sem IP'} · {d.customer_name} / {d.site_name}

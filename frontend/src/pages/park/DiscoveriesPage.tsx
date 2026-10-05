@@ -22,6 +22,7 @@ import {
 import { api, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { fmtInt } from '../../lib/format';
+import { printerName } from '../../lib/printers';
 import { showError, showSuccess } from '../../lib/notify';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 
@@ -187,7 +188,7 @@ export function DiscoveriesPage() {
                       {d.serial}
                     </Link>
                   </td>
-                  <td className="px-3 py-1.5 text-xs">{[d.brand, d.model].filter(Boolean).join(' ') || '—'}</td>
+                  <td className="px-3 py-1.5 text-xs">{printerName(d.brand, d.model) || '—'}</td>
                   <td className="px-3 py-1.5 text-xs">{d.sector ?? '—'}</td>
                   <td className="px-3 py-1.5 text-xs">
                     {d.customer_name} / {d.site_name}

@@ -30,6 +30,7 @@ type simNet struct {
 	mu    sync.Mutex
 	hosts map[string]*snmp.MemSource
 	dials int
+	opts  map[string]snmp.Options // opções da última conexão aberta para cada "ip:porta"
 }
 
 type simConn struct{ src *snmp.MemSource }
@@ -50,7 +51,9 @@ func (c simConn) Walk(ctx context.Context, root string, fn func(snmp.PDU) error)
 
 func (simConn) Close() error { return nil }
 
-func newSimNet(t *testing.T) *simNet { return &simNet{t: t, hosts: map[string]*snmp.MemSource{}} }
+func newSimNet(t *testing.T) *simNet {
+	return &simNet{t: t, hosts: map[string]*snmp.MemSource{}, opts: map[string]snmp.Options{}}
+}
 
 func (n *simNet) set(addr, recording string) {
 	n.t.Helper()
@@ -74,10 +77,11 @@ func (n *simNet) off(addr string) {
 	n.mu.Unlock()
 }
 
-func (n *simNet) dial(host string, port int, cred snmp.Credential, _ snmp.Options) (discovery.Conn, error) {
+func (n *simNet) dial(host string, port int, cred snmp.Credential, opts snmp.Options) (discovery.Conn, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.dials++
+	n.opts[key(host, port)] = opts
 	if cred.Community != "public" {
 		return simConn{}, nil
 	}

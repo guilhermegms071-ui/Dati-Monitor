@@ -98,10 +98,46 @@
           "description": "Grupos nomeados viram contadores, ex.: (?<total>\\d+)"
         }
       }
-    }
+    },
+    "snmp": { "$ref": "#/$defs/snmpTuning" }
   },
   "not": { "required": ["counters", "counter_sources"] },
   "$defs": {
+    "snmpRetries": { "type": "integer", "minimum": 0, "maximum": 10, "description": "Novas tentativas de cada requisição sem resposta" },
+    "snmpTimeoutMs": { "type": "integer", "minimum": 200, "maximum": 30000, "description": "Espera pela resposta de cada requisição" },
+    "snmpMaxRepetitions": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Valores pedidos por página do GETBULK (lote)" },
+    "snmpMaxOidsPerGet": { "type": "integer", "minimum": 1, "maximum": 50, "description": "OIDs por pacote GET" },
+    "snmpRequestIntervalMs": { "type": "integer", "minimum": 0, "maximum": 5000, "description": "Pausa mínima entre duas requisições ao mesmo equipamento" },
+    "snmpTuning": {
+      "type": "object",
+      "description": "Ritmo e tolerância das consultas SNMP dos equipamentos deste perfil (sem o bloco, valem os padrões do coletor). 'models' ajusta modelos específicos: o primeiro model_regex que casa sobrepõe os valores do perfil.",
+      "additionalProperties": false,
+      "properties": {
+        "retries": { "$ref": "#/$defs/snmpRetries" },
+        "timeout_ms": { "$ref": "#/$defs/snmpTimeoutMs" },
+        "max_repetitions": { "$ref": "#/$defs/snmpMaxRepetitions" },
+        "max_oids_per_get": { "$ref": "#/$defs/snmpMaxOidsPerGet" },
+        "request_interval_ms": { "$ref": "#/$defs/snmpRequestIntervalMs" },
+        "note": { "type": "string" },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model_regex"],
+            "properties": {
+              "model_regex": { "type": "string", "minLength": 1 },
+              "note": { "type": "string" },
+              "retries": { "$ref": "#/$defs/snmpRetries" },
+              "timeout_ms": { "$ref": "#/$defs/snmpTimeoutMs" },
+              "max_repetitions": { "$ref": "#/$defs/snmpMaxRepetitions" },
+              "max_oids_per_get": { "$ref": "#/$defs/snmpMaxOidsPerGet" },
+              "request_interval_ms": { "$ref": "#/$defs/snmpRequestIntervalMs" }
+            }
+          }
+        }
+      }
+    },
     "oid": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)+$" },
     "placeholder": { "const": "PREENCHER_PELO_WALK" },
     "oidOrPlaceholder": { "anyOf": [{ "$ref": "#/$defs/oid" }, { "$ref": "#/$defs/placeholder" }] },

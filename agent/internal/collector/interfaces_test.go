@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/daticopy/dati-monitor/agent/internal/printer"
 	"github.com/daticopy/dati-monitor/agent/internal/protocol"
@@ -104,5 +105,33 @@ func TestSplitInterfacesPrefersLowestIPBetweenEquals(t *testing.T) {
 	p, s := splitInterfaces([]candidate{mk("10.0.0.20"), mk("10.0.0.3")}, nil)
 	if len(p) != 1 || p[0].found.Target.IP != "10.0.0.3" || len(s) != 1 || s[0].primary != "10.0.0.3:161" {
 		t.Fatalf("principal %+v, secundárias %+v", p, s)
+	}
+}
+
+// A leitura abre a conexão com o ajuste do bloco "snmp" do perfil para o modelo do equipamento (ECOSYS
+// M3655idn: link com perda na rede real); os outros modelos seguem com as opções do coletor.
+func TestReadUsesProfileSNMPTuningForTheModel(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	if err := f.c.Apply(f.config(t, protocol.IPRange{ID: "r1", CIDR: "10.10.10.0/24", Ports: []int{161}})); err != nil {
+		t.Fatal(err)
+	}
+	f.net.set("10.10.10.147:161", "05-generica")
+	f.net.set("10.10.10.191:161", "05-generica")
+	for ip, model := range map[string]string{"10.10.10.147": "ECOSYS M3655idn", "10.10.10.191": "ECOSYS M3550idn"} {
+		dev := store.Device{IP: ip, Port: 161, Serial: "S" + ip, Model: model, ProfileKey: "kyocera", CredentialID: "public"}
+		if err := f.st.UpsertDevice(ctx, dev); err != nil {
+			t.Fatal(err)
+		}
+		_ = f.c.readDevice(ctx, dev, []string{TaskStatus})
+	}
+	f.net.mu.Lock()
+	defer f.net.mu.Unlock()
+	tuned, plain := f.net.opts["10.10.10.147:161"], f.net.opts["10.10.10.191:161"]
+	if tuned.Retries != 6 || tuned.Timeout != time.Second {
+		t.Fatalf("M3655idn deveria ler com 6 tentativas de 1 s: %+v", tuned)
+	}
+	if plain.Retries == 6 {
+		t.Fatalf("M3550idn não deveria receber o ajuste da M3655idn: %+v", plain)
 	}
 }

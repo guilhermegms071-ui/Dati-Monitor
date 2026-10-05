@@ -34,6 +34,7 @@ type Profile struct {
 	Supplies       *Supplies          `json:"supplies,omitempty"`
 	Attributes     *Attributes        `json:"attributes,omitempty"`
 	HTTP           *HTTPReader        `json:"http,omitempty"`
+	SNMP           *SNMPTuning        `json:"snmp,omitempty"`
 	compiled       map[string]*regexp2.Regexp
 }
 
@@ -212,6 +213,11 @@ func (p *Profile) Compile() error {
 	}
 	if p.HTTP != nil {
 		regexes = append(regexes, p.HTTP.Regex)
+	}
+	if p.SNMP != nil {
+		for _, m := range p.SNMP.Models {
+			regexes = append(regexes, m.ModelRegex)
+		}
 	}
 	for _, src := range p.Sources() {
 		for name, c := range src.Counters {

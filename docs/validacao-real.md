@@ -86,3 +86,15 @@ cópias PB entre a leitura e o walk; os demais contadores são idênticos.
 
 Confirmar ao vivo, num dia útil com as máquinas ligadas, que a varredura registra a C4065 só pelo .190.
 No sábado à noite, só a C454e estava ligada. A regra já está coberta pelo teste com os walks reais.
+
+## Atualização de 05/10/2026: Kyocera ECOSYS M3655idn (10.10.10.147)
+
+- **Equipamento novo na rede**, aparece em Descobertas.
+- **Problema:** respondia à varredura, mas as leituras não completavam.
+- **Investigação:** o link de rede da impressora perde cerca de 50% dos pacotes, **inclusive ping**,
+  enquanto .191 e .240 pelo mesmo caminho perdem 0%. O intervalo entre requisições e o lote menor não
+  mudaram a perda.
+- **Solução:** bloco `snmp` no `kyocera.yaml`, só para esse modelo, com 6 tentativas de 1 s.
+- **Resultado:** 6 de 6 leituras seguidas com o total **63.488**, e toner 76%.
+- **Pendente:** verificar o cabo, a porta do switch e o duplex da impressora. Detalhes no PROGRESS.md
+  ("Ajustes na rede real").

@@ -35,3 +35,17 @@ status:
   energy_saving_text_regex: "(?i)sleep|economia|energy|saving|repouso|power save|standby"
 supplies:
   use_standard: true
+
+# Ritmo e tolerância das consultas SNMP (rede real, 05/10/2026). A ECOSYS M3655idn do escritório
+# (10.10.10.147) perde cerca de 50% dos pacotes, inclusive ping, enquanto as outras impressoras pelo mesmo
+# caminho perdem 0%: a perda é no link dela (cabo, porta do switch, duplex), não no SNMP. Medido na leitura
+# completa: com 1 nova tentativa (padrão), 0 de 5 leituras; com 4, 5 de 5, todas com total 63.488.
+# Intervalo entre requisições (até 1 s) não reduziu a perda, e lote menor só aumenta o número de pacotes
+# (5/5 também, porém mais lento). Fica: 6 novas tentativas de 1 s, lote padrão, sem intervalo.
+snmp:
+  models:
+    - model_regex: "(?i)ECOSYS M3655idn"
+      note: "perda de ~50% dos pacotes no link da impressora; mais tentativas curtas mantêm a leitura estável"
+      retries: 6
+      timeout_ms: 1000
+      request_interval_ms: 0

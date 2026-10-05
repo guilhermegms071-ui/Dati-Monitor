@@ -1349,6 +1349,78 @@ Encontrado e corrigido no caminho:
 
 ---
 
+## Ajustes na rede real — Kyocera M3655idn e nomes de modelo (05/10/2026) ✅
+
+### Pedido
+- A Kyocera ECOSYS M3655idn (10.10.10.147), nova na rede, respondia a consultas curtas e emudecia nas
+  longas.
+- Pedido: ajustar o ritmo das consultas SNMP para esse modelo (em série, intervalo, lote menor), sem
+  derrubar a impressora, configurável por modelo no perfil, e confirmar a leitura estável do total
+  63.488.
+- Corrigir a marca repetida ("Konica Minolta KONICA MINOLTA bizhub") em Descobertas e no Parque.
+
+### Investigação (medida, só leitura, na faixa autorizada)
+| Experimento | Resultado |
+|---|---|
+| Leitura completa (identidade, status, suprimentos, contadores) com lote 20/10/5 × intervalo 0/100/250 ms, 1 nova tentativa | 0 de 18 completas, em qualquer combinação |
+| GET com 1, 2 e 5 OIDs por pacote | irregular: o mesmo pedido responde em 0,1 s ou só depois de nova tentativa; não depende do tamanho |
+| 40 GETs simples sem nova tentativa, com 0 ms / 300 ms / 1 s entre eles | 24 / 21 / 19 perdidos, em rajadas: o intervalo não muda a perda |
+| **Ping** (30 e 20 pacotes) | **.147 perde 50% e 40%**; .191 e .240 pelo mesmo caminho, 0%; MAC sempre o mesmo (Kyocera `00-17-C8`), então não é conflito de IP |
+| Leitura completa com mais tentativas curtas (5 rodadas cada) | 1 tentativa: 0/5; **4 tentativas de 1 s: 5/5**, total 63.488 em todas, 6,8 s; 7 tentativas: 5/5, 11,2 s; lote 5 com 7 tentativas: 5/5, 15,3 s |
+
+**Conclusão:** a impressora não "cai" com consultas longas. O link de rede dela perde cerca de metade
+dos pacotes, de qualquer tipo, inclusive ping: cabo, porta do switch, duplex ou Wi-Fi. Consultas longas
+falhavam porque têm mais pacotes, e com 1 nova tentativa basta uma perda dupla para derrubar a leitura.
+Intervalo entre requisições não reduz a perda, e lote menor só aumenta o número de pacotes. O que
+estabiliza é repetir mais vezes cada pacote perdido, com espera curta.
+
+### O que foi feito
+- **Ritmo e tolerância configuráveis no perfil** (bloco `snmp` do YAML, validado pelo schema no
+  agente e no backend):
+  - campos `retries`, `timeout_ms`, `max_repetitions` (lote do GETBULK), `max_oids_per_get` e
+    `request_interval_ms`;
+  - no nível do fabricante e por modelo, em `models: [{model_regex, …}]`, onde o primeiro que casa
+    sobrepõe o fabricante.
+- **Intervalo mínimo entre requisições** no cliente SNMP (`Options.RequestInterval`, pelo `PreSend` do
+  gosnmp): vale para cada página do GETBULK e cada nova tentativa. Fica disponível para impressoras que
+  precisem de pausa, embora não fosse o caso desta.
+- **O coletor aplica o ajuste:**
+  - na leitura: perfil + modelo do equipamento;
+  - na descoberta: só o perfil, porque o modelo ainda não é conhecido.
+- **`kyocera.yaml`:** a M3655idn lê com 6 tentativas de 1 s (folga sobre as 4 que bastaram), lote
+  padrão, sem intervalo, com a medição documentada no próprio arquivo. Os outros Kyocera seguem com o
+  padrão.
+- **Nome do equipamento:** `modelWithoutBrand`/`printerName` tiram do modelo a marca que o fabricante
+  repete no início (só quando é a palavra inteira: "HPE" não perde o "HP"). Aplicado em:
+  - Descobertas e detalhe do equipamento: "Konica Minolta bizhub C287";
+  - coluna Modelo do Parque: "bizhub C287", com a marca na coluna Marca;
+  - cartão do Parque no celular;
+  - Computadores.
+
+### Testes (todos passando)
+| Suíte | Novos |
+|---|---|
+| Go integração (`simtest`) | `TestLossyLinkIsReadWithProfileTuning`: proxy UDP que perde 2 de cada 3 pacotes na frente do snmpsim; com o padrão a leitura falha por timeout; com o ajuste do perfil, 3 leituras completas com o total exato. `TestRequestIntervalPacesEveryPacket`: cada pacote do GETBULK respeita o intervalo |
+| Go unidade | `TestKyoceraProfileTunesOnlyTheM3655idn` (perfil real); `TestTuneSNMPProfileThenFirstMatchingModel`; `TestSNMPBlockIsValidated` (faixas, campo desconhecido, modelo sem regex, regex inválida); `TestReadUsesProfileSNMPTuningForTheModel` (o coletor abre a conexão com o ajuste do modelo) |
+| Vitest | `printers.test.ts`: marca repetida (Konica, HP, Brother, Canon com hífen), modelo sem a marca, "HPE" × "HP", modelo que é só a marca |
+| Lint e suítes | Go `-race` + integração (cobertura 82,3%), Vitest 47, pytest de perfis e de contrato, lint completo: sem problemas |
+
+### Fluxo manual executado (rede real) e resultado
+1. Servidor reiniciado: o perfil `kyocera` ganhou a versão 2 (com o bloco `snmp`), ativa e enviada ao
+   coletor.
+2. **Seis "Ler agora" seguidos na M3655idn (10:41 a 10:45): 6 de 6 com sucesso, total 63.488 em
+   todas.** Antes, nenhuma leitura completava. Com a leitura completa, o toner também passou a vir
+   (76%).
+3. Portal: Descobertas mostra "Konica Minolta bizhub C287" e "Konica Minolta AccurioPrint C4065"; o
+   Parque mostra Marca "Konica Minolta" e Modelo "bizhub C454e"; o detalhe tem o título
+   "Konica Minolta bizhub C287". Nenhum erro no console.
+
+### Pendência (física, não de software)
+- Verificar o cabo, a porta do switch e o duplex da M3655idn (10.10.10.147). Com o link saudável, o ajuste
+  do perfil continua inofensivo: as tentativas extras só são usadas quando um pacote se perde.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1483,3 +1555,6 @@ Encontrado e corrigido no caminho:
 | D128 | Lista sem paginação só com justificativa no `test_api_contract.py` (limite fixo ou cadastro pequeno); o mapa dos locais devolve todos os locais, agregados | Critério 22 verificado no contrato: lista nova sem cursor reprova o teste |
 | D129 | `.env` com permissão só do usuário, SISTEMA e administradores (`init-env.ps1` aplica) | A pasta do projeto herdava leitura para todos os usuários do Windows |
 | D130 | Versão 1.0.0 sem servidor embutido no instalador (o endereço vem do link do portal ou da tela) | O domínio de produção ainda não foi definido; não inventar um |
+| D131 | Ritmo e tolerância SNMP no perfil (bloco `snmp`, por fabricante e por modelo via `model_regex`), aplicados pelo coletor na leitura (perfil + modelo) e na descoberta (só perfil) | Ajuste por modelo sem mudar o coletor nem afetar os outros equipamentos; versionado e publicado como o resto do perfil |
+| D132 | Para a M3655idn: mais tentativas curtas (6 × 1 s), não intervalo nem lote menor | Medido na rede real: a perda (~50%, inclusive ping) é do link e não depende do ritmo; lote menor só multiplica os pacotes; 4 tentativas já davam 5/5 leituras |
+| D133 | `printerName`/`modelWithoutBrand`: a marca é removida do início do modelo só quando é palavra inteira; exibição apenas (o dado gravado não muda) | Filtros e exportações continuam com o modelo como a impressora informa; "HPE" não vira "E" |

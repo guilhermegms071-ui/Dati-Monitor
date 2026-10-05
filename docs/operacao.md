@@ -81,6 +81,22 @@ de um walk real conferido com a folha de contadores.
    partir daí, o `TestRealRecordings` do Go confere o perfil contra esse walk a cada build: se uma
    alteração futura quebrar a leitura do modelo, o teste falha.
 
+**Impressora que responde à varredura, mas cuja leitura não completa.**
+1. Meça antes de mexer: rode `ping -n 30 <ip>` e compare com outra impressora do mesmo local.
+2. Se o ping também perde pacotes, o problema é o link (cabo, porta do switch, duplex). Corrija-o.
+3. Enquanto isso, ou se o problema for do próprio SNMP da impressora, ajuste o ritmo das consultas no
+   perfil, só para aquele modelo:
+   ```yaml
+   snmp:
+     models:
+       - model_regex: "(?i)ECOSYS M3655idn"
+         retries: 6            # perda de pacotes: mais tentativas curtas
+         timeout_ms: 1000
+         request_interval_ms: 0   # pausa entre requisições, para impressoras que travam com rajadas
+         # max_repetitions: 10    # lote do GETBULK, para impressoras que não aguentam respostas grandes
+   ```
+   Publique como qualquer versão de perfil. O `kyocera.yaml` tem o caso real medido.
+
 ---
 
 ## 3. Publicar uma versão nova do coletor

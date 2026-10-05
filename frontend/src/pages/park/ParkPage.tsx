@@ -22,6 +22,7 @@ import {
 import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { fmtCommunication, fmtDate, fmtDateTime, fmtInt } from '../../lib/format';
+import { modelWithoutBrand, printerName } from '../../lib/printers';
 import { DEVICE_STATUS } from '../../lib/labels';
 import { showError, showSuccess } from '../../lib/notify';
 import { useMediaQuery } from '../../lib/useMediaQuery';
@@ -129,7 +130,7 @@ const COLUMNS: Column[] = [
     filter: 'model',
     render: (r) => (
       <div className="flex flex-col">
-        <span className="text-xs font-medium">{r.model ?? '—'}</span>
+        <span className="text-xs font-medium">{modelWithoutBrand(r.brand, r.model) ?? '—'}</span>
         {r.sector ? <span className="text-[11px] text-slate-500">{r.sector}</span> : null}
       </div>
     ),
@@ -185,7 +186,7 @@ function ParkCard({ row: r }: { row: Row }) {
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
             {cell('serial', r)}
-            <span className="truncate text-xs font-medium">{r.model ?? '—'}</span>
+            <span className="truncate text-xs font-medium">{printerName(r.brand, r.model) || '—'}</span>
           </div>
           <p className="truncate text-[11px] text-slate-500">
             {r.customer_name} / {r.site_name}

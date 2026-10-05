@@ -25,12 +25,15 @@ type Credential struct {
 	V3Context   string `json:"v3_context,omitempty"` // contextName (vazio na maioria das impressoras)
 }
 
-// Options controls timeouts and retries (PROMPT 4.5: 1500 ms, 1 retry).
+// Options controls timeouts and retries (PROMPT 4.5: 1500 ms, 1 retry) and the pace of the requests.
 type Options struct {
 	Timeout        time.Duration
 	Retries        int
 	MaxOIDsPerGet  int
 	MaxRepetitions uint32
+	// RequestInterval is the minimum pause between two requests to the device (including each page of a
+	// GETBULK walk and each retry). Some printers stop answering when requests come back to back.
+	RequestInterval time.Duration
 }
 
 // DefaultOptions are the collector defaults.
@@ -82,10 +85,25 @@ func Dial(host string, port int, cred Credential, opts Options) (*Client, error)
 	default:
 		return nil, fmt.Errorf("versão SNMP desconhecida: %q", cred.Version)
 	}
+	if opts.RequestInterval > 0 {
+		pace(g, opts.RequestInterval)
+	}
 	if err := g.Connect(); err != nil {
 		return nil, fmt.Errorf("abrir socket SNMP para %s: %w", net.JoinHostPort(host, fmt.Sprint(port)), err)
 	}
 	return &Client{g: g, opts: opts}, nil
+}
+
+// pace makes every packet wait until RequestInterval has passed since the previous send or answer.
+func pace(g *gosnmp.GoSNMP, interval time.Duration) {
+	var last time.Time
+	g.PreSend = func(*gosnmp.GoSNMP) {
+		if wait := interval - time.Since(last); !last.IsZero() && wait > 0 {
+			time.Sleep(wait)
+		}
+		last = time.Now()
+	}
+	g.OnRecv = func(*gosnmp.GoSNMP) { last = time.Now() }
 }
 
 func v3Params(c Credential) (*gosnmp.UsmSecurityParameters, gosnmp.SnmpV3MsgFlags, error) {

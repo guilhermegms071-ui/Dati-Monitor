@@ -543,7 +543,9 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 	if !ok {
 		return errors.New("nenhuma credencial SNMP configurada")
 	}
-	conn, err := c.d.Dial(dev.IP, dev.Port, cred, c.readOptions())
+	p := c.profileByKey(dev.ProfileKey)
+	// Ritmo e tolerância do perfil/modelo (bloco "snmp" do YAML) sobre as opções de leitura do local.
+	conn, err := c.d.Dial(dev.IP, dev.Port, cred, p.TuneSNMP(c.readOptions(), dev.Model))
 	if err != nil {
 		return err
 	}
@@ -555,7 +557,6 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 		return err
 	}
 	ref := refFromStore(*dev)
-	p := c.profileByKey(dev.ProfileKey)
 	refreshIdentity := func() error {
 		id, np, err := printer.ReadIdentity(ctx, conn, c.profilesSnapshot())
 		if err != nil {
@@ -817,7 +818,9 @@ func (c *Collector) identify(ctx context.Context, f discovery.Found) (cand candi
 	if !ok {
 		return cand, false, errors.New("credencial sumiu da configuração")
 	}
-	conn, err := c.d.Dial(f.Target.IP, f.Target.Port, cred, c.snmpOptions())
+	// O modelo ainda é desconhecido: vale o ajuste do perfil do fabricante (pelo sysObjectID da sondagem).
+	opts := profile.Select(c.profilesSnapshot(), f.Probe.SysObjectID, "").TuneSNMP(c.snmpOptions(), "")
+	conn, err := c.d.Dial(f.Target.IP, f.Target.Port, cred, opts)
 	if err != nil {
 		return cand, false, err
 	}
