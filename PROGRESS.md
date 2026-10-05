@@ -1323,7 +1323,7 @@ Suítes da rodada: Go 176 testes (cobertura 82,2%), pytest 227 (cobertura 91%), 
 lint limpo, caos 22/22 checagens, soak e carga OK.
 
 ### Pacote 1.0.0 gerado (05/10/2026)
-`scriptselease.ps1 -Version 1.0.0` → `distelease-1.0.0\` (commit `86634b6`, 46 arquivos):
+`scripts\release.ps1 -Version 1.0.0` → `dist\release-1.0.0\` (commit `86634b6`, 46 arquivos):
 - binários dos 7 alvos (`dm-agent version` → `1.0.0`);
 - 14 assinaturas ed25519: todas conferidas com `dm-tool verify` e a chave pública embutida;
 - `dati-monitor-setup-1.0.0.exe` (24 MB, sem assinatura de código: certificado pendente);
