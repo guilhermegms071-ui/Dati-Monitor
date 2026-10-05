@@ -16,7 +16,7 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 8 — Instaladores | ✅ concluída (02/10/2026) — falta só o teste `-Full` num terminal de administrador |
 | 9 — USB e acabamento | ✅ concluída (02/10/2026) |
 | 10 — Rede real | ✅ concluída (04/10/2026) — contadores aprovados pelo usuário |
-| 11 — Aceitação final | ⏳ em andamento |
+| 11 — Aceitação final | ⏳ 20/22 critérios OK — faltam o teste do instalador como administrador (item 15) e o CI no GitHub (item 18) |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -1247,6 +1247,93 @@ folhas → correções → walks nos testes automáticos → `docs/validacao-rea
 
 ---
 
+## Fase 11 — Aceitação final ⏳ (20 de 22 critérios OK; os 2 restantes dependem do usuário)
+
+### Plano executado
+`scripts/acceptance.ps1` → rodadas completas → corrigir o que falhou → revisão de segurança → notas da
+versão e pacote 1.0.0.
+
+### O que foi feito
+- **`scripts/acceptance.ps1` / `acceptance.py`**: sobe tudo do zero e roda, nesta ordem:
+  - `dev.ps1`, com portal, API e login do administrador;
+  - instalador: verificações e, como administrador, a instalação completa;
+  - soak de 30 min;
+  - lint, Go (`-race`, integração), pytest (cobertura), Vitest e Playwright;
+  - caos com **60 min** de queda de internet;
+  - carga (500 WebSockets, 20.000 equipamentos).
+
+  Cada um dos 22 critérios da seção 15 aponta para as provas que o sustentam (testes pelo nome,
+  checagens do caos, relatórios do soak e da carga). Prova ausente conta como falha. Saída:
+  `var/acceptance/<data>/relatorio.md` (OK/FALHOU e provas por item).
+- **Item 22**, que não tinha teste próprio: `tests/test_api_contract.py`:
+  - toda GET que devolve lista sem cursor tem de estar numa lista justificada (limite fixo ou cadastro
+    pequeno), e lista nova sem paginação reprova;
+  - nenhum campo de resposta com senha ou hash, salvo segredos mostrados uma vez de propósito;
+  - respostas reais varridas atrás de hash argon2, senha e comunidade SNMP.
+- **Caos**: as checagens passaram a usar os limites da seção 15 (< 30 s para o watchdog, ≤ 3,5 min
+  para o failover); antes, só esperavam a recuperação.
+- **Corrigido no caminho** (cada falha da aceitação foi investigada até a causa):
+  1. testes de versão fixavam "0.1.0" e reprovaram com a versão 1.0.0: agora comparam com o
+     `pyproject.toml`;
+  2. o teste do `install.sh` precisa de `sh`: a aceitação inclui o do Git for Windows no PATH;
+  3. o simulador de carga não repetia POST em falha de rede (keep-alive fechado pelo servidor no
+     instante da reutilização): repete como o `dm-agent` e conta as repetições no relatório;
+  4. o E2E falhava depois do caos, que deixa as 8 impressoras simuladas ativas no local dele (mesmo
+     serial = mesmo equipamento): o seed do E2E as devolve ao local do teste como pendentes.
+- **Segurança**:
+  - `npm audit`, `govulncheck` e `pip-audit`: nenhuma vulnerabilidade conhecida;
+  - varredura de segredos nos arquivos e no histórico do git: só a chave **pública** de versões;
+  - o `.env` era legível por todos os usuários do Windows (permissão herdada da pasta): agora só o
+    usuário, o SISTEMA e os administradores. O `init-env.ps1` aplica o mesmo em instalações novas;
+  - cabeçalhos de segurança presentes, HSTS em produção, CORS não libera origem estranha.
+- **Versão 1.0.0** (backend, portal e binários), `RELEASE_NOTES.md` e `scripts/release.ps1`. O pacote
+  sai em `dist\release-<versão>\`, com:
+  - binários dos 7 alvos;
+  - assinaturas ed25519 para publicar em Versões;
+  - instaladores e build do portal;
+  - `SHA256SUMS`.
+
+### Resultado da aceitação (05/10/2026, rodada completa das 03:18 às 05:36)
+| # | Critério | Resultado |
+|---|---|---|
+| 1 | dev.ps1 nativo; portal; admin loga | OK |
+| 2 | agente online em < 10 s e descobre as simuladas | OK |
+| 3 | parque com as colunas do Datacount | OK |
+| 4 | agente morto volta em < 30 s | OK (5 s) |
+| 5 | Reativar recupera agente travado | OK |
+| 6 | STANDBY assume em ≤ 3,5 min, sem duplicar | OK (171 s na 1ª rodada; 0 duplicatas) |
+| 7 | internet cortada 1 h, nenhuma leitura perdida | OK (fila de até 176 itens esvaziou em 30 s) |
+| 8 | offline gera e-mail e notificação em ≤ 10 min | OK |
+| 9 | binário quebrado → rollback automático | OK |
+| 10 | regressão vira alerta e fica fora da produção | OK |
+| 11 | leitura de corte e API do ERP | OK |
+| 12 | Canon/Konica simuladas batem com os snmprec | OK |
+| 13 | economia de energia não fica desconectada | OK |
+| 14 | túnel web; IP não cadastrado recusado e auditado | OK |
+| 15 | Windows: serviços, recuperação, atualização, rollback, desinstalação | **FALHOU: precisa de terminal como administrador (ou do job do CI)** |
+| 16 | instalador recusa Windows 7/8 | OK |
+| 17 | soak 30 min; carga 20.000 com parque < 1 s | OK (hora de leituras em 4,6 e 3,5 min; pior consulta do parque 0,82 s) |
+| 18 | tudo passa no CI e a aceitação mostra tudo OK | **FALHOU: o repositório não tem remoto no GitHub (o CI nunca rodou), e depende do 15** |
+| 19 | rede real aprovada pelo usuário | OK |
+| 20 | Descobertas | OK |
+| 21 | troca de toner e atolamento recorrente | OK |
+| 22 | listas paginadas; nenhuma senha ou hash | OK |
+
+Suítes da rodada: Go 176 testes (cobertura 82,2%), pytest 227 (cobertura 91%), Vitest 43, Playwright 7,
+lint limpo, caos 22/22 checagens, soak e carga OK.
+
+### Para concluir (ações do usuário)
+1. **Terminal como administrador**: `scripts\acceptance.ps1 -Skip soak,chaos,load`, ou só
+   `scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código> -Full`. Isso instala de
+   verdade os 2 serviços e confere recuperação, atualização, rollback e desinstalação (item 15). Como
+   administrador, o caos também reinicia o serviço do PostgreSQL de verdade.
+2. **Repositório no GitHub**: criar o repositório (privado), `git remote add origin …` e `git push`. O
+   `.github/workflows/ci.yml` roda lint, testes, pacote Linux, job Windows, instalador, soak e carga.
+   Com o CI verde e o item 15 OK, rodar `scripts\acceptance.ps1` de novo: o projeto só é declarado
+   concluído com os 22 itens OK.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1377,3 +1464,7 @@ folhas → correções → walks nos testes automáticos → `docs/validacao-rea
 | D124 | IPs com o mesmo serial são um equipamento só, lido pela placa da própria impressora; controladoras de impressão (Fiery/EFI, IC-xxx, Creo, EX-i) reconhecidas pelo sysDescr ficam fora da leitura | A controladora conta só o que passa por ela (sem cópias, sem PB/cor); alternar entre as duas misturava leituras (rede real, C4065 + IC-607). Mesmo comportamento do Datacount/NDD |
 | D125 | `serviceRequested` é "Atenção", não "Erro" | As Konica reais o levantam com manutenção vencida imprimindo normalmente e informam hrDeviceStatus=warning(3); "Erro" só para parada real |
 | D126 | Os walks reais entram no repositório com os valores do momento do walk (`.expected.json`); a coerência com a leitura aprovada foi conferida (só cresceram as páginas impressas no intervalo) | O teste precisa reproduzir exatamente o walk; a aprovação do usuário é da leitura de 02/10 |
+| D127 | `acceptance.py` julga cada critério da seção 15 por provas nomeadas (testes Go/pytest/Playwright, checagens do caos, relatórios do soak e da carga); prova ausente = FALHOU; o CI só conta se houver remoto e a última execução estiver verde | O relatório não pode dizer OK sem que o teste correspondente tenha rodado e passado nesta execução |
+| D128 | Lista sem paginação só com justificativa no `test_api_contract.py` (limite fixo ou cadastro pequeno); o mapa dos locais devolve todos os locais, agregados | Critério 22 verificado no contrato: lista nova sem cursor reprova o teste |
+| D129 | `.env` com permissão só do usuário, SISTEMA e administradores (`init-env.ps1` aplica) | A pasta do projeto herdava leitura para todos os usuários do Windows |
+| D130 | Versão 1.0.0 sem servidor embutido no instalador (o endereço vem do link do portal ou da tela) | O domínio de produção ainda não foi definido; não inventar um |
