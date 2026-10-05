@@ -1322,6 +1322,21 @@ versão e pacote 1.0.0.
 Suítes da rodada: Go 176 testes (cobertura 82,2%), pytest 227 (cobertura 91%), Vitest 43, Playwright 7,
 lint limpo, caos 22/22 checagens, soak e carga OK.
 
+### Pacote 1.0.0 gerado (05/10/2026)
+`scriptselease.ps1 -Version 1.0.0` → `distelease-1.0.0\` (commit `86634b6`, 46 arquivos):
+- binários dos 7 alvos (`dm-agent version` → `1.0.0`);
+- 14 assinaturas ed25519: todas conferidas com `dm-tool verify` e a chave pública embutida;
+- `dati-monitor-setup-1.0.0.exe` (24 MB, sem assinatura de código: certificado pendente);
+- `.deb` e `.tar.gz` para amd64, i386, arm64 e armhf;
+- `portal-1.0.0.zip`, `RELEASE_NOTES.md` e `SHA256SUMS` (conferido com `sha256sum -c`).
+
+A tag `v1.0.0` fica para depois dos itens 15 e 18: pelo PROMPT, o projeto só está concluído com os 22
+critérios OK.
+
+Encontrado e corrigido no caminho:
+- o `release.ps1` passava os parâmetros do instalador por *array* (posicionais): agora por nome;
+- os JSONs de assinatura saíam com BOM: agora sem.
+
 ### Para concluir (ações do usuário)
 1. **Terminal como administrador**: `scripts\acceptance.ps1 -Skip soak,chaos,load`, ou só
    `scripts\test-installer.ps1 -Server http://127.0.0.1:8000 -Code <código> -Full`. Isso instala de
