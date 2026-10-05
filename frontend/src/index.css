@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Números do parque (Total, PB, Cor): Geist Mono embutida no portal, sem CDN. */
+@import '@fontsource-variable/geist-mono';
 
 /* Tema escuro por classe no <html> (escolha do usuário: claro, escuro ou do sistema). */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -10,6 +12,7 @@
   --color-brand-600: #1d4ed8;
   --color-brand-700: #1e40af;
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
 html,

@@ -26,10 +26,10 @@ test('login → dashboard → parque → detalhe do equipamento → sair', async
   const { serial, total } = credentials();
 
   await login(page);
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Visão geral' })).toBeVisible();
   await expect(page.getByText('Ao vivo')).toBeVisible();
 
-  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Equipamentos' }).click();
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Parque' }).click();
   await expect(page).toHaveURL(/\/parque$/);
   await page.getByLabel('Pesquisa global').fill(serial);
   const link = page.getByRole('link', { name: serial });
@@ -39,7 +39,7 @@ test('login → dashboard → parque → detalhe do equipamento → sair', async
   await expect(page).toHaveURL(/\/parque\/[0-9a-f-]{36}$/);
   await expect(page.getByText(serial).first()).toBeVisible();
   await expect(page.getByText(total).first()).toBeVisible();
-  await expect(page.getByLabel('Você está em')).toContainText('Equipamentos');
+  await expect(page.getByLabel('Você está em')).toContainText('Parque');
 
   // Recarregar a página mantém a sessão (refresh pelo cookie httpOnly).
   await page.reload();
@@ -82,7 +82,12 @@ test('computadores: impressoras USB do PC e leitura manual da que não tem conta
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
   await login(page);
-  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Computadores' }).click();
+  // Computadores saiu do menu principal: fica em Coletores → "Ver também".
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Coletores' }).click();
+  await page
+    .getByRole('navigation', { name: 'Ver também' })
+    .getByRole('link', { name: /Computadores/ })
+    .click();
   await expect(page).toHaveURL(/\/computadores$/);
   await page.getByLabel('Buscar computador').fill('Coletor E2E');
   const pc = page.getByTestId('computers').getByRole('button').filter({ hasText: 'PC-E2E' });

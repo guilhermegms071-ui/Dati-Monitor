@@ -1,205 +1,150 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowDown, ArrowUp, Columns3, Download, Filter, RefreshCw, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Filter, RefreshCw, ScanSearch, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 
-import { DeviceStatus, SupplyBars } from '../../components/domain';
+import { SupplyBars } from '../../components/domain';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog, Menu, MenuItem } from '../../components/ui/dialog';
 import { CustomerPicker, SitePicker } from '../../components/pickers';
 import { Field, Input } from '../../components/ui/form';
-import {
-  Badge,
-  Card,
-  Checkbox,
-  EmptyState,
-  ErrorState,
-  PageHeader,
-  Spinner,
-  Tooltip,
-} from '../../components/ui/primitives';
+import { Card, Checkbox, EmptyState, ErrorState, PageHeader, Spinner } from '../../components/ui/primitives';
 import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
-import { fmtCommunication, fmtDate, fmtDateTime, fmtInt } from '../../lib/format';
-import { modelWithoutBrand, printerName } from '../../lib/printers';
+import { fmtInt } from '../../lib/format';
 import { DEVICE_STATUS } from '../../lib/labels';
+import { colorValue } from '../../lib/park';
 import { showError, showSuccess } from '../../lib/notify';
+import { printerName } from '../../lib/printers';
 import { useMediaQuery } from '../../lib/useMediaQuery';
 import { cn } from '../../lib/utils';
 
+import { LastCommunication, Num, StatusPill, TonerBars } from './parkCells';
+
 type Row = Schemas['ParkRow'];
-type SortKey =
-  | 'status'
-  | 'ip'
-  | 'agent'
-  | 'first_seen_at'
-  | 'last_read_at'
-  | 'asset_tag'
-  | 'serial'
-  | 'brand'
-  | 'model'
-  | 'customer'
-  | 'total';
+type SortKey = 'status' | 'serial' | 'customer' | 'total' | 'mono' | 'color' | 'last_read_at';
+type Tab = 'all' | 'disconnected' | 'alert' | 'inactive';
 
 interface Column {
   id: string;
   label: string;
-  /** Largura mínima (px); com espaço sobrando as colunas crescem na mesma proporção. */
-  width: number;
+  /** Trilha do grid (larguras fixas para status e números; o resto divide o espaço). */
+  track: string;
+  min: number;
   sort?: SortKey;
-  filter?: 'ip' | 'serial' | 'brand' | 'model' | 'asset_tag';
-  render: (r: Row) => ReactNode;
+  numeric?: boolean;
+  render: (r: Row, tab: Tab) => ReactNode;
 }
 
+// Colunas fixas, nesta ordem (sem configuração por usuário): leitura rápida e igual para todos.
 const COLUMNS: Column[] = [
+  { id: 'status', label: 'Status', track: '132px', min: 132, sort: 'status', render: (r) => <StatusPill row={r} /> },
   {
-    id: 'status',
-    label: 'Status',
-    width: 108,
-    sort: 'status',
-    filter: 'ip',
-    render: (r) => (
-      <div className="flex flex-col items-start gap-0.5">
-        <span className="font-mono text-xs">{r.ip ?? '—'}</span>
-        <DeviceStatus status={r.last_status} disconnected={r.disconnected} />
-      </div>
-    ),
-  },
-  {
-    id: 'agent',
-    label: 'DCA',
-    width: 88,
-    sort: 'agent',
-    render: (r) => <span className="text-xs">{r.agent_name ?? '—'}</span>,
-  },
-  {
-    id: 'first_seen',
-    label: 'Descoberta',
-    width: 84,
-    sort: 'first_seen_at',
-    render: (r) => <span className="text-xs">{fmtDate(r.first_seen_at)}</span>,
-  },
-  {
-    id: 'last_read',
-    label: 'Comunicação',
-    width: 92,
-    sort: 'last_read_at',
-    render: (r) => (
-      <Tooltip content={fmtDateTime(r.last_read_at)}>
-        <span className="text-xs">{fmtCommunication(r.last_read_at)}</span>
-      </Tooltip>
-    ),
-  },
-  {
-    id: 'asset_tag',
-    label: 'PAT',
-    width: 48,
-    sort: 'asset_tag',
-    filter: 'asset_tag',
-    render: (r) => <span className="text-xs">{r.asset_tag ?? '—'}</span>,
-  },
-  {
-    id: 'serial',
-    label: 'Serial',
-    width: 108,
+    id: 'device',
+    label: 'Equipamento',
+    track: 'minmax(220px, 2fr)',
+    min: 220,
     sort: 'serial',
-    filter: 'serial',
     render: (r) => (
-      <Link
-        to={`/parque/${r.id}`}
-        className="font-mono text-xs font-medium text-brand-600 hover:underline dark:text-brand-100"
-      >
-        {r.serial}
-      </Link>
-    ),
-  },
-  {
-    id: 'brand',
-    label: 'Marca',
-    width: 80,
-    sort: 'brand',
-    filter: 'brand',
-    render: (r) => <span className="text-xs">{r.brand ?? '—'}</span>,
-  },
-  {
-    id: 'model',
-    label: 'Modelo',
-    width: 124,
-    sort: 'model',
-    filter: 'model',
-    render: (r) => (
-      <div className="flex flex-col">
-        <span className="text-xs font-medium">{modelWithoutBrand(r.brand, r.model) ?? '—'}</span>
-        {r.sector ? <span className="text-[11px] text-slate-500">{r.sector}</span> : null}
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {printerName(r.brand, r.model) || 'Modelo não identificado'}
+        </span>
+        <Link
+          to={`/parque/${r.id}`}
+          className="truncate font-mono text-[13px] text-[#71717A] hover:underline"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          {r.serial}
+        </Link>
       </div>
     ),
   },
   {
     id: 'customer',
-    label: 'Cliente',
-    width: 112,
+    label: 'Cliente/Setor',
+    track: 'minmax(180px, 1.5fr)',
+    min: 180,
     sort: 'customer',
     render: (r) => (
-      <div className="flex flex-col">
-        <span className="text-xs">{r.customer_name}</span>
-        <span className="text-[11px] text-slate-500">{r.site_name}</span>
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-sm text-zinc-800 dark:text-zinc-200">{r.customer_name}</span>
+        {r.sector ? <span className="truncate text-[13px] text-[#71717A]">{r.sector}</span> : null}
       </div>
     ),
   },
   {
-    id: 'meter',
-    label: 'Medidor',
-    width: 120,
+    id: 'total',
+    label: 'Total',
+    track: '112px',
+    min: 112,
     sort: 'total',
-    render: (r) => (
-      <div className="flex flex-col">
-        <span className="text-base font-semibold tabular-nums">{fmtInt(r.last_total)}</span>
-        <span className="text-[11px] text-slate-500 tabular-nums">
-          PB: {fmtInt(r.last_mono)} CL: {fmtInt(r.last_color)}
-        </span>
-      </div>
-    ),
+    numeric: true,
+    render: (r) => <Num value={r.last_total} />,
   },
   {
-    id: 'monitor',
-    label: 'Monitor',
-    width: 60,
-    render: (r) => (r.monitored ? <Badge tone="green">Sim</Badge> : <Badge>Não</Badge>),
+    id: 'mono',
+    label: 'PB',
+    track: '104px',
+    min: 104,
+    sort: 'mono',
+    numeric: true,
+    render: (r) => <Num value={r.last_mono} />,
   },
-  { id: 'levels', label: 'Níveis', width: 148, render: (r) => <SupplyBars supplies={r.supplies} /> },
+  {
+    id: 'color',
+    label: 'Cor',
+    track: '104px',
+    min: 104,
+    sort: 'color',
+    numeric: true,
+    render: (r) => <Num value={colorValue(r)} />,
+  },
+  { id: 'toner', label: 'Toner', track: '96px', min: 96, render: (r) => <TonerBars supplies={r.supplies} /> },
+  {
+    id: 'last_read',
+    label: 'Última comunicação',
+    track: '168px',
+    min: 168,
+    sort: 'last_read_at',
+    render: (r, tab) => <LastCommunication row={r} highlight={tab === 'disconnected'} />,
+  },
 ];
-const DEFAULT_COLUMNS = COLUMNS.map((c) => c.id);
 const ROW_HEIGHT = 56;
 const CARD_HEIGHT = 128;
-const COLUMN_BY_ID = new Map(COLUMNS.map((c) => [c.id, c]));
 
-function cell(id: string, r: Row): ReactNode {
-  return COLUMN_BY_ID.get(id)?.render(r) ?? null;
-}
-
-/** Linha do parque no celular: o essencial das colunas da tela em um cartão. */
+/** Linha do parque no celular: o essencial em um cartão (sem hover: os níveis aparecem em %). */
 function ParkCard({ row: r }: { row: Row }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-between">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
-            {cell('serial', r)}
+            <Link to={`/parque/${r.id}`} className="font-mono text-xs font-medium text-brand-600 hover:underline">
+              {r.serial}
+            </Link>
             <span className="truncate text-xs font-medium">{printerName(r.brand, r.model) || '—'}</span>
           </div>
           <p className="truncate text-[11px] text-slate-500">
             {r.customer_name} / {r.site_name}
           </p>
-          <p className="truncate text-[11px] text-slate-500">
-            <span className="font-mono">{r.ip ?? '—'}</span> · {fmtCommunication(r.last_read_at)}
-          </p>
+          <div className="text-[11px] text-slate-500">
+            <LastCommunication row={r} />
+          </div>
         </div>
-        <DeviceStatus status={r.last_status} disconnected={r.disconnected} />
+        <StatusPill row={r} />
       </div>
       <div className="flex items-end justify-between gap-2">
-        {cell('meter', r)}
-        {cell('levels', r)}
+        <div className="flex flex-col">
+          <span className="font-mono text-base font-semibold tabular-nums">{fmtInt(r.last_total)}</span>
+          <span className="font-mono text-[11px] text-slate-500 tabular-nums">
+            PB: {fmtInt(r.last_mono)} Cor: {colorValue(r) === null ? '—' : fmtInt(colorValue(r))}
+          </span>
+        </div>
+        <SupplyBars supplies={r.supplies} />
       </div>
     </div>
   );
@@ -217,8 +162,6 @@ interface Filters {
   status: string[];
   customer_id: string;
   site_id: string;
-  disconnected: boolean;
-  inactive: boolean;
 }
 const EMPTY: Filters = {
   q: '',
@@ -231,8 +174,13 @@ const EMPTY: Filters = {
   status: [],
   customer_id: '',
   site_id: '',
-  disconnected: false,
-  inactive: false,
+};
+
+const TAB_QUERY: Record<Tab, Record<string, boolean>> = {
+  all: {},
+  disconnected: { disconnected: true },
+  alert: { alert: true },
+  inactive: { inactive: true },
 };
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -248,8 +196,8 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-function toQuery(f: Filters): Record<string, string | string[] | boolean> {
-  const out: Record<string, string | string[] | boolean> = {};
+function toQuery(f: Filters, tab: Tab): Record<string, string | string[] | boolean> {
+  const out: Record<string, string | string[] | boolean> = { ...TAB_QUERY[tab] };
   for (const [k, v] of Object.entries(f) as [keyof Filters, Filters[keyof Filters]][]) {
     if (Array.isArray(v) ? v.length : v) out[k] = v;
   }
@@ -268,33 +216,63 @@ function qs(params: Record<string, string | string[] | boolean | number>): strin
   return sp.toString();
 }
 
+function TabChip({
+  active,
+  label,
+  count,
+  title,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number | undefined;
+  title?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      title={title}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors',
+        active
+          ? 'border-zinc-900 bg-zinc-900 font-medium text-white dark:border-white dark:bg-white dark:text-zinc-900'
+          : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
+      )}
+    >
+      {label}
+      <span className={cn('font-mono text-xs tabular-nums', active ? 'opacity-80' : 'text-zinc-400')}>
+        ({count === undefined ? '…' : fmtInt(count)})
+      </span>
+    </button>
+  );
+}
+
 export function ParkPage() {
-  const { user, can, setUser } = useAuth();
+  const { can } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [search] = useSearchParams();
-  const [filters, setFilters] = useState<Filters>({
-    ...EMPTY,
-    disconnected: search.get('desconectados') === '1',
-    site_id: search.get('site') ?? '',
-  });
+  const [tab, setTab] = useState<Tab>(search.get('desconectados') === '1' ? 'disconnected' : 'all');
+  const [filters, setFilters] = useState<Filters>({ ...EMPTY, site_id: search.get('site') ?? '' });
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'serial', dir: 'asc' });
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [advanced, setAdvanced] = useState(false);
-  const [columnsOpen, setColumnsOpen] = useState(false);
   const debounced = useDebounced(filters, 350);
-  const prefCols = (user?.preferences.park_columns as string[] | undefined) ?? DEFAULT_COLUMNS;
-  const visible = COLUMNS.filter((c) => prefCols.includes(c.id));
 
   const query = useInfiniteQuery({
-    queryKey: ['park', debounced, sort],
+    queryKey: ['park', debounced, tab, sort],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       unwrap(
         api.GET('/api/v1/park', {
           params: {
             query: {
-              ...toQuery(debounced),
+              ...toQuery(debounced, tab),
               sort: sort.key,
               direction: sort.dir,
               limit: PAGE,
@@ -306,11 +284,16 @@ export function ParkPage() {
     getNextPageParam: (last) => last.next_cursor,
   });
   const counts = useQuery({ queryKey: ['park', 'counts'], queryFn: () => unwrap(api.GET('/api/v1/park/counts')) });
+  const pending = useQuery({
+    queryKey: ['discoveries', 'count'],
+    queryFn: () => unwrap(api.GET('/api/v1/discoveries/counts')),
+    enabled: can('devices.read'),
+  });
   const rows = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
   const total = query.data?.pages[0]?.total ?? 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Celular: a tabela de 12 colunas vira uma lista de cartões (técnicos em campo, seção 10).
+  // Celular: a tabela vira uma lista de cartões (técnicos em campo, seção 10).
   const compact = useMediaQuery('(max-width: 767px)');
   // O projeto não usa o React Compiler; o aviso só diz que ele pularia este componente.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -329,13 +312,8 @@ export function ParkPage() {
     if (lastIndex >= rows.length - 20 && query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
   }, [lastIndex, rows.length, query]);
 
-  const template = [
-    selecting ? '36px' : null,
-    ...visible.map((c) => `minmax(${String(c.width)}px, ${String(c.width)}fr)`),
-  ]
-    .filter(Boolean)
-    .join(' ');
-  const minTableWidth = visible.reduce((sum, c) => sum + c.width, selecting ? 36 : 0);
+  const template = [selecting ? '40px' : null, ...COLUMNS.map((c) => c.track)].filter(Boolean).join(' ');
+  const minTableWidth = COLUMNS.reduce((sum, c) => sum + c.min, selecting ? 40 : 0);
   const setF = (patch: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
   };
@@ -343,17 +321,18 @@ export function ParkPage() {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
-
-  async function saveColumns(cols: string[]) {
-    try {
-      const me = await unwrap(
-        api.PATCH('/api/v1/auth/me/preferences', { body: { preferences: { park_columns: cols } } }),
-      );
-      setUser(me);
-    } catch (err) {
-      showError(err, 'Não foi possível salvar as colunas');
-    }
-  }
+  const toggleRow = (id: string, on: boolean) => {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (on) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  };
+  const openRow = (r: Row) => {
+    if (selecting) toggleRow(r.id, !selected.has(r.id));
+    else void navigate(`/parque/${r.id}`);
+  };
 
   async function bulk(body: Schemas['BulkDevicesIn'], done: string) {
     try {
@@ -369,18 +348,30 @@ export function ParkPage() {
     }
   }
 
+  const c = counts.data;
   const ids = [...selected];
+  const pendingCount = pending.data?.pending ?? 0;
   return (
     <div className="flex h-full flex-col gap-3">
       <PageHeader
-        title="Parque de equipamentos"
-        subtitle={
-          counts.data
-            ? `${fmtInt(counts.data.total)} ativos · ${fmtInt(counts.data.disconnected)} desconectados · ${fmtInt(counts.data.inactive)} desativados`
-            : undefined
-        }
+        title="Parque"
+        subtitle="Impressoras monitoradas: situação, contadores e toner"
+        related={[{ to: '/computadores', label: 'Impressoras USB (Computadores)' }]}
         actions={
           <>
+            {can('devices.read') ? (
+              <Link
+                to="/descobertas"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 px-3 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <ScanSearch className="h-3.5 w-3.5" /> Descobertas
+                {pendingCount ? (
+                  <span className="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                    {pendingCount}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
             <Button variant="secondary" size="sm" onClick={() => void query.refetch()} loading={query.isRefetching}>
               <RefreshCw className="h-3.5 w-3.5" /> Atualizar
             </Button>
@@ -396,7 +387,7 @@ export function ParkPage() {
                   key={fmt}
                   onSelect={() => {
                     void downloadFile(
-                      `/api/v1/park/export?${qs({ ...toQuery(debounced), sort: sort.key, direction: sort.dir, format: fmt })}`,
+                      `/api/v1/park/export?${qs({ ...toQuery(debounced, tab), sort: sort.key, direction: sort.dir, format: fmt })}`,
                       `parque.${fmt}`,
                     ).catch((err: unknown) => {
                       showError(err, 'Exportação falhou');
@@ -407,18 +398,46 @@ export function ParkPage() {
                 </MenuItem>
               ))}
             </Menu>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setColumnsOpen(true);
-              }}
-            >
-              <Columns3 className="h-3.5 w-3.5" /> Colunas
-            </Button>
           </>
         }
       />
+
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Situação dos equipamentos">
+        <TabChip
+          active={tab === 'all'}
+          label="Todos"
+          count={c?.total}
+          onClick={() => {
+            setTab('all');
+          }}
+        />
+        <TabChip
+          active={tab === 'disconnected'}
+          label="Sem conexão"
+          count={c?.disconnected}
+          title={c ? `Sem leitura há mais de ${String(c.disconnected_hours)} h` : undefined}
+          onClick={() => {
+            setTab('disconnected');
+          }}
+        />
+        <TabChip
+          active={tab === 'alert'}
+          label="Com alerta"
+          count={c?.alert}
+          title="Toner abaixo de 10%, erro ou atenção"
+          onClick={() => {
+            setTab('alert');
+          }}
+        />
+        <TabChip
+          active={tab === 'inactive'}
+          label="Desativados"
+          count={c?.inactive}
+          onClick={() => {
+            setTab('inactive');
+          }}
+        />
+      </div>
 
       <Card className="flex flex-wrap items-center gap-3 p-3">
         <div className="relative min-w-60 flex-1">
@@ -443,26 +462,6 @@ export function ParkPage() {
             label="Selecionar"
           />{' '}
           Selecionar
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={filters.disconnected}
-            onCheckedChange={(v) => {
-              setF({ disconnected: v });
-            }}
-            label="Desconectados"
-          />{' '}
-          Desconectados
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={filters.inactive}
-            onCheckedChange={(v) => {
-              setF({ inactive: v });
-            }}
-            label="Desativados"
-          />{' '}
-          Desativados
         </label>
         <Button
           variant="secondary"
@@ -504,7 +503,7 @@ export function ParkPage() {
             <>
               <BulkEdit ids={ids} onSubmit={bulk} />
               <BulkMove ids={ids} onSubmit={bulk} />
-              {filters.inactive ? (
+              {tab === 'inactive' ? (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -534,12 +533,12 @@ export function ParkPage() {
         <div ref={scrollRef} className="scroll-thin min-h-[420px] flex-1 overflow-auto" data-testid="park-table">
           <div style={{ minWidth: compact ? undefined : minTableWidth }}>
             <div
-              className="sticky top-0 z-10 hidden border-b md:grid border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
+              className="sticky top-0 z-10 hidden border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 md:grid dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
               style={{ gridTemplateColumns: template }}
               role="row"
             >
               {selecting ? (
-                <div className="flex items-center px-2 py-2">
+                <div className="flex items-center px-3 py-2.5">
                   <Checkbox
                     checked={allSelected ? true : selected.size ? 'indeterminate' : false}
                     onCheckedChange={(v) => {
@@ -549,18 +548,31 @@ export function ParkPage() {
                   />
                 </div>
               ) : null}
-              {visible.map((c) => (
-                <div key={c.id} className="flex flex-col gap-1 px-2 py-2" role="columnheader">
-                  {c.sort ? (
+              {COLUMNS.map((col) => (
+                <div
+                  key={col.id}
+                  role="columnheader"
+                  className={cn(
+                    'flex items-center px-3 py-2.5',
+                    col.numeric && 'justify-end',
+                    tab === 'disconnected' &&
+                      col.id === 'last_read' &&
+                      'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
+                  )}
+                >
+                  {col.sort ? (
                     <button
                       type="button"
-                      className="flex items-center gap-1 text-left hover:text-slate-900 dark:hover:text-white"
+                      className={cn(
+                        'flex items-center gap-1 hover:text-zinc-900 dark:hover:text-white',
+                        col.numeric && 'flex-row-reverse',
+                      )}
                       onClick={() => {
-                        if (c.sort) toggleSort(c.sort);
+                        if (col.sort) toggleSort(col.sort);
                       }}
                     >
-                      {c.label}
-                      {sort.key === c.sort ? (
+                      {col.label}
+                      {sort.key === col.sort ? (
                         sort.dir === 'asc' ? (
                           <ArrowUp className="h-3 w-3" />
                         ) : (
@@ -569,19 +581,8 @@ export function ParkPage() {
                       ) : null}
                     </button>
                   ) : (
-                    <span>{c.label}</span>
+                    <span>{col.label}</span>
                   )}
-                  {c.filter ? (
-                    <input
-                      className="h-6 rounded border border-slate-300 bg-white px-1.5 text-[11px] font-normal dark:border-slate-600 dark:bg-slate-900"
-                      placeholder="filtrar"
-                      aria-label={`Filtrar ${c.label}`}
-                      value={filters[c.filter]}
-                      onChange={(e) => {
-                        if (c.filter) setF({ [c.filter]: e.target.value });
-                      }}
-                    />
-                  ) : null}
                 </div>
               ))}
             </div>
@@ -600,12 +601,7 @@ export function ParkPage() {
                     <Checkbox
                       checked={selected.has(r.id)}
                       onCheckedChange={(v) => {
-                        setSelected((s) => {
-                          const n = new Set(s);
-                          if (v) n.add(r.id);
-                          else n.delete(r.id);
-                          return n;
-                        });
+                        toggleRow(r.id, v);
                       }}
                       label={`Selecionar ${r.serial}`}
                     />
@@ -632,17 +628,44 @@ export function ParkPage() {
                     <div
                       key={r.id}
                       role="row"
+                      tabIndex={0}
                       data-testid="park-row"
+                      aria-label={`${printerName(r.brand, r.model)} ${r.serial}`}
+                      onClick={() => {
+                        openRow(r);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') openRow(r);
+                      }}
                       className={cn(
-                        'absolute left-0 grid w-full items-center border-b border-slate-100 text-sm hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60',
+                        'absolute left-0 grid w-full cursor-pointer items-center border-b border-zinc-100 outline-none transition-colors dark:border-zinc-800',
+                        vi.index % 2 === 1 && 'bg-zinc-50/50 dark:bg-zinc-900/30',
+                        'hover:bg-zinc-100/70 focus-visible:bg-zinc-100 dark:hover:bg-zinc-800/60',
                         selected.has(r.id) && 'bg-brand-50 dark:bg-slate-800',
                       )}
                       style={{ gridTemplateColumns: template, ...position }}
                     >
-                      {pick ? <div className="px-2">{pick}</div> : null}
-                      {visible.map((c) => (
-                        <div key={c.id} className="min-w-0 truncate px-2">
-                          {c.render(r)}
+                      {pick ? (
+                        <div
+                          className="px-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          {pick}
+                        </div>
+                      ) : null}
+                      {COLUMNS.map((col) => (
+                        <div
+                          key={col.id}
+                          role="cell"
+                          className={cn(
+                            'flex h-full min-w-0 items-center px-3',
+                            col.numeric && 'justify-end',
+                            tab === 'disconnected' && col.id === 'last_read' && 'bg-red-50/60 dark:bg-red-950/40',
+                          )}
+                        >
+                          {col.render(r, tab)}
                         </div>
                       ))}
                     </div>
@@ -656,31 +679,6 @@ export function ParkPage() {
       </Card>
 
       {advanced ? <AdvancedFilters open onOpenChange={setAdvanced} filters={filters} onApply={setFilters} /> : null}
-      <Dialog
-        open={columnsOpen}
-        onOpenChange={setColumnsOpen}
-        title="Colunas visíveis"
-        description="A escolha fica salva no seu usuário."
-      >
-        <div className="grid grid-cols-2 gap-2">
-          {COLUMNS.map((c) => (
-            <label key={c.id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={prefCols.includes(c.id)}
-                onCheckedChange={(v) => {
-                  const next = v ? [...prefCols, c.id] : prefCols.filter((x) => x !== c.id);
-                  void saveColumns(COLUMNS.map((x) => x.id).filter((id) => next.includes(id)));
-                }}
-                label={c.label}
-              />
-              {c.label}
-            </label>
-          ))}
-        </div>
-        <Button className="mt-4" variant="secondary" size="sm" onClick={() => void saveColumns(DEFAULT_COLUMNS)}>
-          Restaurar padrão
-        </Button>
-      </Dialog>
     </div>
   );
 }

@@ -1421,6 +1421,79 @@ estabiliza é repetir mais vezes cada pacote perdido, com espera curta.
 
 ---
 
+## Reorganização do portal — menu e tela Parque (05/10/2026) ✅
+
+### Pedido
+- Menu lateral agrupado e tela Parque com leitura clara, sem alterar a lógica de leitura nem os dados.
+- Aviso discreto de "comunicação instável" para equipamentos que só completam a leitura com mais
+  tentativas SNMP que o padrão.
+
+### O que foi feito
+- **Menu lateral** (248 px, claro):
+  - grupos **Monitoramento** (Visão geral, Parque, Coletores, Alertas) e **Gestão** (Clientes,
+    Relatórios), com rótulo cinza de 11 px em maiúsculas;
+  - item ativo com fundo `#F4F4F5`, peso 600 e barra fina à esquerda; hover discreto;
+  - no rodapé, **Configurações** recolhível (Usuários, Perfis de modelos, Integração ERP, Auditoria,
+    Downloads): fechado por padrão, aberto sozinho quando a tela atual é uma delas;
+  - abaixo, o usuário logado (nome e papel), com menu de Minha conta e tema, e **Sair**;
+  - tema escuro e menu do celular (gaveta) mantidos.
+- **Telas de apoio fora do menu continuam acessíveis** pela linha "Ver também" (novo `related` do
+  `PageHeader`) da tela a que pertencem:
+  - Parque: botão Descobertas, com o número de pendentes, e Computadores;
+  - Coletores: Computadores;
+  - Alertas: Alertas da impressora e Trocas de toner;
+  - Clientes: Mapa, Empresas e Campos personalizados;
+  - Usuários: Permissões;
+  - Downloads: Versões.
+
+  Revendas saiu do menu (sistema só da Daticopy).
+- **"Dashboard" virou "Visão geral"** (título e "Você está em"). "Equipamentos" virou **"Parque"**.
+- **Tela Parque**:
+  - colunas fixas, nesta ordem:
+    - Status: selo de largura fixa — verde para Pronta/Imprimindo/Aquecendo/Economia, laranja
+      Atenção, vermelho Erro, cinza Sem conexão, cinza-claro Desativado;
+    - Equipamento: modelo sem marca repetida (peso 500) e serial 13 px `#71717A`;
+    - Cliente/Setor;
+    - **Total, PB e Cor em três colunas**: à direita, Geist Mono (embutida, sem CDN), milhar pt-BR,
+      "—" cinza quando ausente (monocromática nunca mostra 0 em Cor);
+    - Toner: mini-barras K/C/M/Y de 6 px, vermelhas abaixo de 10%, porcentagens no tooltip;
+    - Última comunicação: relativa ("há 4 min"), vermelha quando sem conexão;
+  - **abas com contagem**: Todos, Sem conexão (mais de `DEVICE_DISCONNECTED_HOURS`, padrão 6 h; a
+    coluna Última comunicação fica destacada), Com alerta (erro, atenção ou toner abaixo de 10%),
+    Desativados;
+  - ordenação (agora também por PB e Cor) e paginação no servidor;
+  - linha de 56 px, zebra levíssima, hover, cabeçalho fixo;
+  - clique na linha (ou Enter) abre o detalhe do equipamento; em modo seleção, marca a linha;
+  - ficou igual: pesquisa global, filtro avançado, exportação e ações em massa;
+  - celular: cartões com as porcentagens visíveis (no toque não há tooltip).
+- **Comunicação instável**:
+  - o cliente SNMP conta as novas tentativas de cada pedido (`MaxRetriesUsed`);
+  - a leitura leva `transport: {max_retries, base_retries}` (campo novo do protocolo, guardado em
+    `readings.extra.transport`);
+  - o Parque marca `comm_unstable` quando 3 ou mais das últimas 5 leituras (até 30 dias) usaram
+    mais tentativas que o padrão do coletor;
+  - ícone de aviso laranja ao lado da última comunicação, com o tooltip "comunicação instável —
+    verificar cabo/porta/duplex";
+  - não muda o status, não é erro e não afeta contadores nem faturamento.
+
+### Testes (todos passando)
+| Suíte | Novos / ajustados |
+|---|---|
+| pytest (228, cobertura 91%) | `test_park_tabs_alert_counts_and_unstable_communication`: aba Com alerta, contagens (com as horas de "sem conexão"), comunicação instável 3 de 5 (instável) × 2 de 5 (estável), status e total intactos, transporte gravado; contagens do teste existente com os campos novos |
+| Go | `TestLossyLinkIsReadWithProfileTuning` também confere `MaxRetriesUsed` (≥ 2 com perda, 0 sem perda); contrato do protocolo com o campo `transport` |
+| Vitest | `lib/park.test.ts` (selo de status, barras K/C/M/Y e limite de 10%, "—" em Cor de monocromática) e `parkCells.test.tsx` (Geist Mono e milhar, barra vermelha, porcentagem só no tooltip, última comunicação vermelha, ícone de instável) |
+| Playwright | portal (Visão geral, Parque no menu, Computadores pelo "Ver também" de Coletores) e coletor real (Total/PB/Cor em células separadas, barras de toner) |
+| Lint | completo, sem problemas |
+
+### Fluxo manual executado (rede real) e resultado
+1. Coletor real recompilado: as leituras passaram a informar as tentativas. Na M3655idn (.147, link
+   com perda), as 5 leituras usaram 2 a 5 novas tentativas, contra 0 nas outras 4 impressoras. Ela
+   aparece no Parque com o aviso de comunicação instável e continua "Pronta", com 63.488.
+2. Capturas em `var/telas/`: Visão geral, Parque nas 4 abas, aviso com tooltip e Configurações aberto.
+   Nenhum erro no console.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1558,3 +1631,8 @@ estabiliza é repetir mais vezes cada pacote perdido, com espera curta.
 | D131 | Ritmo e tolerância SNMP no perfil (bloco `snmp`, por fabricante e por modelo via `model_regex`), aplicados pelo coletor na leitura (perfil + modelo) e na descoberta (só perfil) | Ajuste por modelo sem mudar o coletor nem afetar os outros equipamentos; versionado e publicado como o resto do perfil |
 | D132 | Para a M3655idn: mais tentativas curtas (6 × 1 s), não intervalo nem lote menor | Medido na rede real: a perda (~50%, inclusive ping) é do link e não depende do ritmo; lote menor só multiplica os pacotes; 4 tentativas já davam 5/5 leituras |
 | D133 | `printerName`/`modelWithoutBrand`: a marca é removida do início do modelo só quando é palavra inteira; exibição apenas (o dado gravado não muda) | Filtros e exportações continuam com o modelo como a impressora informa; "HPE" não vira "E" |
+| D134 | Menu principal reduzido (Monitoramento, Gestão e Configurações); telas de apoio acessíveis pelo "Ver também" da tela a que pertencem | Pedido do usuário: leitura clara; nenhuma tela ficou inalcançável |
+| D135 | Parque com colunas fixas (Status, Equipamento, Cliente/Setor, Total, PB, Cor, Toner, Última comunicação) no lugar das colunas configuráveis do Datacount (IP, DCA, PAT, Descoberta, Monitor) | Pedido explícito do usuário; os demais dados seguem no detalhe, na exportação e no filtro avançado |
+| D136 | "Com alerta" = erro, atenção ou toner abaixo de 10% (mesmo limite da barra vermelha) | Uma regra só para a aba, a contagem e a cor da barra |
+| D137 | Comunicação instável: telemetria nova `transport` na leitura (tentativas SNMP usadas × padrão do coletor); 3 de 5 leituras acima do padrão marcam o equipamento | Detecta link ruim (cabo/porta/duplex) sem tratar como erro e sem tocar em contadores ou faturamento |
+| D138 | Geist Mono instalada pelo pacote `@fontsource-variable/geist-mono` (embutida no build) | O portal roda em redes de cliente; não depender de CDN externo |

@@ -28,6 +28,11 @@ class ParkRow(DeviceOut):
     site_name: str
     agent_name: str | None
     supplies: list[SupplyLevel] = Field(default_factory=list)
+    comm_unstable: bool = Field(
+        default=False,
+        description="3+ das últimas 5 leituras só completaram com mais tentativas SNMP que o padrão "
+        "(verificar cabo/porta/duplex); não é erro nem afeta contadores",
+    )
 
 
 class ParkPage(BaseModel):
@@ -40,6 +45,8 @@ class ParkCounts(BaseModel):
     total: int
     disconnected: int
     inactive: int
+    alert: int = Field(description="Ativos com erro, atenção ou toner abaixo de 10%")
+    disconnected_hours: int = Field(description="Sem leitura há mais de N horas = sem conexão")
 
 
 DeviceStatus = Literal[

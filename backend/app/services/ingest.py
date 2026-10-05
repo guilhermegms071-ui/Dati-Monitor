@@ -455,6 +455,8 @@ async def _reading(
     }
     if payload.counter_lines:
         extra["counter_lines"] = {k: v.model_dump() for k, v in payload.counter_lines.items()}
+    if payload.transport is not None:
+        extra["transport"] = payload.transport.model_dump()  # tela Parque: comunicação instável
     prev = await _previous(session, device.id, read_at)
     flags, alert_data = _validate(ctx, prev, values, payload.sum_tolerance_percent, read_at)
     if clamped:

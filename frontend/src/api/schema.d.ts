@@ -5615,8 +5615,18 @@ export interface components {
         };
         /** ParkCounts */
         ParkCounts: {
+            /**
+             * Alert
+             * @description Ativos com erro, atenção ou toner abaixo de 10%
+             */
+            alert: number;
             /** Disconnected */
             disconnected: number;
+            /**
+             * Disconnected Hours
+             * @description Sem leitura há mais de N horas = sem conexão
+             */
+            disconnected_hours: number;
             /** Inactive */
             inactive: number;
             /** Total */
@@ -5646,6 +5656,12 @@ export interface components {
             asset_tag: string | null;
             /** Brand */
             brand: string | null;
+            /**
+             * Comm Unstable
+             * @description 3+ das últimas 5 leituras só completaram com mais tentativas SNMP que o padrão (verificar cabo/porta/duplex); não é erro nem afeta contadores
+             * @default false
+             */
+            comm_unstable: boolean;
             /** Counter Source */
             counter_source: string | null;
             /**
@@ -6199,8 +6215,26 @@ export interface components {
              * @default 2
              */
             sum_tolerance_percent?: number;
+            /**
+             * @description Esforço da conversa SNMP (portal: comunicação instável)
+             * @default null
+             */
+            transport?: components["schemas"]["ReadingTransport"] | null;
             /** Unresolved */
             unresolved?: string[];
+        };
+        /** ReadingTransport */
+        ReadingTransport: {
+            /**
+             * Base Retries
+             * @description Padrão do coletor (antes do ajuste do perfil)
+             */
+            base_retries: number;
+            /**
+             * Max Retries
+             * @description Mais novas tentativas que um pedido da leitura precisou para ser respondido
+             */
+            max_retries: number;
         };
         /** ReadingsRequest */
         ReadingsRequest: {
@@ -17459,6 +17493,8 @@ export interface operations {
                 agent_id?: string | null;
                 disconnected?: boolean;
                 inactive?: boolean;
+                /** @description Só com erro, atenção ou toner abaixo de 10% */
+                alert?: boolean;
                 sort?: string;
                 direction?: "asc" | "desc";
                 limit?: number;
@@ -17617,6 +17653,8 @@ export interface operations {
                 agent_id?: string | null;
                 disconnected?: boolean;
                 inactive?: boolean;
+                /** @description Só com erro, atenção ou toner abaixo de 10% */
+                alert?: boolean;
                 sort?: string;
                 direction?: "asc" | "desc";
             };

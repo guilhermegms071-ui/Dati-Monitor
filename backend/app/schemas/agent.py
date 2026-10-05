@@ -192,6 +192,15 @@ class CounterLine(BaseModel):
     size: CounterSize
 
 
+class ReadingTransport(BaseModel):
+    max_retries: int = Field(
+        ge=0,
+        le=100,
+        description="Mais novas tentativas que um pedido da leitura precisou para ser respondido",
+    )
+    base_retries: int = Field(ge=0, le=100, description="Padrão do coletor (antes do ajuste do perfil)")
+
+
 class ReadingPayload(BaseModel):
     counters: dict[str, int]
     counter_lines: dict[str, CounterLine] = Field(
@@ -209,6 +218,9 @@ class ReadingPayload(BaseModel):
     error_bits: int = 0
     source: Literal["snmp", "http", "usb", "manual"] = "snmp"
     attempts: int = 0
+    transport: ReadingTransport | None = Field(
+        default=None, description="Esforço da conversa SNMP (portal: comunicação instável)"
+    )
 
 
 class Supply(BaseModel):

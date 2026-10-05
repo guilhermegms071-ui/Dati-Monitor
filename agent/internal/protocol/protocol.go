@@ -219,6 +219,16 @@ type ReadingPayload struct {
 	ErrorBits           int                     `json:"error_bits"`
 	Source              string                  `json:"source"` // snmp | http
 	Attempts            int                     `json:"attempts"`
+	// Transport says how hard the SNMP conversation was (portal: "comunicação instável").
+	Transport *ReadingTransport `json:"transport,omitempty"`
+}
+
+// ReadingTransport is the effort of the SNMP conversation: MaxRetries is the most retries one request of the
+// reading needed to be answered;
+// BaseRetries is the default of the collector (before any profile tuning).
+type ReadingTransport struct {
+	MaxRetries  int `json:"max_retries"`
+	BaseRetries int `json:"base_retries"`
 }
 
 // EventPayload is a device event observed by the agent (e.g. read_failed).

@@ -119,10 +119,18 @@ func TestLossyLinkIsReadWithProfileTuning(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err := fullRead(ctx, c, ps)
+		used := c.MaxRetriesUsed()
 		_ = c.Close()
 		if err != nil || got != want {
 			t.Fatalf("leitura %d com o ajuste: total %d (esperado %d), %v", i+1, got, want, err)
 		}
+		// 2 de cada 3 pacotes perdidos: algum pedido precisou de 2 novas tentativas (acima do padrão, 1).
+		if used < 2 {
+			t.Fatalf("leitura %d: maior número de novas tentativas = %d, esperado >= 2", i+1, used)
+		}
+	}
+	if direct.MaxRetriesUsed() != 0 {
+		t.Fatalf("sem perda nenhum pedido deveria precisar de nova tentativa: %d", direct.MaxRetriesUsed())
 	}
 }
 

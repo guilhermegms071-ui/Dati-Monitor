@@ -203,7 +203,8 @@ async def test_update_move_bulk_and_events(
     assert (await park(client, admin))["total"] == 2
     assert (await park(client, admin, inactive=True))["total"] == 1
     counts = (await client.get("/api/v1/park/counts", headers=auth(admin))).json()
-    assert counts == {"total": 2, "disconnected": 0, "inactive": 1}
+    # KM-001 (amarelo 5%) foi desativado: desativados não contam em "Com alerta".
+    assert counts == {"total": 2, "disconnected": 0, "inactive": 1, "alert": 0, "disconnected_hours": 6}
 
     # "Ler agora" em massa vira um read_now para o MASTER do local, com os equipamentos escolhidos.
     active = [r["id"] for r in (await park(client, admin))["items"]]
@@ -390,3 +391,56 @@ async def test_dashboard(
     assert d["cards"]["devices_monitored"] == 0
     assert sum(p["mono"] for p in d["pages_per_day"]) == 0
     _ = tenant
+
+
+def hard_reading(agent: FakeAgent, serial: str, total: int, ip: str, read_at: datetime, retries: int) -> Any:
+    """Leitura que só completou com `retries` novas tentativas SNMP num pedido (padrão do coletor: 1)."""
+    item = agent.reading(serial, {"total": total, "mono": total}, ip=ip, read_at=read_at)
+    item["reading"]["transport"] = {"max_retries": retries, "base_retries": 1}
+    return item
+
+
+async def test_park_tabs_alert_counts_and_unstable_communication(
+    client: httpx.AsyncClient, factory: Factory, sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    _, admin, agent = await setup(client, factory)
+    async with sessionmaker() as s:
+        await s.execute(update(Device).where(Device.serial == "CAN-002").values(last_status="warning"))
+        await s.commit()
+
+    # Aba "Com alerta": KM-001 (amarelo 5%) e CAN-002 (atenção); MONO-003 está pronta e sem toner baixo.
+    alert = await park(client, admin, alert=True)
+    assert {r["serial"] for r in alert["items"]} == {"KM-001", "CAN-002"}
+    counts = (await client.get("/api/v1/park/counts", headers=auth(admin))).json()
+    assert counts == {"total": 3, "disconnected": 0, "inactive": 0, "alert": 2, "disconnected_hours": 6}
+
+    # Comunicação instável: 3 das últimas 5 leituras da MONO-003 só completaram com mais tentativas que o
+    # padrão; a CAN-002 só 2 (estável). A leitura mais recente (sem transporte) conta como normal.
+    items = []
+    for i, retries in enumerate([1, 4, 3, 1, 5]):  # da mais antiga para a mais nova
+        when = LAST_READ - timedelta(hours=5 - i)
+        items.append(hard_reading(agent, "MONO-003", 45000 + i, "10.0.0.13", when, retries))
+    for i, retries in enumerate([4, 1, 1, 3, 1]):
+        when = LAST_READ - timedelta(hours=5 - i)
+        item = agent.reading(
+            "CAN-002", {"total": 149000 + i, "mono": 89000 + i, "color": 60000}, ip="10.0.0.12", read_at=when
+        )
+        item["reading"]["transport"] = {"max_retries": retries, "base_retries": 1}
+        items.append(item)
+    results = await agent.send(items)
+    assert all(r["status"] == "accepted" for r in results), results
+    rows = {r["serial"]: r for r in (await park(client, admin))["items"]}
+    assert rows["MONO-003"]["comm_unstable"] is True
+    assert rows["CAN-002"]["comm_unstable"] is False
+    assert rows["KM-001"]["comm_unstable"] is False
+    # Não é erro nem muda contadores: status e total continuam os da leitura mais recente.
+    assert (rows["MONO-003"]["last_status"], rows["MONO-003"]["last_total"]) == ("ready", 45678)
+    async with sessionmaker() as s:
+        stored = (
+            await s.execute(
+                select(Reading.extra)
+                .join(Device, Device.id == Reading.device_id)
+                .where(Device.serial == "MONO-003", Reading.total == 45004)
+            )
+        ).scalar_one()
+    assert stored["transport"] == {"max_retries": 5, "base_retries": 1}

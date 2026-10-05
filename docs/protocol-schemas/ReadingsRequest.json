@@ -672,6 +672,18 @@
           "title": "Sum Tolerance Percent",
           "type": "number"
         },
+        "transport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReadingTransport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Esforço da conversa SNMP (portal: comunicação instável)"
+        },
         "unresolved": {
           "items": {
             "type": "string"
@@ -684,6 +696,30 @@
         "counters"
       ],
       "title": "ReadingPayload",
+      "type": "object"
+    },
+    "ReadingTransport": {
+      "properties": {
+        "base_retries": {
+          "description": "Padrão do coletor (antes do ajuste do perfil)",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Base Retries",
+          "type": "integer"
+        },
+        "max_retries": {
+          "description": "Mais novas tentativas que um pedido da leitura precisou para ser respondido",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_retries",
+        "base_retries"
+      ],
+      "title": "ReadingTransport",
       "type": "object"
     },
     "StatusPayload": {

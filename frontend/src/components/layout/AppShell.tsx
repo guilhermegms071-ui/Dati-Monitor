@@ -2,35 +2,29 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
   Building2,
+  ChevronDown,
   ChevronRight,
-  ClipboardList,
   Download,
-  FileCode2,
-  FileSpreadsheet,
-  Map as MapIcon,
-  Plug,
+  FileBarChart,
   LayoutDashboard,
-  Laptop,
-  ListPlus,
   LogOut,
   Menu as MenuIcon,
-  Monitor,
-  PackageCheck,
   Moon,
+  MoreHorizontal,
+  Plug,
   Printer,
-  Repeat,
-  ScanSearch,
   Server,
-  ShieldCheck,
+  Settings,
+  Shield,
+  SlidersHorizontal,
   Sun,
   SunMoon,
-  TriangleAlert,
   UserCircle,
   Users,
   X,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useMatches, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 
 import { api, unwrap } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -47,51 +41,47 @@ interface NavItem {
   label: string;
   icon: ReactNode;
   permission?: string;
-  superadmin?: boolean;
 }
 
-const NAV: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-  { to: '/parque', label: 'Equipamentos', icon: <Printer className="h-4 w-4" />, permission: 'devices.read' },
-  { to: '/descobertas', label: 'Descobertas', icon: <ScanSearch className="h-4 w-4" />, permission: 'devices.read' },
-  { to: '/alertas', label: 'Alertas', icon: <Bell className="h-4 w-4" />, permission: 'alerts.read' },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const ICON = 'h-4 w-4 shrink-0';
+
+// Menu principal. As telas de apoio (Descobertas, Computadores, Trocas de toner, Mapa, Empresas,
+// Permissões, Versões…) continuam acessíveis pelos atalhos das telas a que pertencem.
+const GROUPS: NavGroup[] = [
   {
-    to: '/trocas-de-toner',
-    label: 'Trocas de toner',
-    icon: <Repeat className="h-4 w-4" />,
-    permission: 'devices.read',
+    label: 'Monitoramento',
+    items: [
+      { to: '/', label: 'Visão geral', icon: <LayoutDashboard className={ICON} /> },
+      { to: '/parque', label: 'Parque', icon: <Printer className={ICON} />, permission: 'devices.read' },
+      { to: '/coletores', label: 'Coletores', icon: <Server className={ICON} />, permission: 'agents.read' },
+      { to: '/alertas', label: 'Alertas', icon: <Bell className={ICON} />, permission: 'alerts.read' },
+    ],
   },
   {
-    to: '/alertas-da-impressora',
-    label: 'Alertas da impressora',
-    icon: <TriangleAlert className="h-4 w-4" />,
-    permission: 'devices.read',
+    label: 'Gestão',
+    items: [
+      { to: '/clientes', label: 'Clientes', icon: <Building2 className={ICON} />, permission: 'customers.read' },
+      { to: '/relatorios', label: 'Relatórios', icon: <FileBarChart className={ICON} />, permission: 'reports.read' },
+    ],
   },
+];
+
+const SETTINGS: NavItem[] = [
+  { to: '/usuarios', label: 'Usuários', icon: <Users className={ICON} />, permission: 'users.read' },
   {
     to: '/perfis',
     label: 'Perfis de modelos',
-    icon: <FileCode2 className="h-4 w-4" />,
+    icon: <SlidersHorizontal className={ICON} />,
     permission: 'profiles.read',
   },
-  { to: '/coletores', label: 'Coletores', icon: <Server className="h-4 w-4" />, permission: 'agents.read' },
-  { to: '/computadores', label: 'Computadores', icon: <Laptop className="h-4 w-4" />, permission: 'agents.read' },
-  { to: '/relatorios', label: 'Relatórios', icon: <FileSpreadsheet className="h-4 w-4" />, permission: 'reports.read' },
-  { to: '/clientes', label: 'Clientes', icon: <Building2 className="h-4 w-4" />, permission: 'customers.read' },
-  { to: '/mapa', label: 'Mapa dos locais', icon: <MapIcon className="h-4 w-4" />, permission: 'customers.read' },
-  { to: '/empresas', label: 'Empresas', icon: <Building2 className="h-4 w-4" />, permission: 'customers.update' },
-  { to: '/revendas', label: 'Revendas', icon: <Monitor className="h-4 w-4" />, superadmin: true },
-  { to: '/usuarios', label: 'Usuários', icon: <Users className="h-4 w-4" />, permission: 'users.read' },
-  { to: '/permissoes', label: 'Permissões', icon: <ShieldCheck className="h-4 w-4" />, permission: 'users.read' },
-  {
-    to: '/campos-personalizados',
-    label: 'Campos personalizados',
-    icon: <ListPlus className="h-4 w-4" />,
-    permission: 'devices.read',
-  },
-  { to: '/integracao', label: 'Integração ERP', icon: <Plug className="h-4 w-4" />, permission: 'integration.read' },
-  { to: '/auditoria', label: 'Auditoria', icon: <ClipboardList className="h-4 w-4" />, permission: 'audit.read' },
-  { to: '/downloads', label: 'Downloads', icon: <Download className="h-4 w-4" />, permission: 'agents.read' },
-  { to: '/versoes', label: 'Versões', icon: <PackageCheck className="h-4 w-4" />, permission: 'agents.read' },
+  { to: '/integracao', label: 'Integração ERP', icon: <Plug className={ICON} />, permission: 'integration.read' },
+  { to: '/auditoria', label: 'Auditoria', icon: <Shield className={ICON} />, permission: 'audit.read' },
+  { to: '/downloads', label: 'Downloads', icon: <Download className={ICON} />, permission: 'agents.read' },
 ];
 
 export interface Crumb {
@@ -135,11 +125,151 @@ const THEME_ICON: Record<ThemeChoice, ReactNode> = {
   system: <SunMoon className="h-4 w-4" />,
 };
 
-export function AppShell() {
+/** Item do menu: ativo com fundo #F4F4F5, texto 600 e barra fina à esquerda; hover discreto. */
+function SideLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        cn(
+          'relative flex h-9 items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 transition-colors',
+          'hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100',
+          isActive &&
+            'bg-[#F4F4F5] font-semibold text-zinc-900 before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-r before:bg-zinc-900 hover:bg-[#F4F4F5] dark:bg-zinc-800 dark:text-white dark:before:bg-white dark:hover:bg-zinc-800',
+        )
+      }
+    >
+      {item.icon}
+      <span className="truncate">{item.label}</span>
+    </NavLink>
+  );
+}
+
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+      {children}
+    </p>
+  );
+}
+
+function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
-  const live = useLiveEvents(Boolean(user));
+  const { pathname } = useLocation();
   const [theme, setTheme] = useTheme();
+  const visible = (n: NavItem) => !n.permission || can(n.permission);
+  const settings = SETTINGS.filter(visible);
+  const inSettings = settings.some((s) => pathname === s.to || pathname.startsWith(`${s.to}/`));
+  // Configurações começa fechado; abre sozinho quando a tela atual é uma das configurações.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const open = settingsOpen || inSettings;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex h-14 shrink-0 items-center gap-2 px-5 font-semibold text-zinc-900 dark:text-white">
+        <Printer className="h-5 w-5 text-brand-600" aria-hidden />
+        {product.name}
+      </div>
+      <nav className="scroll-thin flex flex-1 flex-col gap-6 overflow-y-auto px-3 pt-3" aria-label="Menu principal">
+        {GROUPS.map((g) => {
+          const items = g.items.filter(visible);
+          if (!items.length) return null;
+          return (
+            <div key={g.label}>
+              <GroupLabel>{g.label}</GroupLabel>
+              <div className="flex flex-col gap-0.5">
+                {items.map((n) => (
+                  <SideLink key={n.to} item={n} onNavigate={onNavigate} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+      <div className="shrink-0 border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+        {settings.length ? (
+          <nav className="mb-2" aria-label="Configurações">
+            <button
+              type="button"
+              className={cn(
+                'flex h-9 w-full items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100',
+                inSettings && 'font-semibold text-zinc-900 dark:text-white',
+              )}
+              aria-expanded={open}
+              aria-controls="menu-configuracoes"
+              onClick={() => {
+                setSettingsOpen(!open);
+              }}
+            >
+              <Settings className={ICON} />
+              <span className="flex-1 text-left">Configurações</span>
+              <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} aria-hidden />
+            </button>
+            {open ? (
+              <div id="menu-configuracoes" className="mt-0.5 flex flex-col gap-0.5 pl-3">
+                {settings.map((n) => (
+                  <SideLink key={n.to} item={n} onNavigate={onNavigate} />
+                ))}
+              </div>
+            ) : null}
+          </nav>
+        ) : null}
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
+          <UserCircle className="h-8 w-8 shrink-0 text-zinc-400" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100" data-testid="sidebar-user">
+              {user?.name}
+            </p>
+            <p className="truncate text-xs text-zinc-500">{user?.role_name}</p>
+          </div>
+          <Menu
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="Menu do usuário">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            }
+          >
+            <div className="px-2 py-1.5 text-xs text-slate-500">{user?.email}</div>
+            <MenuSeparator />
+            <MenuItem
+              onSelect={() => {
+                onNavigate();
+                void navigate('/conta');
+              }}
+            >
+              <UserCircle className="h-4 w-4" /> Minha conta
+            </MenuItem>
+            {(['light', 'dark', 'system'] as const).map((t) => (
+              <MenuItem
+                key={t}
+                onSelect={() => {
+                  setTheme(t);
+                }}
+              >
+                {THEME_ICON[t]} Tema {t === 'light' ? 'claro' : t === 'dark' ? 'escuro' : 'do sistema'}
+                {theme === t ? ' ✓' : ''}
+              </MenuItem>
+            ))}
+          </Menu>
+        </div>
+        <button
+          type="button"
+          className="mt-1 flex h-9 w-full items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+          onClick={() => void logout()}
+        >
+          <LogOut className={ICON} /> Sair
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function AppShell() {
+  const { user, can } = useAuth();
+  const live = useLiveEvents(Boolean(user));
   const [open, setOpen] = useState(false);
   const alerts = useQuery({
     queryKey: ['alert-counts'],
@@ -147,67 +277,30 @@ export function AppShell() {
     enabled: can('alerts.read'),
     refetchInterval: 60_000,
   });
-  const items = NAV.filter((n) => (n.superadmin ? user?.role === 'superadmin' : !n.permission || can(n.permission)));
   const openAlerts = alerts.data?.open ?? 0;
   const criticalAlerts = alerts.data?.critical ?? 0;
-
-  const nav = (
-    <nav className="flex flex-col gap-0.5 p-2" aria-label="Menu principal">
-      {items.map((n) => (
-        <NavLink
-          key={n.to}
-          to={n.to}
-          end={n.to === '/'}
-          onClick={() => {
-            setOpen(false);
-          }}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white',
-              isActive && 'bg-slate-800 font-medium text-white',
-            )
-          }
-        >
-          {n.icon}
-          {n.label}
-        </NavLink>
-      ))}
-    </nav>
-  );
+  const close = () => {
+    setOpen(false);
+  };
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-56 shrink-0 flex-col bg-slate-900 lg:flex">
-        <div className="flex h-14 items-center gap-2 px-4 font-semibold text-white">
-          <Printer className="h-5 w-5 text-brand-500" aria-hidden />
-          {product.name}
-        </div>
-        {nav}
+      <aside className="hidden w-[248px] shrink-0 border-r border-zinc-200 bg-white lg:block dark:border-zinc-800 dark:bg-zinc-950">
+        <Sidebar onNavigate={close} />
       </aside>
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            type="button"
-            aria-label="Fechar menu"
-            className="absolute inset-0 bg-slate-950/60"
-            onClick={() => {
-              setOpen(false);
-            }}
-          />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-slate-900">
-            <div className="flex h-14 items-center justify-between px-4 font-semibold text-white">
-              {product.name}
-              <button
-                type="button"
-                aria-label="Fechar menu"
-                onClick={() => {
-                  setOpen(false);
-                }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {nav}
+          <button type="button" aria-label="Fechar menu" className="absolute inset-0 bg-zinc-950/50" onClick={close} />
+          <aside className="absolute inset-y-0 left-0 w-[248px] bg-white shadow-xl dark:bg-zinc-950">
+            <button
+              type="button"
+              aria-label="Fechar menu"
+              className="absolute right-3 top-4 text-zinc-500"
+              onClick={close}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <Sidebar onNavigate={close} />
           </aside>
         </div>
       ) : null}
@@ -261,47 +354,6 @@ export function AppShell() {
               ) : null}
             </Link>
           </Tooltip>
-          <Menu
-            trigger={
-              <Button variant="ghost" size="sm" aria-label="Menu do usuário">
-                <UserCircle className="h-5 w-5" />
-                <span className="hidden max-w-40 truncate sm:inline">{user?.name}</span>
-              </Button>
-            }
-          >
-            <div className="px-2 py-1.5 text-xs text-slate-500">
-              {user?.email}
-              <br />
-              {user?.role_name}
-            </div>
-            <MenuSeparator />
-            <MenuItem
-              onSelect={() => {
-                void navigate('/conta');
-              }}
-            >
-              <UserCircle className="h-4 w-4" /> Minha conta
-            </MenuItem>
-            {(['light', 'dark', 'system'] as const).map((t) => (
-              <MenuItem
-                key={t}
-                onSelect={() => {
-                  setTheme(t);
-                }}
-              >
-                {THEME_ICON[t]} Tema {t === 'light' ? 'claro' : t === 'dark' ? 'escuro' : 'do sistema'}
-                {theme === t ? ' ✓' : ''}
-              </MenuItem>
-            ))}
-            <MenuSeparator />
-            <MenuItem
-              onSelect={() => {
-                void logout();
-              }}
-            >
-              <LogOut className="h-4 w-4" /> Sair
-            </MenuItem>
-          </Menu>
         </header>
         <main className="scroll-thin min-w-0 flex-1 overflow-auto p-3 sm:p-5">
           <Outlet />

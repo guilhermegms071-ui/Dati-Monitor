@@ -3,6 +3,7 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { AlertTriangle, Check, Inbox, Loader2, Minus } from 'lucide-react';
 import type { HTMLAttributes, ReactNode } from 'react';
+import { Link } from 'react-router';
 
 import { fmtDateTime, fmtRelative } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -106,12 +107,38 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export interface RelatedLink {
+  to: string;
+  label: string;
+}
+
+/** Título da tela; `related` = atalhos para as telas de apoio que não estão no menu principal. */
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+  related,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  related?: RelatedLink[];
+}) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-xl font-semibold">{title}</h1>
         {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
+        {related?.length ? (
+          <nav aria-label="Ver também" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="text-slate-400">Ver também:</span>
+            {related.map((r) => (
+              <Link key={r.to} to={r.to} className="text-brand-600 hover:underline dark:text-brand-100">
+                {r.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>

@@ -76,6 +76,7 @@ export function AgentsPage() {
       <PageHeader
         title="Coletores"
         subtitle="PCs com o dm-agent instalado nos clientes"
+        related={[{ to: '/computadores', label: 'Computadores e impressoras USB' }]}
         actions={
           can('agents.create') ? (
             <Button

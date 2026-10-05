@@ -45,7 +45,37 @@ func DefaultOptions() Options {
 type Client struct {
 	g    *gosnmp.GoSNMP
 	opts Options
+	hooks
 }
+
+// hooks paces the packets (RequestInterval) and counts the retries each request needed. The gosnmp
+// callbacks run in the goroutine of the call (one request at a time per client).
+type hooks struct {
+	interval   time.Duration
+	last       time.Time
+	retries    int // novas tentativas do pedido em andamento
+	maxRetries int // maior número de novas tentativas que um pedido precisou para ser respondido
+}
+
+func (h *hooks) preSend(*gosnmp.GoSNMP) {
+	if wait := h.interval - time.Since(h.last); h.interval > 0 && !h.last.IsZero() && wait > 0 {
+		time.Sleep(wait)
+	}
+	h.last = time.Now()
+}
+
+func (h *hooks) onRetry(*gosnmp.GoSNMP) { h.retries++ }
+
+func (h *hooks) onRecv(*gosnmp.GoSNMP) {
+	h.last = time.Now()
+	h.maxRetries = max(h.maxRetries, h.retries)
+	h.retries = 0
+}
+
+// MaxRetriesUsed is the largest number of retries one answered request needed on this client (0 = every
+// request was answered at the first attempt). Readings report it: a link that only works with more
+// retries than the default is unstable (cable, switch port, duplex).
+func (c *Client) MaxRetriesUsed() int { return c.maxRetries }
 
 // Dial prepares a client for host:port (UDP is connectionless; this only opens the socket).
 func Dial(host string, port int, cred Credential, opts Options) (*Client, error) {
@@ -85,25 +115,12 @@ func Dial(host string, port int, cred Credential, opts Options) (*Client, error)
 	default:
 		return nil, fmt.Errorf("versão SNMP desconhecida: %q", cred.Version)
 	}
-	if opts.RequestInterval > 0 {
-		pace(g, opts.RequestInterval)
-	}
+	c := &Client{g: g, opts: opts, hooks: hooks{interval: opts.RequestInterval}}
+	g.PreSend, g.OnRetry, g.OnRecv = c.preSend, c.onRetry, c.onRecv
 	if err := g.Connect(); err != nil {
 		return nil, fmt.Errorf("abrir socket SNMP para %s: %w", net.JoinHostPort(host, fmt.Sprint(port)), err)
 	}
-	return &Client{g: g, opts: opts}, nil
-}
-
-// pace makes every packet wait until RequestInterval has passed since the previous send or answer.
-func pace(g *gosnmp.GoSNMP, interval time.Duration) {
-	var last time.Time
-	g.PreSend = func(*gosnmp.GoSNMP) {
-		if wait := interval - time.Since(last); !last.IsZero() && wait > 0 {
-			time.Sleep(wait)
-		}
-		last = time.Now()
-	}
-	g.OnRecv = func(*gosnmp.GoSNMP) { last = time.Now() }
+	return c, nil
 }
 
 func v3Params(c Credential) (*gosnmp.UsmSecurityParameters, gosnmp.SnmpV3MsgFlags, error) {
@@ -176,6 +193,7 @@ func (c *Client) Get(ctx context.Context, oids []string) ([]PDU, error) {
 		for i, o := range oids[start:end] {
 			chunk[i] = "." + NormalizeOID(o)
 		}
+		c.retries = 0
 		pkt, err := c.g.Get(chunk)
 		if err != nil {
 			return nil, wrapErr(err)
@@ -212,6 +230,7 @@ func (c *Client) Walk(ctx context.Context, root string, fn func(PDU) error) erro
 		walk = c.g.Walk
 	}
 	root = NormalizeOID(root)
+	c.retries = 0
 	err := walk("."+root, func(v gosnmp.SnmpPDU) error {
 		if err := ctx.Err(); err != nil {
 			return err

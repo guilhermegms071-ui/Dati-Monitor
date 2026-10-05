@@ -35,6 +35,7 @@ export function DownloadsPage() {
     <div className="space-y-4">
       <PageHeader
         title="Downloads"
+        related={[{ to: '/versoes', label: 'Versões do coletor' }]}
         subtitle={
           <span>
             Instaladores do coletor. Para instalar num cliente, use o link com o código em Coletores → Novo coletor

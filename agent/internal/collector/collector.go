@@ -373,6 +373,16 @@ func (c *Collector) snmpOptions() snmp.Options {
 	return o
 }
 
+// transport reports how many retries the requests of this reading needed so far, against the default of
+// the collector (the portal flags "comunicação instável" when it keeps needing more).
+func (c *Collector) transport(conn discovery.Conn) *protocol.ReadingTransport {
+	counted, ok := conn.(interface{ MaxRetriesUsed() int })
+	if !ok {
+		return nil
+	}
+	return &protocol.ReadingTransport{MaxRetries: counted.MaxRetriesUsed(), BaseRetries: c.readOptions().Retries}
+}
+
 // readOptions are the options of the readings (their own timeout, PROMPT 16.10).
 func (c *Collector) readOptions() snmp.Options {
 	c.mu.Lock()
@@ -610,6 +620,7 @@ func (c *Collector) readTasks(ctx context.Context, dev *store.Device, due []stri
 				ProfileKey:     res.ProfileID,
 				ProfileVersion: res.ProfileVersion, MonoOnly: res.MonoOnly, SumTolerancePercent: res.SumTolerancePercent,
 				Unresolved: res.Unresolved, Status: st.Status, ErrorBits: st.ErrorBits, Source: "snmp",
+				Transport: c.transport(conn),
 			}})
 		case TaskSupplies:
 			if p != nil && !p.UseStandardSupplies() {

@@ -192,9 +192,12 @@ test('coletor real: cadastro pelo portal, online, varredura e parque com contado
   await expect(rows).toHaveCount(8, { timeout: 120_000 });
   const konica = rows.filter({ has: page.getByRole('link', { name: 'A797019500624' }) });
   await expect(konica).toContainText('217.031', { timeout: 120_000 });
-  await expect(konica).toContainText('PB: 100.150 CL: 116.881');
-  await expect(konica).toContainText(AGENT_NAME);
-  for (const pct of ['25%', '55%', '66%', '5%']) await expect(konica.getByText(pct, { exact: true })).toBeVisible();
+  // Total, PB e Cor em colunas separadas; toner em barras K/C/M/Y com as porcentagens no tooltip.
+  const cells = konica.getByRole('cell');
+  await expect(cells.nth(3)).toHaveText('217.031');
+  await expect(cells.nth(4)).toHaveText('100.150');
+  await expect(cells.nth(5)).toHaveText('116.881');
+  await expect(konica.getByTestId('toner-bars')).toHaveAccessibleName('Toner: K 25% · C 55% · M 66% · Y 5%');
 
   // 7. Detalhe do equipamento com gráfico de contadores e atributos da leitura diária.
   await konica.getByRole('link', { name: 'A797019500624' }).click();

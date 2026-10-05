@@ -51,6 +51,11 @@ export function CustomersPage() {
     <div className="space-y-3">
       <PageHeader
         title="Clientes"
+        related={[
+          { to: '/mapa', label: 'Mapa dos locais' },
+          ...(can('customers.update') ? [{ to: '/empresas', label: 'Empresas' }] : []),
+          { to: '/campos-personalizados', label: 'Campos personalizados' },
+        ]}
         actions={
           <>
             <Button

@@ -50,6 +50,11 @@ LastAgent = aliased(Agent)
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 # Cores exibidas na coluna "Níveis", nesta ordem.
 LEVEL_COLORS = ("cyan", "magenta", "yellow", "black")
+# Toner baixo na tela Parque (barra vermelha e aba "Com alerta").
+LOW_TONER_PERCENT = 10
+# Comunicação instável: N das últimas M leituras precisaram de mais tentativas SNMP que o padrão.
+UNSTABLE_MIN, UNSTABLE_WINDOW = 3, 5
+UNSTABLE_LOOKBACK = timedelta(days=30)
 DISPLAY_TZ = "America/Sao_Paulo"
 
 
@@ -68,6 +73,7 @@ class ParkFilters:
     agent_id: uuid.UUID | None = None
     disconnected: bool = False  # só desconectados
     inactive: bool = False  # só desativados (senão: só ativos)
+    alert: bool = False  # só com erro, atenção ou toner baixo
 
 
 def _like(value: str) -> str:
@@ -89,6 +95,21 @@ def _base(p: Principal) -> Select[tuple[Device]]:
     )
 
 
+def _alert_condition() -> Any:
+    """Aba "Com alerta": erro, atenção ou algum toner (C/M/Y/K) abaixo de LOW_TONER_PERCENT."""
+    low_toner = (
+        select(SupplyCurrent.device_id)
+        .where(
+            SupplyCurrent.device_id == Device.id,
+            SupplyCurrent.supply_class == "consumed",
+            SupplyCurrent.color.in_(LEVEL_COLORS),
+            SupplyCurrent.percent < LOW_TONER_PERCENT,
+        )
+        .exists()
+    )
+    return or_(Device.last_status.in_(("error", "warning")), low_toner)
+
+
 def _filtered(p: Principal, f: ParkFilters) -> Select[tuple[Device]]:
     p.require("devices.read")
     stmt = _base(p).where(Device.active.is_(not f.inactive))
@@ -96,6 +117,8 @@ def _filtered(p: Principal, f: ParkFilters) -> Select[tuple[Device]]:
         stmt = stmt.where(Device.disconnected.is_(True))
     if f.status:
         stmt = stmt.where(Device.last_status.in_(list(f.status)))
+    if f.alert:
+        stmt = stmt.where(_alert_condition())
     for column, value in (
         (Device.serial, f.serial),
         (Device.ip, f.ip),
@@ -144,6 +167,8 @@ PARK_SORTS = {
     "customer": SortOption(Customer.name, "str"),
     "site": SortOption(Site.name, "str"),
     "total": SortOption(func.coalesce(Device.last_total, -1), "int"),
+    "mono": SortOption(func.coalesce(Device.last_mono, -1), "int"),
+    "color": SortOption(func.coalesce(Device.last_color, -1), "int"),
 }
 
 
@@ -210,6 +235,7 @@ async def enrich(session: AsyncSession, devices: Sequence[Device]) -> list[ParkR
                 level_state=s.level_state,
                 description=s.description,
             )
+    unstable = await _unstable(session, ids)
     out = []
     for d in devices:
         base = ParkRow.model_validate(
@@ -219,25 +245,59 @@ async def enrich(session: AsyncSession, devices: Sequence[Device]) -> list[ParkR
                 "site_name": sites.get(d.site_id, ""),
                 "agent_name": agents.get(d.last_agent_id) if d.last_agent_id else None,
                 "supplies": [levels[d.id][c] for c in LEVEL_COLORS if c in levels[d.id]],
+                "comm_unstable": d.id in unstable,
             }
         )
         out.append(base)
     return out
 
 
-async def counts(session: AsyncSession, p: Principal) -> ParkCounts:
+async def counts(session: AsyncSession, settings: Settings, p: Principal) -> ParkCounts:
     p.require("devices.read")
-    base = _base(p).subquery()
+    base = _base(p).add_columns(_alert_condition().label("alert")).subquery()
     row = (
         await session.execute(
             select(
                 func.count().filter(base.c.active.is_(True)),
                 func.count().filter(and_(base.c.active.is_(True), base.c.disconnected.is_(True))),
                 func.count().filter(base.c.active.is_(False)),
+                func.count().filter(and_(base.c.active.is_(True), base.c.alert.is_(True))),
             ).select_from(base)
         )
     ).one()
-    return ParkCounts(total=row[0], disconnected=row[1], inactive=row[2])
+    return ParkCounts(
+        total=row[0],
+        disconnected=row[1],
+        inactive=row[2],
+        alert=row[3],
+        disconnected_hours=settings.device_disconnected_hours,
+    )
+
+
+async def _unstable(session: AsyncSession, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Equipamentos cujas últimas leituras precisaram de mais tentativas SNMP que o padrão do coletor."""
+    tr = Reading.extra["transport"]
+    recent = (
+        select(
+            Reading.device_id,
+            (tr["max_retries"].as_integer() > tr["base_retries"].as_integer()).label("hard"),
+            func.row_number()
+            .over(partition_by=Reading.device_id, order_by=Reading.read_at.desc())
+            .label("n"),
+        )
+        .where(
+            Reading.device_id.in_(ids),
+            Reading.read_at >= datetime.now(UTC) - UNSTABLE_LOOKBACK,
+        )
+        .subquery()
+    )
+    rows = await session.execute(
+        select(recent.c.device_id)
+        .where(recent.c.n <= UNSTABLE_WINDOW, recent.c.hard.is_(True))
+        .group_by(recent.c.device_id)
+        .having(func.count() >= UNSTABLE_MIN)
+    )
+    return set(rows.scalars())
 
 
 async def export_rows(

@@ -69,7 +69,7 @@ export function DashboardPage() {
   const month = d.month_production;
   return (
     <div className="space-y-4">
-      <PageHeader title="Dashboard" subtitle="Visão geral do parque monitorado" />
+      <PageHeader title="Visão geral" subtitle="Situação do parque monitorado" />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat
           label="Equipamentos monitorados"

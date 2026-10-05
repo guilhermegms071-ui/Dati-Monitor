@@ -41,6 +41,7 @@ export function UsersPage() {
     <div className="space-y-3">
       <PageHeader
         title="Usuários"
+        related={[{ to: '/permissoes', label: 'Permissões' }]}
         actions={
           <>
             <Button

@@ -8738,8 +8738,18 @@
       },
       "ParkCounts": {
         "properties": {
+          "alert": {
+            "description": "Ativos com erro, atenção ou toner abaixo de 10%",
+            "title": "Alert",
+            "type": "integer"
+          },
           "disconnected": {
             "title": "Disconnected",
+            "type": "integer"
+          },
+          "disconnected_hours": {
+            "description": "Sem leitura há mais de N horas = sem conexão",
+            "title": "Disconnected Hours",
             "type": "integer"
           },
           "inactive": {
@@ -8754,7 +8764,9 @@
         "required": [
           "total",
           "disconnected",
-          "inactive"
+          "inactive",
+          "alert",
+          "disconnected_hours"
         ],
         "title": "ParkCounts",
         "type": "object"
@@ -8842,6 +8854,12 @@
               }
             ],
             "title": "Brand"
+          },
+          "comm_unstable": {
+            "default": false,
+            "description": "3+ das últimas 5 leituras só completaram com mais tentativas SNMP que o padrão (verificar cabo/porta/duplex); não é erro nem afeta contadores",
+            "title": "Comm Unstable",
+            "type": "boolean"
           },
           "counter_source": {
             "anyOf": [
@@ -9181,7 +9199,8 @@
           "customer_name",
           "site_name",
           "agent_name",
-          "supplies"
+          "supplies",
+          "comm_unstable"
         ],
         "title": "ParkRow",
         "type": "object"
@@ -10363,6 +10382,18 @@
             "title": "Sum Tolerance Percent",
             "type": "number"
           },
+          "transport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReadingTransport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Esforço da conversa SNMP (portal: comunicação instável)"
+          },
           "unresolved": {
             "items": {
               "type": "string"
@@ -10375,6 +10406,30 @@
           "counters"
         ],
         "title": "ReadingPayload",
+        "type": "object"
+      },
+      "ReadingTransport": {
+        "properties": {
+          "base_retries": {
+            "description": "Padrão do coletor (antes do ajuste do perfil)",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Base Retries",
+            "type": "integer"
+          },
+          "max_retries": {
+            "description": "Mais novas tentativas que um pedido da leitura precisou para ser respondido",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Max Retries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_retries",
+          "base_retries"
+        ],
+        "title": "ReadingTransport",
         "type": "object"
       },
       "ReadingsRequest": {
@@ -28139,6 +28194,18 @@
             }
           },
           {
+            "description": "Só com erro, atenção ou toner abaixo de 10%",
+            "in": "query",
+            "name": "alert",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Só com erro, atenção ou toner abaixo de 10%",
+              "title": "Alert",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "sort",
             "required": false,
@@ -28564,6 +28631,18 @@
             "schema": {
               "default": false,
               "title": "Inactive",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Só com erro, atenção ou toner abaixo de 10%",
+            "in": "query",
+            "name": "alert",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Só com erro, atenção ou toner abaixo de 10%",
+              "title": "Alert",
               "type": "boolean"
             }
           },

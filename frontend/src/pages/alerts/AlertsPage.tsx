@@ -37,7 +37,14 @@ export function AlertsPage() {
   const { can } = useAuth();
   return (
     <div className="space-y-3">
-      <PageHeader title="Alertas" subtitle="Tudo o que precisa de atenção, e as regras que decidem quando avisar" />
+      <PageHeader
+        title="Alertas"
+        subtitle="Tudo o que precisa de atenção, e as regras que decidem quando avisar"
+        related={[
+          { to: '/alertas-da-impressora', label: 'Alertas da impressora' },
+          { to: '/trocas-de-toner', label: 'Trocas de toner' },
+        ]}
+      />
       <Tabs defaultValue="alerts">
         <TabsList>
           <TabsTrigger value="alerts">Alertas</TabsTrigger>

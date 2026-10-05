@@ -52,6 +52,7 @@ def _filters(
     agent_id: uuid.UUID | None,
     disconnected: bool,
     inactive: bool,
+    alert: bool = False,
 ) -> svc.ParkFilters:
     return svc.ParkFilters(
         q=q,
@@ -67,6 +68,7 @@ def _filters(
         agent_id=agent_id,
         disconnected=disconnected,
         inactive=inactive,
+        alert=alert,
     )
 
 
@@ -89,6 +91,7 @@ async def park(
     agent_id: uuid.UUID | None = None,
     disconnected: bool = False,
     inactive: bool = False,
+    alert: Annotated[bool, Query(description="Só com erro, atenção ou toner abaixo de 10%")] = False,
     sort: str = "serial",
     direction: Direction = "asc",
     limit: Limit = DEFAULT_PAGE_SIZE,
@@ -108,6 +111,7 @@ async def park(
         agent_id,
         disconnected,
         inactive,
+        alert,
     )
     page, total = await svc.list_park(
         session, p, f, sort=sort, direction=direction, limit=limit, cursor=cursor
@@ -116,8 +120,8 @@ async def park(
 
 
 @router.get("/park/counts", response_model=ParkCounts, tags=["equipamentos"])
-async def park_counts(p: PrincipalDep, session: SessionDep) -> ParkCounts:
-    return await svc.counts(session, p)
+async def park_counts(p: PrincipalDep, session: SessionDep, settings: SettingsDep) -> ParkCounts:
+    return await svc.counts(session, settings, p)
 
 
 def _levels(r: ParkRow) -> str:
@@ -168,6 +172,7 @@ async def park_export(
     agent_id: uuid.UUID | None = None,
     disconnected: bool = False,
     inactive: bool = False,
+    alert: Annotated[bool, Query(description="Só com erro, atenção ou toner abaixo de 10%")] = False,
     sort: str = "serial",
     direction: Direction = "asc",
 ) -> Response:
@@ -185,6 +190,7 @@ async def park_export(
         agent_id,
         disconnected,
         inactive,
+        alert,
     )
     rows = await svc.export_rows(session, p, f, sort, direction)
     return export_response(rows, PARK_COLUMNS, fmt=format, basename="parque")

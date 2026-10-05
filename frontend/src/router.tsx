@@ -34,12 +34,12 @@ export const routes: RouteObject[] = [
     children: [
       {
         element: <AppShell />,
-        handle: { crumb: 'Início' },
+        handle: { crumb: 'Visão geral' },
         children: [
           { index: true, element: <DashboardPage /> },
           {
             path: 'parque',
-            handle: { crumb: 'Equipamentos' },
+            handle: { crumb: 'Parque' },
             children: [
               { index: true, element: <ParkPage /> },
               { path: ':deviceId', element: <DeviceDetailPage />, handle: { crumb: 'Equipamento' } },
