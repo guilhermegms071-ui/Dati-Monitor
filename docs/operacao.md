@@ -90,6 +90,14 @@ fica fora do repositório, em `%USERPROFILE%\.dati-monitor\release-signing.key`,
 servidor, para o Git ou para os logs. Guarde uma cópia offline dela. Sem a chave, nenhuma versão nova
 pode ser publicada.
 
+**Caminho curto:** `scripts\release.ps1 -Version 1.2.0`, com a árvore do git sem alterações. Ele faz os
+passos 1, 2 e 5 de uma vez e entrega em `dist\release-1.2.0\`:
+- binários dos 7 alvos;
+- um JSON de assinatura por binário em `assinaturas\`, pronto para colar em **Versões**;
+- instaladores, build do portal e `SHA256SUMS`.
+
+Depois siga os passos 3 e 4. O passo a passo manual é este:
+
 1. **Compile** com o número da versão:
    `scripts\build-agent.ps1 -Version 1.2.0`. Isso gera `dm-agent`, `dm-watchdog` e `dm-tool` para os
    7 alvos em `dist\`.

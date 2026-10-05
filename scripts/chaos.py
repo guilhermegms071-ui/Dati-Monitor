@@ -58,6 +58,10 @@ SIM_READY = "http://127.0.0.1:12160/"
 SIM_PORTS = list(range(12161, 12169))
 CUSTOMER, SITE, COMPANY = "Cliente Caos", "Local Caos", "Empresa Caos"
 COUNTERS_MINUTES = 5
+# Limites da seção 15 do PROMPT: coletor morto volta em < 30 s (critério 4); STANDBY assume em
+# ≤ 3,5 min (critério 6). As esperas abaixo são maiores só para medir quanto passou do limite.
+RESTART_LIMIT_S = 30
+TAKEOVER_LIMIT_S = 210
 EXE = ".exe" if sys.platform == "win32" else ""
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
@@ -583,7 +587,9 @@ class Chaos:
             90,
         )
         self.report.check(
-            "watchdog reinicia o coletor morto", took is not None, f"{took:.0f} s" if took else "não voltou"
+            f"watchdog reinicia o coletor morto em menos de {RESTART_LIMIT_S} s",
+            took is not None and took < RESTART_LIMIT_S,
+            f"{took:.0f} s" if took is not None else "não voltou",
         )
 
         def reason_reported() -> bool:
@@ -701,9 +707,9 @@ class Chaos:
 
         took = wait_until("B assume como MASTER", b_master, 420, every=5)
         self.report.check(
-            "STANDBY assume quando o lease do MASTER expira",
-            took is not None,
-            f"{took:.0f} s depois da queda" if took else "não assumiu",
+            "STANDBY assume em até 3,5 min quando o MASTER cai",
+            took is not None and took <= TAKEOVER_LIMIT_S,
+            f"{took:.0f} s depois da queda" if took is not None else "não assumiu",
         )
         site = uuid.UUID(self.site_id)
         b_id = uuid.UUID(self.b.agent_id)

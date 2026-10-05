@@ -1,0 +1,14 @@
+{
+  "profile": "konica-minolta",
+  "serial": "ACC2011022817",
+  "counters": {
+    "total": 329280,
+    "mono": 13838,
+    "color": 315442,
+    "print_mono": 13601,
+    "print_color": 315366,
+    "copy_mono": 237,
+    "copy_color": 76,
+    "duplex": 56919
+  }
+}

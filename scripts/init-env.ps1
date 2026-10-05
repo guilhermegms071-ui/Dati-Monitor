@@ -39,4 +39,9 @@ $lines = @(
     'PUBLIC_WS_URL=ws://127.0.0.1:8001/ws/agent'
 )
 [IO.File]::WriteAllText($path, ($lines -join "`n") + "`n")
-Write-Ok ".env criado em $path. Próximo passo: scripts\setup-db.ps1"
+# Segredos: só este usuário, o SISTEMA e os administradores leem o .env (a pasta costuma liberar leitura a
+# todos os usuários do Windows). Reverter: icacls .env /reset
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+& icacls $path /inheritance:r /grant:r "${me}:(F)" '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
+if ($LASTEXITCODE -ne 0) { Stop-WithError "não foi possível restringir as permissões de $path (icacls)" }
+Write-Ok ".env criado em $path (leitura só deste usuário). Próximo passo: scripts\setup-db.ps1"

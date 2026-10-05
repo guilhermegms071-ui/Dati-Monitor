@@ -53,10 +53,12 @@ var ErrorFlags = []string{
 	"inputTrayEmpty", "overduePreventMaint",
 }
 
+// errorLevel are the flags that stop printing ("Erro"); the others are "Atenção" (warning). serviceRequested
+// is a warning, as in the Datacount: the Konicas of the real network (Fase 10) raise it with maintenance
+// counters due while printing normally and themselves report hrDeviceStatus=warning(3), not down(5).
 var errorLevel = map[string]bool{
 	"noPaper": true, "noToner": true, "doorOpen": true, "jammed": true, "offline": true,
-	"serviceRequested": true, "inputTrayMissing": true, "outputTrayMissing": true,
-	"markerSupplyMissing": true, "outputFull": true,
+	"inputTrayMissing": true, "outputTrayMissing": true, "markerSupplyMissing": true, "outputFull": true,
 }
 
 // DecodeErrorBits decodes the OCTET STRING of hrPrinterDetectedErrorState (MSB-first).

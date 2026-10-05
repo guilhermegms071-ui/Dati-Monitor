@@ -15,8 +15,8 @@ Estado das fases da seção 14 do `PROMPT.md`.
 | 7 — Perfis, relatórios e acesso web | ✅ concluída (02/10/2026) |
 | 8 — Instaladores | ✅ concluída (02/10/2026) — falta só o teste `-Full` num terminal de administrador |
 | 9 — USB e acabamento | ✅ concluída (02/10/2026) |
-| 10 — Rede real | ⏳ próxima (precisa do usuário: faixa de IP, comunidade SNMP e folhas de contadores) |
-| 11 — Aceitação final | pendente |
+| 10 — Rede real | ✅ concluída (04/10/2026) — contadores aprovados pelo usuário |
+| 11 — Aceitação final | ⏳ em andamento |
 
 > Modo de trabalho: o usuário pediu para executar todas as fases em sequência, sem parar entre elas
 > (decisão D11). O plano de cada fase fica registrado aqui; paradas só onde o PROMPT exige o usuário
@@ -1193,6 +1193,60 @@ node frontend\e2e\manual-f9.mjs var\manual-f9    # telas, escuro e 390 px (com o
 
 ---
 
+## Fase 10 — Rede real ✅
+
+### Plano executado
+Detecção da rede (sem varrer) → confirmação da faixa e da comunidade pelo usuário → coletor real
+cadastrado no backend local → varredura e leitura → walks de cada IP → tabela para conferência com as
+folhas → correções → walks nos testes automáticos → `docs/validacao-real.md`.
+
+### O que foi feito
+- **Rede detectada pela regra do coletor** ("monitorar redes conectadas": as /24 privadas das placas).
+  A faixa `10.10.10.0/24` foi mostrada ao usuário e confirmada antes de qualquer pacote; comunidade
+  `public` (v2c e v1) informada pelo usuário.
+- **Varredura real**: 254 endereços em 25 s, 5 IPs com SNMP, 4 equipamentos:
+  - Konica Minolta AccurioPrint C4065 + controladora Fiery IC-607 (mesmo serial);
+  - Konica Minolta bizhub C287;
+  - Konica Minolta bizhub C454e;
+  - Kyocera ECOSYS M3550idn.
+- **Contadores conferidos com as folhas e aprovados pelo usuário** (04/10/2026). Nenhum perfil YAML
+  precisou de correção.
+- **Walk completo de cada IP** (`dm-tool walk`) em `profiles/recordings/real/`, com `.expected.json`.
+  Passam a rodar em todo build: `TestRealRecordings`, `TestStatusOfRealPrinters`,
+  `TestSameSerialKeepsPrinterInterfaceNotController`.
+- **Correção 1 — um equipamento, um registro** (`agent/internal/collector/interfaces.go`):
+  - IPs com o mesmo serial (impressora + controladora Fiery/EFI, IC-xxx, Creo, EX-i…) viram um
+    equipamento lido pela placa da própria impressora, como no Datacount e no NDD;
+  - a controladora fica fora da lista de leitura, registrada no log, mesmo com a impressora desligada;
+  - antes, o IP alternava entre .190 e .199 e as leituras da Fiery (só impressões que passam por ela:
+    328.967 contra 329.280 da máquina) se misturavam às da impressora.
+- **Correção 2 — "Atenção" em vez de "Erro"**: `serviceRequested` (manutenção pedida) passou a aviso,
+  como no Datacount. As próprias Konica informam `hrDeviceStatus = warning(3)` com esse bit. "Erro" fica
+  para parada real.
+- Registro completo em `docs/validacao-real.md`.
+
+### Testes (todos passando)
+| Suíte | Resultado |
+|---|---|
+| Go | novos: `TestRealRecordings` com 5 walks reais e contadores esperados; `TestStatusOfRealPrinters`; `TestSameSerialKeepsPrinterInterfaceNotController` (walks reais da C4065 e da Fiery, inclusive com a impressora desligada); `TestIsPrintController`; `TestSplitInterfacesPrefersLowestIPBetweenEquals`; casos novos em `TestNormalizePrecedence` |
+
+### Fluxo manual executado e resultado
+1. 02/10: detecção da rede, confirmação do usuário, varredura e leitura: 4 equipamentos, contadores
+   PB/cor resolvidos pelas tabelas Konica, sem OIDs não resolvidos.
+2. Achados: mesmo serial em .190/.199 e "Erro" por `serviceRequested`. O coletor foi parado para não
+   gravar mais leituras misturadas.
+3. 04/10: contadores aprovados pelo usuário; correções feitas e testadas com os walks.
+4. 04/10, 23h34 (sábado), coletor atualizado de novo na rede: só a C454e estava ligada. Ela passou a
+   "Atenção" ao vivo, com o contador subindo (486.005). As demais não responderam (desligadas).
+
+### O que falta / pendências
+- Confirmar ao vivo, num dia útil, que a C4065 aparece só pelo .190. A regra está coberta pelo teste
+  com os walks reais.
+- Kyocera: só o total (Printer-MIB), aprovado para esta máquina PB. Contadores próprios do fabricante
+  só com walk conferido com uma folha que os separe.
+
+---
+
 ## Decisões
 
 | # | Decisão | Motivo |
@@ -1320,3 +1374,6 @@ node frontend\e2e\manual-f9.mjs var\manual-f9    # telas, escuro e 390 px (com o
 | D121 | Limite da carga: uma hora de leituras de 20.000 equipamentos recebida em até 15 min; cada consulta do parque abaixo de 1 s (pior de 5 execuções, medida do cliente) | Folga de 4× sobre o ritmo real; o portal virtualiza a tabela, então o tempo da tela é o tempo da API |
 | D122 | `e2e_seed.py --email` e usuário próprio para o soak | Cada execução do seed troca a senha do usuário que recebe; testes simultâneos não podem derrubar a sessão um do outro |
 | D123 | O `lint.ps1` confere sintaxe e BOM de todos os `.ps1` | Erro de sintaxe num script de backup ou instalador só apareceria na hora de usar |
+| D124 | IPs com o mesmo serial são um equipamento só, lido pela placa da própria impressora; controladoras de impressão (Fiery/EFI, IC-xxx, Creo, EX-i) reconhecidas pelo sysDescr ficam fora da leitura | A controladora conta só o que passa por ela (sem cópias, sem PB/cor); alternar entre as duas misturava leituras (rede real, C4065 + IC-607). Mesmo comportamento do Datacount/NDD |
+| D125 | `serviceRequested` é "Atenção", não "Erro" | As Konica reais o levantam com manutenção vencida imprimindo normalmente e informam hrDeviceStatus=warning(3); "Erro" só para parada real |
+| D126 | Os walks reais entram no repositório com os valores do momento do walk (`.expected.json`); a coerência com a leitura aprovada foi conferida (só cresceram as páginas impressas no intervalo) | O teste precisa reproduzir exatamente o walk; a aprovação do usuário é da leitura de 02/10 |

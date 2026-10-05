@@ -1,0 +1,9 @@
+{
+  "profile": "konica-minolta",
+  "serial": "ACC2011022817",
+  "counters": {
+    "total": 328967,
+    "print_mono": 13601,
+    "print_color": 315366
+  }
+}

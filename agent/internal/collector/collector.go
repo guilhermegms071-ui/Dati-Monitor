@@ -750,10 +750,31 @@ func (c *Collector) scanRanges(ctx context.Context, ranges []protocol.IPRange, f
 		c.d.Log.Error("varredura interrompida", "erro", err, "sondados", probed)
 		return res, err
 	}
-	res.Found = len(found)
+	var cands []candidate
 	for _, f := range found {
-		if isNew, err := c.register(ctx, f); err != nil {
+		cand, keep, err := c.identify(ctx, f)
+		if err != nil {
 			c.d.Log.Error("registrar impressora encontrada", "ip", f.Target.IP, "porta", f.Target.Port, "erro", err)
+		} else if keep {
+			cands = append(cands, cand)
+		}
+	}
+	// Um equipamento, um registro: IPs com o mesmo serial (impressora + controladora Fiery/EFI etc.) viram
+	// uma interface principal, a da própria impressora, como no Datacount/NDD.
+	primaries, secondaries := splitInterfaces(cands, devices)
+	for _, s := range secondaries {
+		c.d.Log.Info("interface secundária do mesmo equipamento ignorada (lida pela principal)", "ip", s.found.Target.IP,
+			"porta", s.found.Target.Port, "serial", s.id.Serial, "descricao", s.id.SysDescr, "principal", s.primary)
+		if old, err := c.d.Store.DeviceAt(ctx, s.found.Target.IP, s.found.Target.Port); err == nil && old != nil {
+			if err := c.d.Store.RemoveDevice(ctx, s.found.Target.IP, s.found.Target.Port); err != nil {
+				c.d.Log.Error("remover interface secundária", "ip", s.found.Target.IP, "erro", err)
+			}
+		}
+	}
+	res.Found = len(primaries)
+	for _, cand := range primaries {
+		if isNew, err := c.save(ctx, cand); err != nil {
+			c.d.Log.Error("registrar impressora encontrada", "ip", cand.found.Target.IP, "porta", cand.found.Target.Port, "erro", err)
 		} else if isNew {
 			res.New++
 		}
@@ -781,26 +802,41 @@ func (c *Collector) scanRanges(ctx context.Context, ranges []protocol.IPRange, f
 	return res, nil
 }
 
+// register identifies and saves a single printer (no other interface to compare with).
 func (c *Collector) register(ctx context.Context, f discovery.Found) (bool, error) {
+	cand, keep, err := c.identify(ctx, f)
+	if err != nil || !keep {
+		return false, err
+	}
+	return c.save(ctx, cand)
+}
+
+// identify reads the identity of a printer found by the scan; keep=false when it was discarded in Descobertas.
+func (c *Collector) identify(ctx context.Context, f discovery.Found) (cand candidate, keep bool, err error) {
 	cred, ok := c.credential(f.CredentialID)
 	if !ok {
-		return false, errors.New("credencial sumiu da configuração")
+		return cand, false, errors.New("credencial sumiu da configuração")
 	}
 	conn, err := c.d.Dial(f.Target.IP, f.Target.Port, cred, c.snmpOptions())
 	if err != nil {
-		return false, err
+		return cand, false, err
 	}
 	defer func() { _ = conn.Close() }()
 	id, p, err := printer.ReadIdentity(ctx, conn, c.profilesSnapshot())
 	if err != nil {
-		return false, err
+		return cand, false, err
 	}
 	if !fallbackSerial(&id) {
-		return false, errors.New("impressora sem número de série nem MAC")
+		return cand, false, errors.New("impressora sem número de série nem MAC")
 	}
 	if c.isIgnored(id.Serial) {
-		return false, nil // descartada em Descobertas: não entra na lista de leitura
+		return cand, false, nil // descartada em Descobertas: não entra na lista de leitura
 	}
+	return candidate{found: f, id: id, profile: p}, true, nil
+}
+
+func (c *Collector) save(ctx context.Context, cand candidate) (bool, error) {
+	f, id, p := cand.found, cand.id, cand.profile
 	existing, err := c.d.Store.DeviceAt(ctx, f.Target.IP, f.Target.Port)
 	if err != nil {
 		return false, err

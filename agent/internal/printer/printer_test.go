@@ -95,6 +95,40 @@ func TestStatusOfSimulatedPrinters(t *testing.T) {
 	}
 }
 
+// Walks da rede real (Fase 10): Konicas com manutenção pedida/papel baixo/preventiva vencida são
+// "Atenção" (elas mesmas dizem hrDeviceStatus=warning), a Kyocera pronta é "Pronta".
+func TestStatusOfRealPrinters(t *testing.T) {
+	cases := map[string]struct {
+		status  string
+		reasons []string
+	}{
+		"konica_accurioprint_c4065": {StatusWarning, []string{"lowPaper", "serviceRequested"}},
+		"konica_bizhub_c287":        {StatusWarning, []string{"serviceRequested"}},
+		"konica_bizhub_c454e":       {StatusWarning, []string{"serviceRequested", "overduePreventMaint"}},
+		"kyocera_ecosys_m3550idn":   {StatusReady, []string{}},
+	}
+	for name, want := range cases {
+		t.Run(name, func(t *testing.T) {
+			f, err := os.Open(filepath.Join("../../../profiles/recordings/real", name+".snmprec"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = f.Close() }()
+			pdus, err := snmp.ParseSnmprec(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			st, err := ReadStatus(context.Background(), snmp.NewMemSource(pdus), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if st.Status != want.status || !reflect.DeepEqual(st.Reasons, want.reasons) {
+				t.Fatalf("status %s %v, esperado %s %v", st.Status, st.Reasons, want.status, want.reasons)
+			}
+		})
+	}
+}
+
 func TestNormalizePrecedence(t *testing.T) {
 	sleepy := &profile.Profile{ID: "p", Version: 1, Status: &profile.Status{EnergySavingTextRegex: "(?i)sleep"}}
 	cases := []struct {
@@ -111,6 +145,8 @@ func TestNormalizePrecedence(t *testing.T) {
 		{StatusResult{DeviceStatus: 2, PanelText: "Sleep"}, []string{"lowToner"}, sleepy, StatusEnergySaving},
 		{StatusResult{DeviceStatus: 2, PanelText: "Sleep"}, []string{"jammed"}, sleepy, StatusError},
 		{StatusResult{DeviceStatus: 2}, nil, nil, StatusReady},
+		{StatusResult{DeviceStatus: 3}, []string{"serviceRequested", "overduePreventMaint"}, nil, StatusWarning},
+		{StatusResult{DeviceStatus: 3}, []string{"serviceRequested", "noToner"}, nil, StatusError},
 	}
 	for i, c := range cases {
 		if got, _ := normalize(c.p, c.r, c.flags); got != c.status {

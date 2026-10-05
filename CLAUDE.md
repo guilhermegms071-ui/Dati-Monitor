@@ -14,7 +14,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `agent/internal/cli/` | Despacho de subcomandos comum aos 3 binários. |
 | `agent/internal/buildinfo/` | Versão/commit injetados via `-ldflags` pelo `scripts\build-agent.ps1`. |
 | `agent/internal/{snmp,profile,printer}` | Cliente SNMP + `.snmprec`/`MemSource`; motor de perfis; identidade/status/suprimentos. |
-| `agent/internal/{discovery,collector}` | Varredura das faixas; agendamento das leituras (só o MASTER). |
+| `agent/internal/{discovery,collector}` | Varredura das faixas; agendamento das leituras (só o MASTER). `collector/interfaces.go`: IPs com o mesmo serial viram um equipamento, lido pela placa da impressora (controladoras Fiery/EFI/IC-xxx ficam fora). |
 | `agent/internal/{store,uploader,api,protocol}` | Fila SQLite; envio em lote; cliente HTTPS do agente; mensagens v1 (espelho de `app/schemas/agent.py`). |
 | `agent/internal/{agent,health,svc,secret,config,osinfo,logx}` | Montagem do processo, `/health`, serviço Windows/systemd, DPAPI, `config.json`, SO, logs. |
 | `agent/internal/simtest/` | Testes de integração (`-tags integration`) contra o snmpsim real do venv. |
@@ -48,7 +48,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `frontend/src/{components,pages}/` | UI (`components/ui` = primitivos Radix; `domain.tsx` = status, níveis, comandos) e telas por menu. Rotas em `src/router.tsx`. |
 | `profiles/` | Perfis de leitura YAML. `canon.yaml` e `konica-minolta.yaml` são fornecidos: **não alterar OIDs**. |
 | `profiles/recordings/sim/NN-nome/public.snmprec` | Impressoras simuladas (snmpsim), porta UDP `1160+NN`. **Geradas** por `generate.py` (edite o gerador, não o arquivo). Pasta com `sleepy.json` = economia de energia (proxy UDP na porta `1160+NN`, snmpsim em `11100+NN`). |
-| `profiles/recordings/real/` | Walks de impressoras reais (Fase 10), salvos pela tela Perfis de modelos; `<nome>.expected.json` = valores da folha de contadores. Rodam no `TestRealRecordings` do Go. |
+| `profiles/recordings/real/` | Walks das impressoras reais (Fase 10: C4065 + Fiery, C287, C454e, Kyocera M3550idn), com `<nome>.expected.json`. Rodam no `TestRealRecordings`, `TestStatusOfRealPrinters` e no teste de interfaces do coletor. Detalhes em `docs/validacao-real.md`. |
 | `scripts/` | PowerShell do dia a dia + `smtp_catcher.py`. |
 | `deploy/` | Dockerfiles, compose e Caddyfile da hospedagem futura (**não usados agora**). |
 | `installer/` | Fase 8: `windows/dati-monitor.iss` (Inno Setup; recusa Windows antigo, confere o código sem gastá-lo, instala os 2 serviços) e `linux/` (postinst/prerm/postrm do .deb e o modelo do `install.sh`, servido preenchido em `/api/public/install.sh`). Uso em `installer/README.md`. |
@@ -77,6 +77,8 @@ scripts\soak.ps1 [-Minutes 30]             # resistência: dm-agent real contra 
 scripts\load.ps1                           # carga: banco dati_load próprio, API 8200/gateway 8201, 500 WebSockets, 20.000 equipamentos, parque < 1 s
 scripts\backup.ps1 [-OutDir D:\backups] [-Keep 14]          # pg_dump + arquivos + manifesto conferido
 scripts\restore.ps1 -Manifest <json> -Database <banco> [-Force] [-RestoreFiles]
+scripts\acceptance.ps1 [-Skip soak,load]  # aceitação (seção 15): tudo do zero, OK/FALHOU por critério; ~3 h
+scripts\release.ps1 -Version x.y.z     # pacote da versão em dist\release-x.y.z (binários, assinaturas, instaladores, portal, SHA256SUMS)
 # Publicar versão: build com -Version x.y.z → dm-tool sign --file <binário> --version x.y.z → colar a saída em Versões (superadmin)
 ```
 
