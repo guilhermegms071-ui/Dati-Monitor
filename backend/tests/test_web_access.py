@@ -63,6 +63,20 @@ def test_rewrite_html_and_css() -> None:
     ):
         assert expected in out, expected
     assert out.index("<script>") > out.index("<head>"), "script de correção logo no começo do <head>"
+    # Konica: a página inicial troca de página por JavaScript.
+    konica = (
+        "<html><head><script>location.replace('/wcd/index.html?access=SYS_INF');"
+        'var u = "/wcd/" + page; s = s.replace(/\'/g, "&#39;"); var r = a / b;</script></head></html>'
+    )
+    out = devweb.rewrite_body(konica, "text/html", PREFIX, ORIGINS)
+    assert f"location.replace('{PREFIX}wcd/index.html?access=SYS_INF')" in out
+    assert f'var u = "{PREFIX}wcd/" + page' in out
+    assert "s.replace(/'/g" in out, "expressão regular intacta"
+    assert "var r = a / b" in out
+    js = devweb.rewrite_body(
+        "top.location.href='/login.cgi';x='/';", "application/javascript", PREFIX, ORIGINS
+    )
+    assert js == f"top.location.href='{PREFIX}login.cgi';x='/';"
     css = devweb.rewrite_body("a{background:url(/i.png)} @import '/b.css';", "text/css", PREFIX, ORIGINS)
     assert css == f"a{{background:url({PREFIX}i.png)}} @import '{PREFIX}b.css';"
 

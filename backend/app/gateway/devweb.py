@@ -67,6 +67,10 @@ ATTR_PATTERN = (
 CSS_URL_PATTERN = r"""(?i)(url\(\s*)(["']?)/"""
 CSS_IMPORT_PATTERN = r"""(?i)(@import\s+)(["'])/"""
 META_REFRESH_PATTERN = r"""(?i)(content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*)(["']?)/"""
+# Caminho absoluto entre aspas dentro de JavaScript ("/wcd/index.html", '/login'): troca de página por
+# location.href/replace, que o script injetado não consegue interceptar. Só texto com cara de caminho
+# (segue /, ., ?, # ou fecha a aspa), para não mexer em expressões regulares como /'/g.
+JS_PATH_PATTERN = r"""()(["'])/(?=[A-Za-z0-9_-]+(?:[/.?#]|\2))"""
 HEAD_RE = re.compile(r"(?i)<head[^>]*>")
 
 
@@ -142,11 +146,14 @@ def rewrite_body(text: str, content_type: str, prefix: str, device_origins: list
         text = _sub(ATTR_PATTERN, prefix, text)
         text = _sub(META_REFRESH_PATTERN, prefix, text)
         text = _sub(CSS_URL_PATTERN, prefix, text)
+        text = _sub(JS_PATH_PATTERN, prefix, text)
         if "html" in content_type:
             script = _inject(prefix)
             text, n = HEAD_RE.subn(lambda m: m.group(0) + script, text, count=1)
             if not n:
                 text = script + text
+    elif "javascript" in content_type or "ecmascript" in content_type:
+        text = _sub(JS_PATH_PATTERN, prefix, text)
     elif "css" in content_type:
         text = _sub(CSS_URL_PATTERN, prefix, text)
         text = _sub(CSS_IMPORT_PATTERN, prefix, text)

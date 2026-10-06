@@ -2,6 +2,7 @@ package webproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"io"
 	"log/slog"
@@ -155,6 +156,32 @@ func TestSelfSignedHTTPSAndBandwidthLimit(t *testing.T) {
 	}
 	if el := time.Since(started); el < 1500*time.Millisecond {
 		t.Fatalf("limite de banda não aplicado: %s", el)
+	}
+}
+
+// Firmware antigo (Konica, Kyocera): só TLS 1.0 com troca de chaves RSA. Sem as suítes antigas o handshake
+// terminava em "EOF" e a página web em https não abria.
+func TestOldPrinterTLS(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "painel antigo")
+	}))
+	srv.TLS = &tls.Config{
+		MinVersion:   tls.VersionTLS10,
+		MaxVersion:   tls.VersionTLS10,
+		CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+	}
+	srv.StartTLS()
+	defer srv.Close()
+	rec := &recorder{}
+	p := New(slog.New(slog.DiscardHandler), rec.send)
+	open(t, p, "old", "https", srv.URL, 0)
+	p.Serve(context.Background(), protocol.WebRequest{StreamID: "o", SessionID: "old", Method: "GET", Path: "/"})
+	_, got, perr := rec.body(t)
+	if perr != nil {
+		t.Fatal(perr.Message)
+	}
+	if string(got) != "painel antigo" {
+		t.Fatalf("corpo: %q", got)
 	}
 }
 

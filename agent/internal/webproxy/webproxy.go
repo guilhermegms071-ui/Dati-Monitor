@@ -59,7 +59,7 @@ func New(log *slog.Logger, send Sender) *Proxy {
 	tr := &http.Transport{
 		Proxy:                 nil, // a impressora está na rede local: nunca pelo proxy da internet
 		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS10}, //nolint:gosec // impressoras usam certificado autoassinado (4.9)
+		TLSClientConfig:       printerTLS(),
 		ResponseHeaderTimeout: 30 * time.Second,
 		MaxIdleConnsPerHost:   4,
 		IdleConnTimeout:       60 * time.Second,
@@ -215,5 +215,23 @@ func (p *Proxy) serve(ctx context.Context, req protocol.WebRequest) error {
 		if end {
 			return nil
 		}
+	}
+}
+
+// printerTLS is the TLS of the printer's web page: self-signed certificates (4.9) and old firmwares that
+// only speak TLS 1.0 with RSA key exchange (Go 1.22+ no longer offers those suites by default; the
+// printer then closes the handshake and the user saw "EOF"). Only for this LAN tunnel, never for the API.
+func printerTLS() *tls.Config {
+	suites := make([]uint16, 0, 32)
+	for _, s := range tls.CipherSuites() {
+		suites = append(suites, s.ID)
+	}
+	for _, s := range tls.InsecureCipherSuites() {
+		suites = append(suites, s.ID)
+	}
+	return &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // impressoras usam certificado autoassinado (4.9)
+		MinVersion:         tls.VersionTLS10,
+		CipherSuites:       suites,
 	}
 }
