@@ -80,6 +80,7 @@ async function parseError(resp: Response): Promise<ApiError> {
 }
 
 let refreshing: Promise<TokenResponse | null> | null = null;
+const REFRESH_TIMEOUT_MS = 15_000;
 
 /** Renova a sessão pelo cookie httpOnly + CSRF (uma renovação por vez, mesmo com várias chamadas). */
 export function refreshSession(): Promise<TokenResponse | null> {
@@ -89,6 +90,9 @@ export function refreshSession(): Promise<TokenResponse | null> {
         method: 'POST',
         credentials: 'include',
         headers: { 'X-CSRF-Token': csrfToken(), Accept: 'application/json' },
+        // API travada (ex.: recarregando): em vez de "Carregando…" para sempre, vai para o login, que mostra
+        // "API: sem conexão" com o motivo.
+        signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
       });
       if (!resp.ok) {
         session.set(null);
