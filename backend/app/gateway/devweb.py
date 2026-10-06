@@ -270,6 +270,18 @@ async def _wait_open(hub: Hub, command_id: uuid.UUID | None) -> str | None:
     return "o coletor não confirmou a abertura a tempo; ele está online?"
 
 
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def _insecure_origin(request: Request) -> bool:
+    """Navegador em http fora do localhost: o cookie Secure da sessão não é guardado."""
+    if request.headers.get("x-forwarded-proto", request.url.scheme).lower() == "https":
+        return False
+    host = request.headers.get("host", "")
+    hostname = host.split("]")[0] + "]" if host.startswith("[") else host.rsplit(":", 1)[0]
+    return hostname.lower() not in LOCAL_HOSTS
+
+
 async def handle(request: Request, token: str, path: str, settings: Settings) -> Response:
     hub: Hub = request.app.state.hub
     tunnel: WebTunnel = request.app.state.tunnel
@@ -297,6 +309,15 @@ async def handle(request: Request, token: str, path: str, settings: Settings) ->
                 )  # fmt: skip
                 return resp
             cookie = request.cookies.get(svc.COOKIE)
+            if not cookie and _insecure_origin(request):
+                # O cookie é Secure (precisa ser, por causa do sandbox): em http fora do localhost
+                # o navegador o descarta e a sessão nunca chega aqui com ele.
+                raise svc.SessionRefused(
+                    403,
+                    "O navegador não guardou o cookie de segurança: a página da impressora só abre com o "
+                    "portal em https ou pelo endereço localhost do servidor (ex.: http://localhost:5173 "
+                    "no próprio PC do servidor). Na hospedagem com https funciona de qualquer computador.",
+                )
             if not cookie or not svc.check_key(ws, cookie):
                 raise svc.SessionRefused(
                     403, "Esta sessão pertence a outro navegador; abra de novo pelo portal"

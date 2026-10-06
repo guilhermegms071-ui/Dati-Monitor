@@ -235,6 +235,14 @@ async def browse(http_gateway: str, link: str) -> None:
         # O mesmo link em outro navegador (sem o cookie) não abre; token errado também não.
         assert (await browser.get(link)).status_code == 403
         assert (await browser.get(prefix)).status_code == 403
+        # Portal aberto por http num IP da rede: o navegador descarta o cookie Secure; a tela diz o motivo.
+        lan = await browser.get(prefix, headers={"Host": "10.10.10.25:5173"})
+        assert lan.status_code == 403
+        assert "https ou pelo endereço localhost" in lan.text
+        tls = await browser.get(
+            prefix, headers={"Host": "monitor.exemplo.com.br", "X-Forwarded-Proto": "https"}
+        )
+        assert "pertence a outro navegador" in tls.text
         assert (await browser.get("/devweb/token-errado/")).status_code == 404
 
 
