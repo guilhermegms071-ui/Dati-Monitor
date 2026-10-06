@@ -119,7 +119,7 @@ func (c *Collector) scanUSB(ctx context.Context, d USBDeps, only map[string]bool
 				level = c.d.Log.Warn
 			}
 			level("impressora USB sem contador disponível", "impressora", p.Name, "porta", p.Port, "motivo", err)
-			res.Error = "sem contador disponível (use a leitura manual no portal)"
+			res.Error = "sem contador disponível: " + err.Error() + " (use a leitura manual no portal)"
 			results = append(results, res)
 			continue
 		}
