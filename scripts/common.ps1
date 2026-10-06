@@ -27,6 +27,22 @@ function Import-DotEnv {
     return $values
 }
 
+# Grava (ou acrescenta) chaves no .env sem mexer nas outras linhas.
+function Set-DotEnvValues([hashtable]$Values) {
+    $path = Join-Path $RepoRoot '.env'
+    if (-not (Test-Path $path)) { Stop-WithError ".env não encontrado em $path. Rode scripts\init-env.ps1." }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $seen = @{}
+    foreach ($line in Get-Content $path -Encoding utf8) {
+        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=' -and $Values.ContainsKey($Matches[1])) {
+            $lines.Add("$($Matches[1])=$($Values[$Matches[1]])"); $seen[$Matches[1]] = $true
+        } else { $lines.Add($line) }
+    }
+    foreach ($k in $Values.Keys) { if (-not $seen[$k]) { $lines.Add("$k=$($Values[$k])") } }
+    [IO.File]::WriteAllLines($path, $lines, [Text.UTF8Encoding]::new($false))
+    foreach ($k in $Values.Keys) { Write-Ok ".env: $k=$($Values[$k])" }
+}
+
 function Get-RequiredEnv([hashtable]$Env, [string]$Name) {
     if (-not $Env.ContainsKey($Name) -or [string]::IsNullOrWhiteSpace($Env[$Name])) { Stop-WithError ".env: variável obrigatória ausente: $Name" }
     return $Env[$Name]

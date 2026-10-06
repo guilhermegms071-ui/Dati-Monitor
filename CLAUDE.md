@@ -29,7 +29,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 | `backend/app/schemas/` | Pydantic de entrada/saída da API. |
 | `backend/app/services/` | Regras de negócio. **Toda função recebe o `Principal` e aplica `reseller_scope`/`customer_scope`**; escritas chamam `audit.record`. |
 | `backend/app/api/v1/` | Roteadores finos: validam, chamam o serviço e fazem `session.commit()`. `api/deps.py` = autenticação central. |
-| `backend/app/cli.py` | `python -m app.cli migrate / bootstrap / seed-dev / ensure-partitions`. |
+| `backend/app/cli.py` | `python -m app.cli migrate / bootstrap / init / seed-dev / ensure-partitions` (`init` = admin + marcas + perfis, sem exemplos). |
 | `backend/app/api/` | Processo da API REST (porta 8000). `create_app()` é fábrica (`uvicorn --factory`). |
 | `backend/app/worker/` | Jobs agendados (APScheduler). `python -m app.worker.main`. |
 | `backend/alembic/` | Migrações (a URL vem de `DATABASE_URL`, nunca do `alembic.ini`). |
@@ -65,6 +65,7 @@ scripts\setup-db.ps1        # cria papel "dati" e bancos dati_dev/dati_test (ide
 scripts\init-env.ps1 -PostgresPassword X   # cria .env com segredos aleatórios (instalação nova)
 scripts\dev.ps1             # migra, faz seed e sobe API, gateway, worker, portal, smtp_catcher e snmpsim; Ctrl+C encerra
 scripts\lan-setup.ps1       # teste em rede local: IP no .env + Firewall "Dati Monitor dev" (Privada); depois dev.ps1 -Lan
+scripts\reset-dev-db.ps1    # zera o dati_dev (pede ZERAR), recria o admin e grava DEV_SEED=false (sem clientes de exemplo)
 scripts\stop-dev.ps1        # encerra o dev.ps1 (se a janela foi fechada sem Ctrl+C)
 scripts\test.ps1            # Go (-race, cobertura >= 80% internal/), pytest (>= 80%), Vitest
 scripts\test.ps1 -E2E       # + Playwright

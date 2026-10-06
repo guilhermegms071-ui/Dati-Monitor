@@ -44,6 +44,23 @@ async def _bootstrap() -> None:
         await engine.dispose()
 
 
+async def _init() -> None:
+    """Superadmin (first start), brands and profiles, without the example customers of seed-dev."""
+    settings = get_settings()
+    engine = make_engine(settings.database_url)
+    try:
+        async with make_sessionmaker(engine)() as session:
+            boot = await ensure_bootstrap(session, settings)
+            await sync_brands(session)
+            await sync_profiles(session)
+            await session.commit()
+        announce_bootstrap(boot)
+        if not boot.created_admin:
+            print("Init: usuários já existem; marcas e perfis sincronizados.")  # noqa: T201
+    finally:
+        await engine.dispose()
+
+
 async def _seed_dev() -> None:
     settings = get_settings()
     if settings.app_env == "production":
@@ -78,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli", description="Comandos administrativos do backend"
     )
-    parser.add_argument("command", choices=["migrate", "bootstrap", "seed-dev", "ensure-partitions"])
+    parser.add_argument("command", choices=["migrate", "bootstrap", "init", "seed-dev", "ensure-partitions"])
     args = parser.parse_args(argv)
     configure_logging(get_settings().log_level)
     match args.command:
@@ -86,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
             migrate()
         case "bootstrap":
             asyncio.run(_bootstrap())
+        case "init":
+            asyncio.run(_init())
         case "seed-dev":
             asyncio.run(_seed_dev())
         case "ensure-partitions":

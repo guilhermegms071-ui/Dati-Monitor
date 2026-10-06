@@ -84,7 +84,11 @@ foreach ($s in $services) {
 Push-Location (Join-Path $RepoRoot 'backend')
 try {
     Invoke-Checked 'Banco: migrações (alembic upgrade head)' { & $VenvPython -m app.cli migrate }
-    Invoke-Checked 'Banco: dados de desenvolvimento (seed idempotente)' { & $VenvPython -m app.cli seed-dev }
+    if ($envVals['DEV_SEED'] -eq 'false') {
+        Write-Ok 'Banco: sem dados de exemplo (DEV_SEED=false no .env; veja scripts\reset-dev-db.ps1)'
+    } else {
+        Invoke-Checked 'Banco: dados de desenvolvimento (seed idempotente)' { & $VenvPython -m app.cli seed-dev }
+    }
 } finally { Pop-Location }
 
 $running = @()

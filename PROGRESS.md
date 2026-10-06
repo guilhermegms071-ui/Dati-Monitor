@@ -1518,6 +1518,10 @@ Instalador do coletor para testar em outro PC da mesma rede, com o servidor no P
 - pytest: `test_set_server_is_signed_with_the_agent_key`, `test_set_server_signature_vector`.
 - Vitest: `SetServerDialog.test.tsx`.
 
+- **Teste limpo**: `scripts\reset-dev-db.ps1` recria o `dati_dev` vazio (só o superadmin, marcas e
+  perfis, pelo novo `python -m app.cli init`), apaga `var\storage` e grava `DEV_SEED=false` no `.env`,
+  que faz o `dev.ps1` pular os clientes de exemplo.
+
 ### Para concluir (ações do usuário, no Windows)
 1. `scripts\lan-setup.ps1` e `scripts\dev.ps1 -Lan`; de outro PC, abrir `http://10.10.10.25:8000/api/health`.
 2. `scripts\build-installer.ps1 -Version 1.0.0 -Server http://10.10.10.25:8000 -InsecureLan`.

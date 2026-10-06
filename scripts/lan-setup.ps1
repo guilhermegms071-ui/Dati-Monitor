@@ -50,21 +50,6 @@ function Set-FirewallRule([bool]$Present) {
     }
 }
 
-function Set-EnvValues([hashtable]$Values) {
-    $path = Join-Path $RepoRoot '.env'
-    if (-not (Test-Path $path)) { Stop-WithError ".env não encontrado em $path. Rode scripts\init-env.ps1." }
-    $lines = [System.Collections.Generic.List[string]]::new()
-    $seen = @{}
-    foreach ($line in Get-Content $path -Encoding utf8) {
-        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=' -and $Values.ContainsKey($Matches[1])) {
-            $lines.Add("$($Matches[1])=$($Values[$Matches[1]])"); $seen[$Matches[1]] = $true
-        } else { $lines.Add($line) }
-    }
-    foreach ($k in $Values.Keys) { if (-not $seen[$k]) { $lines.Add("$k=$($Values[$k])") } }
-    [IO.File]::WriteAllLines($path, $lines, [Text.UTF8Encoding]::new($false))
-    foreach ($k in $Values.Keys) { Write-Ok ".env: $k=$($Values[$k])" }
-}
-
 function Test-PrivateIPv4([string]$Ip) {
     $parsed = $null
     if (-not [Net.IPAddress]::TryParse($Ip, [ref]$parsed) -or $parsed.AddressFamily -ne 'InterNetwork') { return $false }
@@ -79,7 +64,7 @@ if ($FirewallOnly) {
 
 if ($Remove) {
     Set-FirewallRule $false
-    Set-EnvValues @{ PUBLIC_SERVER_URL = 'http://127.0.0.1:8000'; PUBLIC_WS_URL = 'ws://127.0.0.1:8001/ws/agent'; PUBLIC_BASE_URL = 'http://localhost:5173' }
+    Set-DotEnvValues @{ PUBLIC_SERVER_URL = 'http://127.0.0.1:8000'; PUBLIC_WS_URL = 'ws://127.0.0.1:8001/ws/agent'; PUBLIC_BASE_URL = 'http://localhost:5173' }
     Write-Ok 'pronto: rode scripts\dev.ps1 (sem -Lan)'
     exit 0
 }
@@ -118,7 +103,7 @@ if ($route) {
     else { Write-Host "AVISO o nome $env:COMPUTERNAME não resolve no DNS da rede: use o IP." -ForegroundColor Yellow }
 }
 
-Set-EnvValues @{ PUBLIC_SERVER_URL = "http://${Address}:8000"; PUBLIC_WS_URL = "ws://${Address}:8001/ws/agent"; PUBLIC_BASE_URL = "http://${Address}:5173" }
+Set-DotEnvValues @{ PUBLIC_SERVER_URL = "http://${Address}:8000"; PUBLIC_WS_URL = "ws://${Address}:8001/ws/agent"; PUBLIC_BASE_URL = "http://${Address}:5173" }
 Set-FirewallRule $true
 Write-Host ''
 Write-Host "IMPORTANTE reserve o IP $Address para este PC no roteador (DHCP): o instalador de teste grava esse endereço." -ForegroundColor Yellow
