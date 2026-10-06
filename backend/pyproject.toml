@@ -47,6 +47,9 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+"app.assets" = ["*.png"]
+
 [tool.ruff]
 line-length = 110
 target-version = "py312"

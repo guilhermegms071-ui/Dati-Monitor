@@ -27,12 +27,16 @@ from app.models import (
 from app.services.labels import DEVICE_STATUS_LABELS
 from app.services.reports import counters
 from app.services.reports.base import (
+    DISPLAY_TZ,
+    SECTION_KEY,
     Chart,
     Col,
     Filters,
     Option,
     ReportData,
     ReportDef,
+    Section,
+    Stat,
     check_customer,
     device_scope,
     need,
@@ -177,6 +181,225 @@ async def daily_counter(session: AsyncSession, p: Principal, f: Filters) -> Repo
     ]
     chart = Chart("bar", "day", [("mono", "PB"), ("color", "Cor")], stacked=True)
     return ReportData(cols, rows, _sum(rows, ["mono", "color", "total"]), chart)
+
+
+DEVICE_COUNTER_VIEWS = (
+    Option("period", "Resumo do período"),
+    Option("daily", "Dia a dia"),
+    Option("daily_read", "Dia a dia, só dias com leitura"),
+)
+# Colunas de identificação: no cabeçalho de cada bloco na tela/PDF, colunas comuns no CSV/XLSX.
+SECTION_COLS = [
+    Col("customer", "Cliente", section=True),
+    Col("site", "Local", section=True),
+    Col("serial", "Nº de série", section=True),
+    Col("model", "Modelo", section=True),
+    Col("sector", "Setor", section=True),
+]
+
+
+def _fmt_int(v: int | None) -> str:
+    return "—" if v is None else f"{v:,}".replace(",", ".")
+
+
+def _fmt_dt(v: datetime | None) -> str:
+    return v.astimezone(DISPLAY_TZ).strftime("%d/%m/%Y %H:%M") if v else "sem leitura"
+
+
+def _device_title(d: Device) -> str:
+    model = " ".join(x for x in (d.brand, d.model) if x) or "Equipamento"
+    if d.brand and d.model and d.model.lower().startswith(d.brand.lower()):
+        model = d.model
+    return f"{model} · Nº de série {d.serial}"
+
+
+async def device_counters(session: AsyncSession, p: Principal, f: Filters) -> ReportData:
+    """Contadores por equipamento (no formato do Datacount): um bloco por equipamento, com a leitura inicial,
+    a final e a diferença de cada contador, ou o contador e as páginas de cada dia."""
+    await check_customer(session, p, f)
+    scope, params = sql_scope(p, f)
+    devices = await _devices(session, p, f)
+    period = await counters.period_by_device(session, scope, params, f.lo, f.hi)
+    daily_view = f.group_by in {"daily", "daily_read"}
+    daily = await counters.daily_by_device(session, scope, params, f.lo, f.hi) if daily_view else {}
+    rows: list[dict[str, Any]] = []
+    sections: dict[str, Section] = {}
+    grand = {"pages_mono": 0, "pages_color": 0, "pages_total": 0}
+    with_reading = 0
+    for d, cname, _erp, sname, _agent in devices:
+        pc = period.get(d.id)
+        color = d.is_color is not False
+        start, end = (pc.start, pc.end) if pc else (None, None)
+        pages = {
+            "pages_mono": pc.pages_mono if pc else 0,
+            "pages_color": (pc.pages_color if pc else 0) if color else None,
+            "pages_total": pc.pages_total if pc else 0,
+        }
+        with_reading += end is not None
+        for k in grand:
+            grand[k] += pages[k] or 0
+        base = {
+            SECTION_KEY: str(d.id),
+            "customer": cname,
+            "site": sname,
+            "serial": d.serial,
+            "model": " ".join(x for x in (d.brand, d.model) if x) or None,
+            "sector": d.sector,
+        }
+        details = [("Cliente", cname), ("Local", sname), ("Setor", d.sector or "—")]
+        if daily_view:
+            details += [
+                ("Contador no início", _fmt_int(start.total if start else None)),
+                ("Última leitura", _fmt_dt(end.read_at if end else None)),
+            ]
+            rows += _daily_rows(
+                base, daily.get(d.id, {}), f, color=color, only_read=f.group_by == "daily_read"
+            )
+            sections[base[SECTION_KEY]] = Section(
+                base[SECTION_KEY], _device_title(d), details, pages, "Total do equipamento"
+            )
+        else:
+            details += [
+                ("Leitura inicial", _fmt_dt(start.read_at if start else None)),
+                ("Leitura final", _fmt_dt(end.read_at if end else None)),
+            ]
+            rows += [{**base, **line} for line in _period_lines(pc, pages, color=color)]
+            sections[base[SECTION_KEY]] = Section(base[SECTION_KEY], _device_title(d), details)
+    summary = [
+        Stat("Equipamentos", len(devices)),
+        Stat("Com leitura no período", with_reading),
+        Stat("Páginas PB", grand["pages_mono"]),
+        Stat("Páginas coloridas", grand["pages_color"]),
+        Stat("Total de páginas", grand["pages_total"]),
+    ]
+    notes = [
+        "Páginas = soma do que cada equipamento imprimiu entre leituras válidas; contador que voltou "
+        "(troca de placa, erro de leitura) não entra.",
+    ]
+    if daily_view:
+        if f.group_by == "daily":
+            notes.append("Dia sem leitura aparece com — no contador e 0 página.")
+        return ReportData(
+            [*SECTION_COLS, *DAILY_COLS],
+            rows,
+            dict(grand),
+            Chart("bar", "day", [("mono", "PB"), ("color", "Cor")], stacked=True),
+            notes,
+            sections=sections,
+            summary=summary,
+            chart_rows=_per_day(rows, f),
+        )
+    notes.append(
+        "Leitura inicial = última leitura antes do período (base da produção) ou, sem ela, a primeira do "
+        "período."
+    )
+    return ReportData(
+        [*SECTION_COLS, *PERIOD_COLS], rows, None, None, notes, sections=sections, summary=summary
+    )
+
+
+DAILY_COLS = [
+    Col("day", "Dia", "date"),
+    Col("read_at", "Hora"),
+    Col("counter_mono", "Contador PB", "int"),
+    Col("counter_color", "Contador cor", "int"),
+    Col("counter_total", "Contador total", "int"),
+    Col("pages_mono", "Páginas PB", "int"),
+    Col("pages_color", "Páginas cor", "int"),
+    Col("pages_total", "Páginas no dia", "int"),
+]
+PERIOD_COLS = [
+    Col("info", "Contador"),
+    Col("first", "Leitura inicial", "int"),
+    Col("last", "Leitura final", "int"),
+    Col("diff", "Diferença (páginas)", "int"),
+]
+
+
+def _daily_rows(
+    base: dict[str, Any], days: dict[Any, counters.DeviceDay], f: Filters, *, color: bool, only_read: bool
+) -> list[dict[str, Any]]:
+    out = []
+    day = need(f.date_from, "date_from") - timedelta(days=1)
+    while day < need(f.date_to, "date_to"):
+        day += timedelta(days=1)
+        dd = days.get(day)
+        if dd is None and only_read:
+            continue
+        out.append(
+            {
+                **base,
+                "day": day,
+                "read_at": dd.read_at.astimezone(DISPLAY_TZ).strftime("%H:%M") if dd else None,
+                "counter_mono": dd.mono if dd else None,
+                "counter_color": (dd.color if dd else None) if color else None,
+                "counter_total": dd.total if dd else None,
+                "pages_mono": dd.pages_mono if dd else 0,
+                "pages_color": (dd.pages_color if dd else 0) if color else None,
+                "pages_total": dd.pages_total if dd else 0,
+            }
+        )
+    return out
+
+
+def _per_day(rows: list[dict[str, Any]], f: Filters) -> list[dict[str, Any]]:
+    """Páginas de todos os equipamentos por dia (o gráfico mostra todos os dias, com ou sem leitura)."""
+    per_day: dict[Any, dict[str, Any]] = {}
+    day = need(f.date_from, "date_from")
+    while day <= need(f.date_to, "date_to"):
+        per_day[day] = {"day": day, "mono": 0, "color": 0}
+        day += timedelta(days=1)
+    for r in rows:
+        g = per_day[r["day"]]
+        g["mono"] += r["pages_mono"] or 0
+        g["color"] += r["pages_color"] or 0
+    return list(per_day.values())
+
+
+def _snap(s: counters.Snapshot | None, field: str) -> int | None:
+    return None if s is None else getattr(s, field)
+
+
+def _a4(s: counters.Snapshot | None, full: str, big: str) -> int | None:
+    """A4 = contador da cor - A3 (os A3 fazem parte do total da cor)."""
+    a = _snap(s, full)
+    return None if a is None else a - (_snap(s, big) or 0)
+
+
+def _period_lines(
+    pc: counters.PeriodCounters | None, pages: dict[str, int | None], *, color: bool
+) -> list[dict[str, Any]]:
+    """Linhas do bloco no resumo do período: PB (A4/A3), cor (A4/A3), total geral e digitalizações."""
+    start, end = (pc.start, pc.end) if pc else (None, None)
+    snaps = (start, end)
+    large = any(_snap(s, "mono_large") is not None or _snap(s, "color_large") is not None for s in snaps)
+    groups = [("PB", "mono", "mono_large", pages["pages_mono"])]
+    if color:
+        groups.append(("Cor", "color", "color_large", pages["pages_color"]))
+    out = []
+
+    def line(label: str, first: int | None, last: int | None, diff: int | None) -> None:
+        if first is None and last is None and label != "Total geral":
+            return  # o equipamento não informa esse contador (ex.: só o total)
+        out.append({"info": label, "first": first, "last": last, "diff": diff})
+
+    def diff_of(a: int | None, b: int | None) -> int | None:
+        return None if a is None or b is None else max(b - a, 0)
+
+    for name, full, big, produced in groups:
+        if large:
+            line(
+                f"{name} A4",
+                _a4(start, full, big),
+                _a4(end, full, big),
+                diff_of(_a4(start, full, big), _a4(end, full, big)),
+            )
+            line(f"{name} A3", _snap(start, big), _snap(end, big), pc.diff(big) if pc else None)
+        line(f"Total {name}", _snap(start, full), _snap(end, full), produced)
+    line("Total geral", _snap(start, "total"), _snap(end, "total"), pages["pages_total"])
+    if any(_snap(s, "scan") is not None for s in snaps):
+        line("Digitalizações", _snap(start, "scan"), _snap(end, "scan"), pc.diff("scan") if pc else None)
+    return out
 
 
 async def cutoff(session: AsyncSession, p: Principal, f: Filters) -> ReportData:
@@ -985,7 +1208,22 @@ for _defn in (
         production,
         group_by=PRODUCTION_GROUPS,
     ),
-    ReportDef("daily_counter", "Contador diário", PRODUCTION, "Páginas por dia com gráfico.", daily_counter),
+    ReportDef(
+        "device_counters",
+        "Contadores por equipamento",
+        PRODUCTION,
+        "Leitura inicial, final e páginas de cada equipamento, ou o contador de cada dia.",
+        device_counters,
+        group_by=DEVICE_COUNTER_VIEWS,
+        group_label="Exibição",
+    ),
+    ReportDef(
+        "daily_counter",
+        "Contador diário (total)",
+        PRODUCTION,
+        "Páginas de todos os equipamentos somadas por dia, com gráfico.",
+        daily_counter,
+    ),
     ReportDef(
         "cutoff",
         "Leitura de corte",

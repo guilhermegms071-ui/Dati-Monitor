@@ -28,6 +28,9 @@ class Col:
     key: str
     label: str
     kind: ColumnKind = "text"
+    # Coluna que identifica o bloco (equipamento): na tela e no PDF vai no cabeçalho do bloco; no CSV/XLSX
+    # continua sendo uma coluna comum.
+    section: bool = False
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,29 @@ class Chart:
     stacked: bool = False
 
 
+@dataclass(frozen=True)
+class Section:
+    """A block of rows (one device): title, details in the header and its own subtotal row."""
+
+    key: str
+    title: str
+    details: list[tuple[str, str]] = field(default_factory=list)
+    totals: dict[str, Any] | None = None
+    totals_label: str = "Subtotal"
+
+
+@dataclass(frozen=True)
+class Stat:
+    """A big number at the top of the report (screen and PDF)."""
+
+    label: str
+    value: Any
+    kind: ColumnKind = "int"
+
+
+SECTION_KEY = "_section"
+
+
 @dataclass
 class ReportData:
     columns: list[Col]
@@ -45,6 +71,10 @@ class ReportData:
     totals: dict[str, Any] | None = None
     chart: Chart | None = None
     notes: list[str] = field(default_factory=list)
+    # Linhas em blocos: cada linha traz a chave do bloco em SECTION_KEY, na ordem dos blocos.
+    sections: dict[str, Section] | None = None
+    summary: list[Stat] = field(default_factory=list)
+    chart_rows: list[dict[str, Any]] | None = None  # quando o gráfico não usa as próprias linhas
 
 
 def need[T](value: T | None, what: str) -> T:
@@ -101,6 +131,7 @@ class ReportDef:
     month: bool = False
     hours: bool = False
     default_days: int = 30
+    group_label: str = "Agrupar"
 
 
 REGISTRY: dict[str, ReportDef] = {}

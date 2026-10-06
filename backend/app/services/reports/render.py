@@ -3,6 +3,7 @@
 import io
 from datetime import date, datetime
 from decimal import Decimal
+from importlib.resources import files
 from typing import Any, Literal
 from xml.sax.saxutils import escape
 
@@ -10,11 +11,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.errors import bad_request
 from app.services.export import DISPLAY_TZ, ExportColumn, to_csv, to_xlsx
-from app.services.reports.base import Col, ReportData
+from app.services.reports.base import SECTION_KEY, Col, ReportData, Section, Stat
 
 FileFormat = Literal["csv", "xlsx", "pdf"]
 MAX_PDF_ROWS = 5000
@@ -83,7 +84,10 @@ def _rows_with_totals(data: ReportData) -> list[dict[str, Any]]:
     return [*data.rows, {**data.totals, first: "Total"}]
 
 
-def render(data: ReportData, fmt: FileFormat, *, title: str, subtitle: str) -> bytes:
+def render(
+    data: ReportData, fmt: FileFormat, *, title: str, meta: list[tuple[str, str]] | None = None
+) -> bytes:
+    """`meta` = filtros aplicados (rótulo, valor) mostrados no cabeçalho do PDF."""
     rows = _rows_with_totals(data)
     if fmt == "csv":
         return to_csv(rows, _export_cols(data))
@@ -95,66 +99,212 @@ def render(data: ReportData, fmt: FileFormat, *, title: str, subtitle: str) -> b
             f"O PDF aceita até {fmt_int(MAX_PDF_ROWS)} linhas; este relatório tem {fmt_int(len(rows))}. "
             "Use CSV ou XLSX, ou filtre por cliente.",
         )
-    return _pdf(data, rows, title=title, subtitle=subtitle)
+    return _pdf(data, title=title, meta=meta or [])
 
 
-def _pdf(data: ReportData, rows: list[dict[str, Any]], *, title: str, subtitle: str) -> bytes:
+# Cores do portal (azul da Daticopy e cinzas neutros).
+BRAND = colors.HexColor("#156cc4")
+BRAND_DARK = colors.HexColor("#143e6a")
+BRAND_SOFT = colors.HexColor("#eef6fe")
+INK = colors.HexColor("#0f172a")
+MUTED = colors.HexColor("#64748b")
+LINE = colors.HexColor("#dbe2e8")
+ZEBRA = colors.HexColor("#f6f8fa")
+TOTAL_BG = colors.HexColor("#e6eef7")
+NUMERIC = {"int", "money", "percent", "decimal"}
+KEEP_TOGETHER_ROWS = 14  # bloco pequeno não quebra entre páginas
+
+
+def _logo(height: float) -> Image:
+    resource = files("app.assets").joinpath("logo-daticopy.png")
+    if not resource.is_file():
+        raise RuntimeError("logo do relatório ausente: app/assets/logo-daticopy.png")
+    img = Image(io.BytesIO(resource.read_bytes()), height=height, width=height * 4 / 3)
+    img.hAlign = "LEFT"
+    return img
+
+
+class _Styles:
+    def __init__(self) -> None:
+        self.title = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=15, leading=18, textColor=INK)
+        self.meta = ParagraphStyle("m", fontName="Helvetica", fontSize=8.5, leading=12, textColor=INK)
+        self.small = ParagraphStyle("s", fontName="Helvetica", fontSize=7.5, leading=10, textColor=MUTED)
+        self.cell = ParagraphStyle("c", fontName="Helvetica", fontSize=7.5, leading=9.5, textColor=INK)
+        self.cell_r = ParagraphStyle("cr", parent=self.cell, alignment=2)
+        self.bold = ParagraphStyle("b", parent=self.cell, fontName="Helvetica-Bold")
+        self.bold_r = ParagraphStyle("br", parent=self.bold, alignment=2)
+        self.head = ParagraphStyle("h", parent=self.bold, textColor=colors.white)
+        self.head_r = ParagraphStyle("hr", parent=self.head, alignment=2)
+        self.sec_title = ParagraphStyle(
+            "st", fontName="Helvetica-Bold", fontSize=10, leading=13, textColor=BRAND_DARK
+        )
+        self.sec_detail = ParagraphStyle(
+            "sd", fontName="Helvetica", fontSize=7.5, leading=10, textColor=MUTED
+        )
+        self.stat_label = ParagraphStyle("sl", fontName="Helvetica", fontSize=7.5, leading=9, textColor=MUTED)
+        self.stat_value = ParagraphStyle(
+            "sv", fontName="Helvetica-Bold", fontSize=14, leading=17, textColor=BRAND_DARK
+        )
+
+
+def _p(text: str, style: ParagraphStyle) -> Paragraph:
+    return Paragraph(escape(text), style)
+
+
+def _header(title: str, meta: list[tuple[str, str]], st: _Styles, width: float) -> Table:
+    generated = datetime.now(DISPLAY_TZ).strftime("%d/%m/%Y %H:%M")
+    info: list[Any] = [_p(title.upper(), st.title), Spacer(1, 2 * mm)]
+    info += [Paragraph(f"<b>{escape(label)}:</b> {escape(value)}", st.meta) for label, value in meta if value]
+    right = Paragraph(
+        f"Gerado em<br/><b>{escape(generated)}</b>", ParagraphStyle("g", parent=st.small, alignment=2)
+    )
+    logo_w = 30 * mm
+    t = Table(
+        [[_logo(22.5 * mm), info, right]], colWidths=[logo_w + 4 * mm, width - logo_w - 44 * mm, 40 * mm]
+    )
+    t.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.2, BRAND),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 4 * mm),
+            ]
+        )
+    )
+    return t
+
+
+def _summary(stats: list[Stat], st: _Styles, width: float) -> Table:
+    cells = [
+        [_p(s.label, st.stat_label), _p(text_cell(Col("v", "", s.kind), s.value), st.stat_value)]
+        for s in stats
+    ]
+    t = Table([cells], colWidths=[width / len(stats)] * len(stats))
+    style: list[Any] = [
+        ("BOX", (0, 0), (-1, -1), 0.6, LINE),
+        ("BACKGROUND", (0, 0), (-1, -1), BRAND_SOFT),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+    ]
+    style += [("LINEAFTER", (i, 0), (i, 0), 0.6, LINE) for i in range(len(stats) - 1)]
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _grid(
+    cols: list[Col],
+    rows: list[dict[str, Any]],
+    st: _Styles,
+    width: float,
+    *,
+    totals: dict[str, Any] | None = None,
+    totals_label: str = "Total",
+    lead: list[list[Any]] | None = None,
+) -> Table:
+    """Table with optional `lead` rows (section header) before the column header."""
+    lead = lead or []
+
+    def para(col: Col, value: Any, *, strong: bool = False) -> Paragraph:
+        num = col.kind in NUMERIC
+        style = (st.bold_r if num else st.bold) if strong else (st.cell_r if num else st.cell)
+        return _p(text_cell(col, value), style)
+
+    body: list[list[Any]] = [*lead, [_p(c.label, st.head_r if c.kind in NUMERIC else st.head) for c in cols]]
+    head_at = len(lead)
+    body += [[para(c, r.get(c.key)) for c in cols] for r in rows]
+    if totals is not None:
+        body.append(
+            [
+                _p(totals_label, st.bold)
+                if i == 0
+                else (para(c, totals.get(c.key), strong=True) if totals.get(c.key) is not None else "")
+                for i, c in enumerate(cols)
+            ]
+        )
+    t = Table(body, repeatRows=head_at + 1, colWidths=[width / len(cols)] * len(cols))
+    style: list[Any] = [
+        ("BACKGROUND", (0, head_at), (-1, head_at), BRAND),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, head_at + 1), (-1, -1), 0.4, LINE),
+        ("BOX", (0, head_at), (-1, -1), 0.6, LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]
+    for i in range(head_at + 2, len(body), 2):
+        style.append(("BACKGROUND", (0, i), (-1, i), ZEBRA))
+    if totals is not None:
+        style.append(("BACKGROUND", (0, len(body) - 1), (-1, -1), TOTAL_BG))
+    for i in range(head_at):
+        style += [("SPAN", (0, i), (-1, i)), ("BACKGROUND", (0, i), (-1, i), BRAND_SOFT)]
+    if head_at:
+        style.append(("BOX", (0, 0), (-1, head_at - 1), 0.6, LINE))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _sections(data: ReportData, st: _Styles, width: float) -> list[Any]:
+    sections = data.sections or {}
+    cols = [c for c in data.columns if not c.section]
+    out: list[Any] = []
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for r in data.rows:
+        grouped.setdefault(str(r.get(SECTION_KEY)), []).append(r)
+    for key, rows in grouped.items():
+        sec = sections.get(key) or Section(key, key)
+        details = "   ·   ".join(f"<b>{escape(lb)}:</b> {escape(v)}" for lb, v in sec.details)
+        pad: list[Any] = [""] * (len(cols) - 1)
+        lead: list[list[Any]] = [
+            [_p(sec.title, st.sec_title), *pad],
+            [Paragraph(details, st.sec_detail), *pad],
+        ]
+        table = _grid(cols, rows, st, width, totals=sec.totals, totals_label=sec.totals_label, lead=lead)
+        out += [table if len(rows) > KEEP_TOGETHER_ROWS else KeepTogether(table), Spacer(1, 5 * mm)]
+    if data.totals:
+        out.append(_grid(cols, [], st, width, totals=data.totals, totals_label="Total geral"))
+    return out
+
+
+def _pdf(data: ReportData, *, title: str, meta: list[tuple[str, str]]) -> bytes:
     buf = io.BytesIO()
+    page = landscape(A4)
+    margin = 12 * mm
     doc = SimpleDocTemplate(
         buf,
-        pagesize=landscape(A4),
-        leftMargin=10 * mm,
-        rightMargin=10 * mm,
+        pagesize=page,
+        leftMargin=margin,
+        rightMargin=margin,
         topMargin=10 * mm,
-        bottomMargin=12 * mm,
+        bottomMargin=14 * mm,
         title=title,
-        author="Dati Monitor",
+        author="Daticopy · Dati Monitor",
     )
-    h = ParagraphStyle("h", fontName="Helvetica-Bold", fontSize=13, leading=16)
-    sub = ParagraphStyle(
-        "s", fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#475569")
-    )
-    cell = ParagraphStyle("c", fontName="Helvetica", fontSize=6.5, leading=8)
-    head = ParagraphStyle("hc", parent=cell, fontName="Helvetica-Bold", textColor=colors.white)
-    numeric = {"int", "money", "percent", "decimal"}
-    right = ParagraphStyle("r", parent=cell, alignment=2)
-
-    def para(col: Col, value: Any, *, blank_empty: bool = False) -> Paragraph:
-        text = "" if blank_empty and value in (None, "") else text_cell(col, value)
-        return Paragraph(escape(text), right if col.kind in numeric else cell)
-
-    table_rows: list[list[Any]] = [[Paragraph(escape(c.label), head) for c in data.columns]]
-    totals_at = len(rows) - 1 if data.totals else -1
-    table_rows += [
-        [para(c, r.get(c.key), blank_empty=i == totals_at) for c in data.columns] for i, r in enumerate(rows)
-    ]
-    width = landscape(A4)[0] - 20 * mm
-    table = Table(table_rows, repeatRows=1, colWidths=[width / len(data.columns)] * len(data.columns))
-    style: list[Any] = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-    ]
-    for i in range(2, len(table_rows), 2):
-        style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f1f5f9")))
-    if data.totals:
-        style.append(("BACKGROUND", (0, len(table_rows) - 1), (-1, -1), colors.HexColor("#e2e8f0")))
-    table.setStyle(TableStyle(style))
-    generated = datetime.now(DISPLAY_TZ).strftime("%d/%m/%Y %H:%M")
-    story: list[Any] = [
-        Paragraph(escape(title), h),
-        Paragraph(escape(f"{subtitle} · gerado em {generated} · {fmt_int(len(data.rows))} linha(s)"), sub),
-    ]
-    story += [Paragraph(escape(n), sub) for n in data.notes]
-    story += [Spacer(1, 4 * mm), table if data.rows else Paragraph("Nenhum registro com esses filtros.", sub)]
+    st = _Styles()
+    width = page[0] - 2 * margin
+    story: list[Any] = [_header(title, meta, st, width), Spacer(1, 5 * mm)]
+    if data.summary:
+        story += [_summary(data.summary, st, width), Spacer(1, 4 * mm)]
+    story += [_p(n, st.small) for n in data.notes]
+    story.append(Spacer(1, 4 * mm))
+    if not data.rows:
+        story.append(_p("Nenhum registro com esses filtros.", st.meta))
+    elif data.sections is not None:
+        story += _sections(data, st, width)
+    else:
+        story.append(_grid(data.columns, data.rows, st, width, totals=data.totals))
 
     def footer(canvas: Any, document: Any) -> None:
         canvas.saveState()
+        canvas.setStrokeColor(LINE)
+        canvas.line(margin, 10 * mm, page[0] - margin, 10 * mm)
         canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawRightString(width + 10 * mm, 6 * mm, f"Dati Monitor · página {document.page}")
+        canvas.setFillColor(MUTED)
+        canvas.drawString(margin, 6 * mm, f"Daticopy · Dati Monitor · {title}")
+        canvas.drawRightString(page[0] - margin, 6 * mm, f"Página {document.page}")
         canvas.restoreState()
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

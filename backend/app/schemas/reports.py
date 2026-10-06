@@ -23,12 +23,14 @@ class ReportInfo(BaseModel):
     default_days: int
     date_types: list[ReportOption]
     group_by: list[ReportOption]
+    group_label: str = Field(description="Rótulo do campo de agrupamento/exibição")
 
 
 class ReportColumn(BaseModel):
     key: str
     label: str
     kind: Literal["text", "int", "decimal", "money", "percent", "datetime", "date", "bool"]
+    section: bool = Field(description="Identifica o bloco: vai no cabeçalho do bloco, não como coluna")
 
 
 class ReportChart(BaseModel):
@@ -47,6 +49,25 @@ class ReportAppliedFilters(BaseModel):
     hours: int | None
 
 
+class ReportSectionDetail(BaseModel):
+    label: str
+    value: str
+
+
+class ReportSection(BaseModel):
+    key: str = Field(description="Valor de `_section` nas linhas do bloco")
+    title: str
+    details: list[ReportSectionDetail]
+    totals: dict[str, Any] | None = Field(description="Subtotal do bloco (mesmas chaves das colunas)")
+    totals_label: str
+
+
+class ReportStat(BaseModel):
+    label: str
+    value: Any
+    kind: Literal["text", "int", "decimal", "money", "percent", "datetime", "date", "bool"]
+
+
 class ReportResult(BaseModel):
     key: str
     title: str
@@ -60,3 +81,7 @@ class ReportResult(BaseModel):
     chart: ReportChart | None
     chart_rows: list[dict[str, Any]] | None = Field(description="Todas as linhas do gráfico (não paginadas)")
     notes: list[str]
+    sections: list[ReportSection] = Field(
+        description="Blocos (um por equipamento) das linhas desta página; vazio = relatório sem blocos"
+    )
+    summary: list[ReportStat] = Field(description="Números de destaque do relatório")

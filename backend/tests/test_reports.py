@@ -245,3 +245,71 @@ async def test_scope_validation_and_exports(client: httpx.AsyncClient, factory: 
         headers=auth(park.admin),
     )
     assert empty.status_code == 200
+
+
+async def test_device_counters_period_and_daily(client: httpx.AsyncClient, factory: Factory) -> None:
+    """Contadores por equipamento (formato do Datacount): um bloco por equipamento com leitura inicial,
+    final e diferença; ou dia a dia, com o contador do dia e as páginas do dia."""
+    park = await build_park(client, factory)
+    period = {
+        "date_from": park.month.isoformat(),
+        "date_to": park.last_day.isoformat(),
+        "customer_id": str(park.tenant.customer_id),
+    }
+    data = await report(client, park.admin, "device_counters", **period)
+    assert data["filters"]["group_by"] == "period"
+    rows = [r for r in data["rows"] if r["serial"] == SERIAL]
+    lines = {r["info"]: (r["first"], r["last"], r["diff"]) for r in rows}
+    # Base 1000 (mês anterior) → 1600; a regressão do dia 15 fica fora.
+    assert lines["Total geral"] == (1000, 1600, 600)
+    assert lines["Total PB"] == (800, 1150, 350)
+    assert lines["Total Cor"] == (200, 450, 250)
+    sections = {s["key"]: s for s in data["sections"]}
+    section = sections[rows[0]["_section"]]
+    assert SERIAL in section["title"]
+    assert {d["label"]: d["value"] for d in section["details"]}["Leitura final"].startswith(
+        park.day(20).strftime("%d/%m/%Y")
+    )
+    assert {c["key"] for c in data["columns"] if c["section"]} == {
+        "customer",
+        "site",
+        "serial",
+        "model",
+        "sector",
+    }
+    summary = {s["label"]: s["value"] for s in data["summary"]}
+    assert (summary["Equipamentos"], summary["Total de páginas"], summary["Com leitura no período"]) == (
+        2,
+        600,
+        1,
+    )
+
+    daily = await report(client, park.admin, "device_counters", group_by="daily", limit=500, **period)
+    days = {r["day"]: r for r in daily["rows"] if r["serial"] == SERIAL}
+    assert len(days) == park.last_day.day
+    d10, d15, d20 = (days[park.day(n).isoformat()] for n in (10, 15, 20))
+    assert (d10["counter_total"], d10["pages_total"], d10["pages_mono"]) == (1500, 500, 300)
+    assert (d15["counter_total"], d15["pages_total"]) == (None, 0)  # regressão não conta
+    assert (d20["counter_total"], d20["pages_total"]) == (1600, 100)
+    sec = {s["key"]: s for s in daily["sections"]}[d10["_section"]]
+    assert sec["totals"]["pages_total"] == 600
+    assert daily["totals"]["pages_total"] == 600
+    chart = {r["day"]: r for r in daily["chart_rows"]}
+    assert len(chart) == park.last_day.day
+    assert chart[park.day(10).isoformat()]["mono"] == 300
+
+    read_days = await report(client, park.admin, "device_counters", group_by="daily_read", **period)
+    assert sorted(r["day"] for r in read_days["rows"]) == [park.day(10).isoformat(), park.day(20).isoformat()]
+    assert len(read_days["chart_rows"]) == park.last_day.day
+    assert {r["read_at"] for r in read_days["rows"]} == {"12:00"}  # 15:00 UTC = 12:00 em Brasília
+
+    for view in ("period", "daily", "daily_read"):
+        for fmt in ("pdf", "xlsx", "csv"):
+            resp = await client.get(
+                "/api/v1/reports/device_counters/export",
+                params={**period, "group_by": view, "format": fmt},
+                headers=auth(park.admin),
+            )
+            assert resp.status_code == 200, resp.text
+    csv_text = resp.content.decode("utf-8-sig")
+    assert csv_text.splitlines()[0].startswith("Cliente;Local;Nº de série;Modelo;Setor;Dia")

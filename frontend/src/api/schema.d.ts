@@ -6375,6 +6375,11 @@ export interface components {
             kind: "text" | "int" | "decimal" | "money" | "percent" | "datetime" | "date" | "bool";
             /** Label */
             label: string;
+            /**
+             * Section
+             * @description Identifica o bloco: vai no cabeçalho do bloco, não como coluna
+             */
+            section: boolean;
         };
         /** ReportInfo */
         ReportInfo: {
@@ -6393,6 +6398,11 @@ export interface components {
             group: string;
             /** Group By */
             group_by: components["schemas"]["ReportOption"][];
+            /**
+             * Group Label
+             * @description Rótulo do campo de agrupamento/exibição
+             */
+            group_label: string;
             /** Hours */
             hours: boolean;
             /** Key */
@@ -6439,6 +6449,16 @@ export interface components {
             rows: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Sections
+             * @description Blocos (um por equipamento) das linhas desta página; vazio = relatório sem blocos
+             */
+            sections: components["schemas"]["ReportSection"][];
+            /**
+             * Summary
+             * @description Números de destaque do relatório
+             */
+            summary: components["schemas"]["ReportStat"][];
             /** Title */
             title: string;
             /** Total Rows */
@@ -6447,6 +6467,46 @@ export interface components {
             totals: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** ReportSection */
+        ReportSection: {
+            /** Details */
+            details: components["schemas"]["ReportSectionDetail"][];
+            /**
+             * Key
+             * @description Valor de `_section` nas linhas do bloco
+             */
+            key: string;
+            /** Title */
+            title: string;
+            /**
+             * Totals
+             * @description Subtotal do bloco (mesmas chaves das colunas)
+             */
+            totals: {
+                [key: string]: unknown;
+            } | null;
+            /** Totals Label */
+            totals_label: string;
+        };
+        /** ReportSectionDetail */
+        ReportSectionDetail: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** ReportStat */
+        ReportStat: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "int" | "decimal" | "money" | "percent" | "datetime" | "date" | "bool";
+            /** Label */
+            label: string;
+            /** Value */
+            value: unknown;
         };
         /** ResellerIn */
         ResellerIn: {

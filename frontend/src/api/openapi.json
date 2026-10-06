@@ -10787,12 +10787,18 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "section": {
+            "description": "Identifica o bloco: vai no cabeçalho do bloco, não como coluna",
+            "title": "Section",
+            "type": "boolean"
           }
         },
         "required": [
           "key",
           "label",
-          "kind"
+          "kind",
+          "section"
         ],
         "title": "ReportColumn",
         "type": "object"
@@ -10830,6 +10836,11 @@
             "title": "Group By",
             "type": "array"
           },
+          "group_label": {
+            "description": "Rótulo do campo de agrupamento/exibição",
+            "title": "Group Label",
+            "type": "string"
+          },
           "hours": {
             "title": "Hours",
             "type": "boolean"
@@ -10863,7 +10874,8 @@
           "hours",
           "default_days",
           "date_types",
-          "group_by"
+          "group_by",
+          "group_label"
         ],
         "title": "ReportInfo",
         "type": "object"
@@ -10951,6 +10963,22 @@
             "title": "Rows",
             "type": "array"
           },
+          "sections": {
+            "description": "Blocos (um por equipamento) das linhas desta página; vazio = relatório sem blocos",
+            "items": {
+              "$ref": "#/components/schemas/ReportSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "summary": {
+            "description": "Números de destaque do relatório",
+            "items": {
+              "$ref": "#/components/schemas/ReportStat"
+            },
+            "title": "Summary",
+            "type": "array"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -10984,9 +11012,107 @@
           "totals",
           "chart",
           "chart_rows",
-          "notes"
+          "notes",
+          "sections",
+          "summary"
         ],
         "title": "ReportResult",
+        "type": "object"
+      },
+      "ReportSection": {
+        "properties": {
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSectionDetail"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "key": {
+            "description": "Valor de `_section` nas linhas do bloco",
+            "title": "Key",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Subtotal do bloco (mesmas chaves das colunas)",
+            "title": "Totals"
+          },
+          "totals_label": {
+            "title": "Totals Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "details",
+          "totals",
+          "totals_label"
+        ],
+        "title": "ReportSection",
+        "type": "object"
+      },
+      "ReportSectionDetail": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "ReportSectionDetail",
+        "type": "object"
+      },
+      "ReportStat": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "text",
+              "int",
+              "decimal",
+              "money",
+              "percent",
+              "datetime",
+              "date",
+              "bool"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "kind"
+        ],
+        "title": "ReportStat",
         "type": "object"
       },
       "ResellerIn": {

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from app.api.deps import PrincipalDep, SessionDep
 from app.core.principal import Principal
+from app.models import Customer, Site
 from app.schemas.common import ERROR_RESPONSES
 from app.schemas.reports import (
     ReportAppliedFilters,
@@ -18,6 +19,9 @@ from app.schemas.reports import (
     ReportInfo,
     ReportOption,
     ReportResult,
+    ReportSection,
+    ReportSectionDetail,
+    ReportStat,
 )
 from app.services import audit
 from app.services import reports as svc
@@ -26,6 +30,7 @@ from app.services.reports.render import MEDIA, json_cell, render
 
 router = APIRouter(responses=ERROR_RESPONSES, tags=["relatórios"])
 MAX_SCREEN_ROWS = 500
+CNPJ_DIGITS = 14
 
 
 @dataclass(frozen=True)
@@ -72,6 +77,7 @@ def _info(d: svc.ReportDef) -> ReportInfo:
         default_days=d.default_days,
         date_types=[ReportOption(value=o.value, label=o.label) for o in d.date_types],
         group_by=[ReportOption(value=o.value, label=o.label) for o in d.group_by],
+        group_label=d.group_label,
     )
 
 
@@ -105,7 +111,12 @@ async def run_report(
 ) -> ReportResult:
     defn, f, data = await _run(key, p, session, params)
     keys = [c.key for c in data.columns]
+    if data.sections is not None:
+        keys.append(svc.SECTION_KEY)
     chart_keys = [data.chart.x, *(k for k, _ in data.chart.series)] if data.chart else []
+    page = data.rows[offset : offset + limit]
+    chart_source = data.chart_rows if data.chart_rows is not None else data.rows
+    in_page = list(dict.fromkeys(str(r.get(svc.SECTION_KEY)) for r in page)) if data.sections else []
     return ReportResult(
         key=defn.key,
         title=defn.title,
@@ -117,8 +128,10 @@ async def run_report(
             month=f.month,
             hours=f.hours,
         ),
-        columns=[ReportColumn(key=c.key, label=c.label, kind=c.kind) for c in data.columns],
-        rows=[_row(r, keys) for r in data.rows[offset : offset + limit]],
+        columns=[
+            ReportColumn(key=c.key, label=c.label, kind=c.kind, section=c.section) for c in data.columns
+        ],
+        rows=[_row(r, keys) for r in page],
         total_rows=len(data.rows),
         offset=offset,
         limit=limit,
@@ -131,26 +144,56 @@ async def run_report(
         )
         if data.chart
         else None,
-        chart_rows=[_row(r, chart_keys) for r in data.rows] if data.chart else None,
+        chart_rows=[_row(r, chart_keys) for r in chart_source] if data.chart else None,
         notes=data.notes,
+        sections=[_section(data.sections[k], keys) for k in in_page if data.sections and k in data.sections],
+        summary=[ReportStat(label=s.label, value=json_cell(s.value), kind=s.kind) for s in data.summary],
     )
 
 
-def _subtitle(defn: svc.ReportDef, f: svc.Filters) -> str:
-    parts = []
+def _section(s: svc.Section, keys: list[str]) -> ReportSection:
+    return ReportSection(
+        key=s.key,
+        title=s.title,
+        details=[ReportSectionDetail(label=label, value=value) for label, value in s.details],
+        totals=_row(s.totals, keys) if s.totals else None,
+        totals_label=s.totals_label,
+    )
+
+
+async def _meta(session: SessionDep, defn: svc.ReportDef, f: svc.Filters) -> list[tuple[str, str]]:
+    """Filters shown in the PDF header (the customer/site were already checked by the report)."""
+    out: list[tuple[str, str]] = []
+    if f.customer_id:
+        customer = await session.get(Customer, f.customer_id)
+        if customer is not None:
+            code = f" (código {customer.erp_code})" if customer.erp_code else ""
+            out.append(("Cliente", customer.name + code))
+            if customer.cnpj and len(customer.cnpj) == CNPJ_DIGITS:
+                c = customer.cnpj
+                out.append(("CNPJ", f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}"))
+    else:
+        out.append(("Cliente", "Todos"))
+    if f.site_id:
+        site = await session.get(Site, f.site_id)
+        if site is not None:
+            out.append(("Local", site.name))
     if f.date_from and f.date_to:
-        parts.append(f"{f.date_from:%d/%m/%Y} a {f.date_to:%d/%m/%Y}")
+        out.append(("Período", f"{f.date_from:%d/%m/%Y} a {f.date_to:%d/%m/%Y}"))
     elif f.date_to:
-        parts.append(f"Data de corte {f.date_to:%d/%m/%Y}")
+        out.append(("Data de corte", f"{f.date_to:%d/%m/%Y}"))
     if f.month:
-        parts.append(f"Mês {f.month[5:]}/{f.month[:4]}")
+        out.append(("Mês", f"{f.month[5:]}/{f.month[:4]}"))
     if f.hours:
-        parts.append(f"sem leitura há mais de {f.hours} h")
-    for options, value in ((defn.group_by, f.group_by), (defn.date_types, f.date_type)):
+        out.append(("Sem leitura há mais de", f"{f.hours} h"))
+    for name, options, value in (
+        (defn.group_label, defn.group_by, f.group_by),
+        ("Tipo de data", defn.date_types, f.date_type),
+    ):
         label = next((o.label for o in options if o.value == value), None)
         if label:
-            parts.append(label)
-    return " · ".join(parts) or defn.description
+            out.append((name, label))
+    return out
 
 
 @router.get(
@@ -167,7 +210,7 @@ async def export_report(
     format: Literal["csv", "xlsx", "pdf"] = "xlsx",  # noqa: A002 - nome do parâmetro na URL
 ) -> Response:
     defn, f, data = await _run(key, p, session, params)
-    body = render(data, format, title=defn.title, subtitle=_subtitle(defn, f))
+    body = render(data, format, title=defn.title, meta=await _meta(session, defn, f))
     await audit.record(
         session,
         p,

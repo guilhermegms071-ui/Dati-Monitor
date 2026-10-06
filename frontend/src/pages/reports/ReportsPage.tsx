@@ -15,7 +15,8 @@ import { NUMERIC, cellText } from '../../lib/reports';
 import { cn } from '../../lib/utils';
 
 type Info = Schemas['ReportInfo'];
-const PAGE = 100;
+// Relatórios em blocos (um por equipamento) cabem inteiros numa página na maioria dos casos.
+const PAGE = 500;
 const SERIES_COLORS = ['#334155', '#0ea5e9', '#22c55e', '#f59e0b'];
 
 function isoDay(d: Date): string {
@@ -241,7 +242,7 @@ function ReportView({ info }: { info: Info }) {
             </Field>
           ) : null}
           {info.group_by.length ? (
-            <Field label="Agrupar" htmlFor="r-group">
+            <Field label={info.group_label} htmlFor="r-group">
               <Select
                 id="r-group"
                 value={draft.group_by}
@@ -294,19 +295,25 @@ function ReportView({ info }: { info: Info }) {
   );
 }
 
+type Result = Schemas['ReportResult'];
+type Column = Schemas['ReportColumn'];
+type Row = Result['rows'][number];
+
 function ReportResultView({
   result,
   offset,
   onOffset,
 }: {
-  result: Schemas['ReportResult'];
+  result: Result;
   offset: number;
   onOffset: (n: number) => void;
 }) {
-  const { columns, rows, totals, chart, chart_rows: chartRows } = result;
+  const { columns, rows, chart, chart_rows: chartRows } = result;
   const xCol = chart ? columns.find((c) => c.key === chart.x) : undefined;
+  const sectioned = result.sections.length > 0;
   return (
     <>
+      {result.summary.length ? <SummaryTiles stats={result.summary} /> : null}
       {result.notes.length ? (
         <ul className="space-y-1 text-xs text-slate-500">
           {result.notes.map((n) => (
@@ -340,82 +347,177 @@ function ReportResultView({
           </div>
         </Card>
       ) : null}
-      <Card>
-        {rows.length === 0 ? (
+      {rows.length === 0 ? (
+        <Card>
           <EmptyState title="Nenhum registro com esses filtros" />
-        ) : (
-          <div className="scroll-thin overflow-x-auto">
-            <table className="w-full text-sm" data-testid="report-table">
-              <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800">
-                <tr>
-                  {columns.map((c) => (
-                    <th
-                      key={c.key}
-                      className={cn('whitespace-nowrap px-3 py-2', NUMERIC.has(c.kind) ? 'text-right' : 'text-left')}
-                    >
-                      {c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                    {columns.map((c) => (
-                      <td key={c.key} className={cn('px-3 py-1.5', NUMERIC.has(c.kind) && 'text-right tabular-nums')}>
-                        {cellText(c, r[c.key])}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-              {totals ? (
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200 font-semibold dark:border-slate-700">
-                    {columns.map((c, i) => (
-                      <td key={c.key} className={cn('px-3 py-1.5', NUMERIC.has(c.kind) && 'text-right tabular-nums')}>
-                        {i === 0
-                          ? 'Total'
-                          : totals[c.key] === null || totals[c.key] === undefined
-                            ? ''
-                            : cellText(c, totals[c.key])}
-                      </td>
-                    ))}
-                  </tr>
-                </tfoot>
-              ) : null}
-            </table>
-          </div>
-        )}
-        <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
-          <span>
-            {fmtInt(result.total_rows === 0 ? 0 : offset + 1)}–
-            {fmtInt(Math.min(offset + rows.length, result.total_rows))} de {fmtInt(result.total_rows)}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={offset === 0}
-              onClick={() => {
-                onOffset(Math.max(0, offset - PAGE));
-              }}
-            >
-              Anteriores
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={offset + PAGE >= result.total_rows}
-              onClick={() => {
-                onOffset(offset + PAGE);
-              }}
-            >
-              Próximos
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      ) : sectioned ? (
+        <SectionedTables result={result} />
+      ) : (
+        <Card>
+          <ReportTable columns={columns} rows={rows} totals={result.totals} totalsLabel="Total" />
+        </Card>
+      )}
+      <Pager result={result} offset={offset} onOffset={onOffset} />
     </>
+  );
+}
+
+function SummaryTiles({ stats }: { stats: Result['summary'] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5" data-testid="report-summary">
+      {stats.map((s) => (
+        <Card key={s.label} className="px-4 py-3">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{s.label}</p>
+          <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
+            {cellText(s, s.value)}
+          </p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/** Um cartão por equipamento: título, dados de identificação, a tabela e o subtotal do bloco. */
+function SectionedTables({ result }: { result: Result }) {
+  const columns = result.columns.filter((c) => !c.section);
+  const groups = new Map<string, Row[]>();
+  for (const r of result.rows) {
+    const key = String(r._section);
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  const byKey = new Map(result.sections.map((s) => [s.key, s]));
+  return (
+    <div className="space-y-4" data-testid="report-sections">
+      {[...groups.entries()].map(([key, rows]) => {
+        const section = byKey.get(key);
+        return (
+          <Card key={key} className="overflow-hidden">
+            <div className="border-b border-slate-200 bg-brand-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+              <h3 className="font-semibold text-brand-800 dark:text-brand-200">{section?.title ?? key}</h3>
+              {section?.details.length ? (
+                <dl className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                  {section.details.map((d) => (
+                    <div key={d.label} className="flex gap-1">
+                      <dt className="text-slate-500">{d.label}:</dt>
+                      <dd className="font-medium text-slate-700 dark:text-slate-200">{d.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </div>
+            <ReportTable
+              columns={columns}
+              rows={rows}
+              totals={section?.totals ?? null}
+              totalsLabel={section?.totals_label ?? 'Subtotal'}
+            />
+          </Card>
+        );
+      })}
+      {result.totals ? (
+        <Card className="overflow-hidden">
+          <ReportTable columns={columns} rows={[]} totals={result.totals} totalsLabel="Total geral" />
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function ReportTable({
+  columns,
+  rows,
+  totals,
+  totalsLabel,
+}: {
+  columns: Column[];
+  rows: Row[];
+  totals: Result['totals'];
+  totalsLabel: string;
+}) {
+  return (
+    <div className="scroll-thin overflow-x-auto">
+      <table className="w-full text-sm" data-testid="report-table">
+        <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800">
+          <tr>
+            {columns.map((c) => (
+              <th
+                key={c.key}
+                className={cn('whitespace-nowrap px-3 py-2', NUMERIC.has(c.kind) ? 'text-right' : 'text-left')}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+              {columns.map((c) => (
+                <td
+                  key={c.key}
+                  className={cn(
+                    'px-3 py-1.5',
+                    NUMERIC.has(c.kind) && 'text-right font-mono tabular-nums',
+                    r[c.key] === null && 'text-slate-400',
+                  )}
+                >
+                  {cellText(c, r[c.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        {totals ? (
+          <tfoot>
+            <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold dark:border-slate-700 dark:bg-slate-800/60">
+              {columns.map((c, i) => (
+                <td key={c.key} className={cn('px-3 py-2', NUMERIC.has(c.kind) && 'text-right font-mono tabular-nums')}>
+                  {i === 0
+                    ? totalsLabel
+                    : totals[c.key] === null || totals[c.key] === undefined
+                      ? ''
+                      : cellText(c, totals[c.key])}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        ) : null}
+      </table>
+    </div>
+  );
+}
+
+function Pager({ result, offset, onOffset }: { result: Result; offset: number; onOffset: (n: number) => void }) {
+  if (result.total_rows <= PAGE && offset === 0) return null;
+  return (
+    <div className="flex items-center justify-between text-xs text-slate-500">
+      <span>
+        Linhas {fmtInt(result.total_rows === 0 ? 0 : offset + 1)}–
+        {fmtInt(Math.min(offset + result.rows.length, result.total_rows))} de {fmtInt(result.total_rows)}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={offset === 0}
+          onClick={() => {
+            onOffset(Math.max(0, offset - PAGE));
+          }}
+        >
+          Anteriores
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={offset + PAGE >= result.total_rows}
+          onClick={() => {
+            onOffset(offset + PAGE);
+          }}
+        >
+          Próximos
+        </Button>
+      </div>
+    </div>
   );
 }
