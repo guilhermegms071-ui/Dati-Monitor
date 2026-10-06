@@ -14,7 +14,7 @@ if ($n -gt 0) { Write-Ok "$n processo(s) do dev.ps1 encerrado(s)" } else { Write
 $ErrorActionPreference = 'Continue'
 $devNames = @('python', 'pythonw', 'node', 'snmpsim-command-responder')
 $tcpPorts = @(8000, 8001, 5173, 8025, 1025, 8080)
-$udpPorts = @(1161..1168) + @(11161..11168)
+$udpPorts = @(1161..1168) + @(11101..11108) + @(11161..11168)  # 111NN: snmpsim atrás do proxy de economia de energia
 $owners = @()
 $owners += @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $tcpPorts -contains $_.LocalPort } |
     ForEach-Object { [pscustomobject]@{ Port = "TCP $($_.LocalPort)"; Pid = [int]$_.OwningProcess } })
