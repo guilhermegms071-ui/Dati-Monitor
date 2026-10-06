@@ -74,6 +74,7 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	code := fs.String("code", "", "código de cadastro de 8 caracteres gerado no portal")
 	dataDir := fs.String("data-dir", "", "pasta de dados (padrão do sistema)")
 	insecure := fs.Bool("insecure-dev", false, "aceita http:// fora do localhost (somente desenvolvimento)")
+	insecureLAN := fs.Bool("insecure-lan", false, "aceita http:// só para IP de rede privada (teste em rede local, sem hospedagem)")
 	proxy := fs.String("proxy", "", "proxy HTTP manual (ex.: http://proxy:3128)")
 	healthAddr := fs.String("health-addr", "", "endereço do /health (padrão "+health.DefaultAddr+")")
 	force := fs.Bool("force", false, "substitui um cadastro existente")
@@ -90,7 +91,7 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	if *checkOnly {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		info, err := api.CheckEnrollment(ctx, api.Options{ServerURL: *server, InsecureDev: *insecure, ProxyURL: *proxy}, normalizeCode(*code))
+		info, err := api.CheckEnrollment(ctx, api.Options{ServerURL: *server, InsecureDev: *insecure, InsecureLAN: *insecureLAN, ProxyURL: *proxy}, normalizeCode(*code))
 		if err != nil {
 			return fail(stderr, "código não aceito: %v", err)
 		}
@@ -107,7 +108,7 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	opts := api.Options{ServerURL: *server, InsecureDev: *insecure, ProxyURL: *proxy}
+	opts := api.Options{ServerURL: *server, InsecureDev: *insecure, InsecureLAN: *insecureLAN, ProxyURL: *proxy}
 	resp, err := api.Enroll(ctx, opts, protocol.EnrollRequest{
 		Code: normalizeCode(*code), Hostname: osinfo.Hostname(), OS: osinfo.Describe(), Arch: runtime.GOARCH,
 		Kind: osinfo.Kind(), Version: buildinfo.Version, LocalIPs: osinfo.LocalIPv4(), HostMAC: osinfo.HostMAC(),
@@ -123,7 +124,8 @@ func cmdEnroll(args []string, stdout, stderr io.Writer) int {
 		return fail(stderr, "guardar credencial: %v", err)
 	}
 	local := &config.Local{
-		ServerURL: strings.TrimRight(*server, "/"), AgentID: resp.AgentID, InsecureDev: *insecure, ProxyURL: *proxy,
+		ServerURL: strings.TrimRight(*server, "/"), AgentID: resp.AgentID, InsecureDev: *insecure, InsecureLAN: *insecureLAN,
+		ProxyURL:   *proxy,
 		HealthAddr: *healthAddr, EnrolledAt: time.Now().UTC(), WSURL: resp.WSURL,
 	}
 	if err := config.Save(dir, local); err != nil {

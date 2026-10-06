@@ -29,6 +29,7 @@ type Local struct {
 	ServerURL   string                `json:"server_url"`
 	AgentID     string                `json:"agent_id"`
 	InsecureDev bool                  `json:"insecure_dev,omitempty"`
+	InsecureLAN bool                  `json:"insecure_lan,omitempty"` // http:// só para IP de rede privada
 	ProxyURL    string                `json:"proxy_url,omitempty"`
 	HealthAddr  string                `json:"health_addr,omitempty"`
 	WSURL       string                `json:"ws_url,omitempty"` // canal WebSocket informado no cadastro

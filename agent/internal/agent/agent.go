@@ -92,7 +92,7 @@ func New(dir string, log *slog.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := api.New(api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev, ProxyURL: local.ProxyURL},
+	client, err := api.New(api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev, InsecureLAN: local.InsecureLAN, ProxyURL: local.ProxyURL},
 		local.AgentID, secret.DeriveKey(sec))
 	if err != nil {
 		return nil, err

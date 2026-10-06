@@ -30,10 +30,13 @@ import (
 type fakeServer struct {
 	key     []byte
 	revoked bool
+	// rejectQuietly: servidor que não conhece a chave do coletor (impostor) recusa o token sem acusar erro.
+	rejectQuietly bool
 
 	mu         sync.Mutex
 	heartbeats []protocol.HeartbeatRequest
 	configs    int
+	polls      int
 	pending    []protocol.CommandMessage
 	updates    []protocol.CommandUpdate
 	uploads    map[string][]byte
@@ -51,7 +54,9 @@ func (f *fakeServer) handler(t *testing.T) http.Handler {
 			return
 		}
 		if req.Signature != api.Sign(f.key, req.AgentID, req.Timestamp, req.Nonce) {
-			t.Error("assinatura inválida")
+			if !f.rejectQuietly {
+				t.Error("assinatura inválida")
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -70,6 +75,7 @@ func (f *fakeServer) handler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("GET /api/agent/commands/pending", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
+		f.polls++
 		cmds := f.pending
 		f.pending = nil
 		f.mu.Unlock()

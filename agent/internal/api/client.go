@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/daticopy/dati-monitor/agent/internal/buildinfo"
@@ -32,6 +33,10 @@ import (
 type Options struct {
 	ServerURL   string
 	InsecureDev bool
+	// InsecureLAN accepts http:// only when the server is an address of a private network (10/8,
+	// 172.16/12, 192.168/16, fc00::/7): tests on the local network before hosting. Public addresses
+	// still require HTTPS.
+	InsecureLAN bool
 	ProxyURL    string
 	Timeout     time.Duration
 }
@@ -72,7 +77,10 @@ func NewHTTP(opts Options) (*http.Client, *url.URL, error) {
 	switch u.Scheme {
 	case "https":
 	case "http":
-		if !isLoopback(u.Hostname()) && !opts.InsecureDev {
+		if !isLoopback(u.Hostname()) && !opts.InsecureDev && !(opts.InsecureLAN && isPrivateIP(u.Hostname())) {
+			if opts.InsecureLAN {
+				return nil, nil, fmt.Errorf("o servidor precisa usar HTTPS: http:// só é aceito para IP de rede privada (recebido %q)", u.Hostname())
+			}
 			return nil, nil, fmt.Errorf("o servidor precisa usar HTTPS (http:// só é aceito para localhost ou com --insecure-dev)")
 		}
 	default:
@@ -96,6 +104,13 @@ func NewHTTP(opts Options) (*http.Client, *url.URL, error) {
 		ForceAttemptHTTP2:   true,
 	}
 	return &http.Client{Transport: tr, Timeout: timeout}, u, nil
+}
+
+// isPrivateIP is true only for an IP literal of a private network (RFC 1918 / RFC 4193). Names are not
+// accepted: what they resolve to can change after the check.
+func isPrivateIP(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsPrivate()
 }
 
 func isLoopback(host string) bool {
@@ -140,8 +155,7 @@ func CheckEnrollment(ctx context.Context, opts Options, code string) (*protocol.
 
 // Client is an authenticated agent session.
 type Client struct {
-	hc      *http.Client
-	base    *url.URL
+	conn    atomic.Pointer[conn] // trocado inteiro por SwitchServer (migração para outro servidor)
 	agentID string
 	key     []byte
 
@@ -158,7 +172,29 @@ func New(opts Options, agentID string, key []byte) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{hc: hc, base: base, agentID: agentID, key: key, now: time.Now}, nil
+	c := &Client{agentID: agentID, key: key, now: time.Now}
+	c.conn.Store(&conn{hc: hc, base: base})
+	return c, nil
+}
+
+// conn is the HTTP client and the base URL of the current server.
+type conn struct {
+	hc   *http.Client
+	base *url.URL
+}
+
+func (c *Client) cur() *conn { return c.conn.Load() }
+
+// SwitchServer points the client to another server (same agent id and key) and drops the token of the
+// previous one. The URL is validated with the same rules as at enrollment.
+func (c *Client) SwitchServer(opts Options) error {
+	hc, base, err := NewHTTP(opts)
+	if err != nil {
+		return err
+	}
+	c.conn.Store(&conn{hc: hc, base: base})
+	c.ResetToken()
+	return nil
 }
 
 // ServerNow returns the current time on the server's clock (local clock corrected by the offset
@@ -195,7 +231,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 			V: protocol.Version, AgentID: c.agentID, Timestamp: ts, Nonce: nonce, Signature: Sign(c.key, c.agentID, ts, nonce),
 		}
 		var out protocol.TokenResponse
-		err := doJSON(ctx, c.hc, c.base, http.MethodPost, "/api/agent/token", "", req, &out, false)
+		err := doJSON(ctx, c.cur().hc, c.cur().base, http.MethodPost, "/api/agent/token", "", req, &out, false)
 		var apiErr *Error
 		if errors.As(err, &apiErr) && apiErr.Code == "clock_skew" && apiErr.serverTime != nil && attempt == 0 {
 			// Relógio do PC muito diferente do servidor: aprende a diferença e tenta de novo.
@@ -241,10 +277,10 @@ func (c *Client) bearer(ctx context.Context) (string, error) {
 func (c *Client) Token(ctx context.Context) (string, error) { return c.bearer(ctx) }
 
 // BaseURL returns the server base URL.
-func (c *Client) BaseURL() *url.URL { u := *c.base; return &u }
+func (c *Client) BaseURL() *url.URL { u := *c.cur().base; return &u }
 
 // HTTPClient exposes the configured client (proxy, TLS) for other channels.
-func (c *Client) HTTPClient() *http.Client { return c.hc }
+func (c *Client) HTTPClient() *http.Client { return c.cur().hc }
 
 func (c *Client) call(ctx context.Context, method, path string, in, out any, gz bool) error {
 	for attempt := 0; attempt < 2; attempt++ {
@@ -252,7 +288,8 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, gz 
 		if err != nil {
 			return err
 		}
-		err = doJSON(ctx, c.hc, c.base, method, path, tok, in, out, gz)
+		cn := c.cur()
+		err = doJSON(ctx, cn.hc, cn.base, method, path, tok, in, out, gz)
 		var apiErr *Error
 		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized && attempt == 0 {
 			if apiErr.Code == "agent_revoked" {
@@ -324,8 +361,9 @@ func (c *Client) Upload(ctx context.Context, kind, commandID, contentType string
 		if err != nil {
 			return nil, err
 		}
-		u := *c.base
-		u.Path = strings.TrimRight(c.base.Path, "/") + "/api/agent/uploads/" + kind
+		cn := c.cur()
+		u := *cn.base
+		u.Path = strings.TrimRight(cn.base.Path, "/") + "/api/agent/uploads/" + kind
 		u.RawQuery = url.Values{"command_id": {commandID}}.Encode()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
 		if err != nil {
@@ -335,7 +373,7 @@ func (c *Client) Upload(ctx context.Context, kind, commandID, contentType string
 		req.Header.Set("Authorization", "Bearer "+tok)
 		req.Header.Set("User-Agent", userAgent())
 		var out protocol.UploadResponse
-		err = finish(c.hc, req, "/api/agent/uploads/"+kind, &out)
+		err = finish(cn.hc, req, "/api/agent/uploads/"+kind, &out)
 		var apiErr *Error
 		if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized && attempt == 0 {
 			c.ResetToken()
@@ -359,9 +397,10 @@ func (c *Client) ResetToken() {
 // WSHTTPClient is an HTTP client for the WebSocket handshake: same proxy and TLS settings, but
 // HTTP/1.1 only (the Upgrade handshake does not exist in HTTP/2).
 func (c *Client) WSHTTPClient() *http.Client {
-	tr, ok := c.hc.Transport.(*http.Transport)
+	hc := c.cur().hc
+	tr, ok := hc.Transport.(*http.Transport)
 	if !ok {
-		return &http.Client{Transport: c.hc.Transport}
+		return &http.Client{Transport: hc.Transport}
 	}
 	t := tr.Clone()
 	t.ForceAttemptHTTP2 = false
@@ -473,15 +512,16 @@ func (c *Client) Download(ctx context.Context, path string, limit int64) ([]byte
 		if err != nil {
 			return nil, err
 		}
-		u := *c.base
-		u.Path = strings.TrimRight(c.base.Path, "/") + path
+		cn := c.cur()
+		u := *cn.base
+		u.Path = strings.TrimRight(cn.base.Path, "/") + path
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+tok)
 		req.Header.Set("User-Agent", userAgent())
-		resp, err := c.hc.Do(req)
+		resp, err := cn.hc.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("falha de rede ao baixar %s: %w", path, err)
 		}

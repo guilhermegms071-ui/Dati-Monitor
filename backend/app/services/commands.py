@@ -23,6 +23,7 @@ from app.core.errors import bad_request, conflict, forbidden, not_found
 from app.core.notify import CH_COMMAND, CH_COMMAND_UPDATE, notify, notify_event
 from app.core.permissions import RESELLER_ADMIN, role_level
 from app.core.principal import Principal
+from app.core.security import set_server_signature
 from app.models import Agent, AgentLog, ClusterEvent, Command, Device, IpRange, MibWalk, Site
 from app.schemas import agent as proto
 from app.schemas.commands import COMMAND_LABELS, PARAMS_BY_TYPE, CommandIn, command_target
@@ -75,6 +76,9 @@ async def create_command(
             "O vigia (dm-watchdog) deste PC nunca se comunicou: instale o serviço DatiMonitorWatchdog",
         )
     stored = await _prepare(session, p, agent, data.type, raw)
+    if data.type == "set_server":
+        p.require("agents.admin")  # muda para onde o coletor manda tudo: só quem administra coletores
+        stored = sign_set_server(settings, agent, stored)
     minutes = data.expires_in_minutes or settings.command_expiry_minutes
     cmd = await insert_command(
         session, p, agent, data.type, stored, target=target, expires_in=timedelta(minutes=minutes)
@@ -150,6 +154,18 @@ async def emit_commands(session: AsyncSession, cmds: list[Command]) -> None:
             agent_id=c.agent_id,
             state=c.state,
         )
+
+
+def sign_set_server(settings: Settings, agent: Agent, params: dict[str, Any]) -> dict[str, Any]:
+    """Assina o novo endereço com a chave do coletor. O coletor confere a assinatura e, antes de trocar,
+    se autentica no novo servidor com a própria credencial: só uma hospedagem com a mesma base de coletores
+    passa, então nem quem tem acesso ao portal desvia coletores para outro servidor."""
+    server_url = params["server_url"]
+    ws_url = params.get("ws_url") or ""
+    issued_at = int(datetime.now(UTC).timestamp())
+    key = agents_svc.agent_key(settings, agent)
+    signature = set_server_signature(key, str(agent.id), server_url, ws_url, issued_at)
+    return {"server_url": server_url, "ws_url": ws_url, "issued_at": issued_at, "signature": signature}
 
 
 async def _prepare(

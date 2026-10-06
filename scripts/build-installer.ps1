@@ -11,6 +11,9 @@
   scripts\build-installer.ps1 -Version 1.0.0 -Server https://monitor.daticopy.com.br
   scripts\build-installer.ps1 -Version 1.0.0 -Server https://monitor.daticopy.com.br -Sign
   scripts\build-installer.ps1 -TestMode        # instalador de teste (sem administrador; só verificações)
+  scripts\build-installer.ps1 -Version 1.0.0 -Server http://10.10.10.25:8000 -InsecureLan
+      # teste em rede local, sem hospedagem: servidor http:// só para IP de rede privada (o coletor recusa
+      # http:// para endereço público). Ao hospedar, gere de novo com -Server https://... (sem -InsecureLan).
 #>
 param(
     [string]$Version = '0.0.0-dev',
@@ -18,6 +21,7 @@ param(
     [switch]$Sign,
     [switch]$TestMode,
     [switch]$SkipBuild,
+    [switch]$InsecureLan,
     [string]$OutDir
 )
 . "$PSScriptRoot\common.ps1"
@@ -27,6 +31,27 @@ $numeric = "{0}.{1}.{2}.0" -f $Matches[1], $Matches[2], $Matches[3]
 if (-not $OutDir) { $OutDir = Join-Path $RepoRoot 'dist\installers' }
 $binDir = Join-Path $RepoRoot 'dist'
 $product = Get-Content (Join-Path $RepoRoot 'product.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+
+# Servidor gravado: https:// em produção; http:// só para teste em rede local (IP privado + -InsecureLan).
+if ($Server) {
+    try { $serverUri = [Uri]$Server } catch { Stop-WithError "Servidor inválido: $Server" }
+    if ($serverUri.Scheme -eq 'http') {
+        $ip = $null
+        if (-not [Net.IPAddress]::TryParse($serverUri.Host, [ref]$ip)) {
+            Stop-WithError "Servidor http:// precisa ser um IP de rede privada (o nome não é conferível no build): $Server"
+        }
+        $b = $ip.GetAddressBytes()
+        $private = ($b[0] -eq 10) -or ($b[0] -eq 172 -and $b[1] -ge 16 -and $b[1] -le 31) -or ($b[0] -eq 192 -and $b[1] -eq 168)
+        if (-not $private) { Stop-WithError "http:// só é aceito para IP de rede privada (10.x, 172.16-31.x, 192.168.x): $Server" }
+        if (-not $InsecureLan) { Stop-WithError "Servidor http:// exige -InsecureLan (instalador de teste em rede local)" }
+    } elseif ($serverUri.Scheme -ne 'https') {
+        Stop-WithError "Servidor precisa começar com https:// (ou http:// de rede local com -InsecureLan): $Server"
+    } elseif ($InsecureLan) {
+        Stop-WithError '-InsecureLan é só para servidor http:// de rede local; com https:// não use'
+    }
+} elseif ($InsecureLan) {
+    Stop-WithError '-InsecureLan exige -Server http://<IP de rede privada>:8000'
+}
 
 function Find-Iscc {
     $candidates = @(
@@ -95,6 +120,7 @@ $defines = @(
     "/DBinDir=$binDir", "/DOutDir=$OutDir"
 )
 if ($TestMode) { $defines += '/DTestMode=1' }
+if ($InsecureLan) { $defines += '/DInsecureLan=1' }
 $script = Join-Path $RepoRoot 'installer\windows\dati-monitor.iss'
 Write-Step "Inno Setup: $script"
 $ErrorActionPreference = 'Continue'

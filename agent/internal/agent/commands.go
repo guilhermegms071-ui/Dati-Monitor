@@ -80,6 +80,7 @@ func (a *Agent) commandSpecs() map[string]commands.Spec {
 		"ping_host":        {Handler: a.cmdPingHost, Timeout: 2 * time.Minute},
 		"update":           {Handler: a.cmdUpdate, Timeout: 10 * time.Minute}, // só do watchdog (processo inverso)
 		"web_proxy_open":   {Handler: a.cmdWebProxyOpen},
+		"set_server":       {Handler: a.cmdSetServer, Timeout: 2 * time.Minute},
 	}
 }
 

@@ -155,6 +155,13 @@ def agent_signature(key: bytes, agent_id: str, ts: int, nonce: str) -> str:
     return hmac.new(key, f"{agent_id}\n{ts}\n{nonce}".encode(), hashlib.sha256).hexdigest()
 
 
+def set_server_signature(key: bytes, agent_id: str, server_url: str, ws_url: str, issued_at: int) -> str:
+    """Assinatura do comando "Mudar endereço do servidor" com a chave do próprio coletor: ele confere antes
+    de trocar (vale também em http:// na rede local, onde não há TLS)."""
+    msg = f"dm-set-server\n{agent_id}\n{server_url}\n{ws_url}\n{issued_at}"
+    return hmac.new(key, msg.encode(), hashlib.sha256).hexdigest()
+
+
 def decode_access_token(token: str, *, secret: str) -> AccessClaims:
     try:
         data = jwt.decode(

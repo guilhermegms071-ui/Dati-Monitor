@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -140,7 +141,7 @@ func runWatchdog(ctx context.Context, o runOptions, console bool) error {
 		lg.Error("credencial do coletor ilegível", "erro", err)
 		return err
 	}
-	client, err := api.New(api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev, ProxyURL: local.ProxyURL},
+	client, err := api.New(api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev, InsecureLAN: local.InsecureLAN, ProxyURL: local.ProxyURL},
 		local.AgentID, secret.DeriveKey(sec))
 	if err != nil {
 		return err
@@ -201,8 +202,37 @@ func runWatchdog(ctx context.Context, o runOptions, console bool) error {
 			}
 		}()
 	}
+	go followServer(ctx, dir, local.ServerURL, client, lg)
 	return w.Run(ctx)
 }
+
+// followServer keeps the watchdog on the same server as the collector: after a "Mudar endereço do
+// servidor" (validated and saved by the collector), the next check switches the watchdog's channel too.
+func followServer(ctx context.Context, dir, current string, client *api.Client, lg *slog.Logger) {
+	t := time.NewTicker(followEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		local, err := config.Load(dir)
+		if err != nil || local.ServerURL == "" || local.ServerURL == current {
+			continue
+		}
+		opts := api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev, InsecureLAN: local.InsecureLAN, ProxyURL: local.ProxyURL}
+		if err := client.SwitchServer(opts); err != nil {
+			lg.Error("seguir o novo endereço do servidor", "erro", err)
+			continue
+		}
+		lg.Info("watchdog usando o novo servidor", "de", current, "para", local.ServerURL)
+		current = local.ServerURL
+	}
+}
+
+// followEvery is how often the watchdog rereads the collector configuration (server address).
+var followEvery = 30 * time.Second
 
 func serviceControl(action string) func([]string, io.Writer, io.Writer) int {
 	return func(args []string, stdout, stderr io.Writer) int {

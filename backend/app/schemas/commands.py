@@ -89,6 +89,46 @@ class UpdateCommandParams(_Params):
     )
 
 
+def server_address(v: str, ws: bool = False) -> str:
+    """https:// (wss://) em qualquer endereço; http:// (ws://) só com IP de rede privada (teste local)."""
+    from urllib.parse import urlsplit  # noqa: PLC0415 - uso local
+
+    v = v.strip().rstrip("/")
+    u = urlsplit(v)
+    secure, plain = ("wss", "ws") if ws else ("https", "http")
+    if u.scheme not in (secure, plain) or not u.hostname:
+        raise ValueError(f"endereço inválido: use {secure}://servidor")
+    if u.scheme == plain:
+        try:
+            ip = ipaddress.ip_address(u.hostname)
+        except ValueError:
+            raise ValueError(f"{plain}:// só é aceito com IP de rede privada; use {secure}://") from None
+        if not ip.is_private or ip.is_loopback:
+            raise ValueError(f"{plain}:// só é aceito com IP de rede privada; use {secure}://")
+    if u.path not in ("", "/") and not ws:
+        raise ValueError("informe só o endereço do servidor, sem caminho")
+    return v
+
+
+class SetServerParams(_Params):
+    server_url: str = Field(
+        max_length=300, description="Novo endereço da API (https://… ou http://IP-privado:8000)"
+    )
+    ws_url: str | None = Field(
+        default=None, max_length=300, description="Canal WebSocket (vazio = derivado do endereço: …/ws/agent)"
+    )
+
+    @field_validator("server_url")
+    @classmethod
+    def validate_server(cls, v: str) -> str:
+        return server_address(v)
+
+    @field_validator("ws_url")
+    @classmethod
+    def validate_ws(cls, v: str | None) -> str | None:
+        return server_address(v, ws=True) if v else None
+
+
 class UninstallParams(_Params):
     confirm_name: str = Field(
         max_length=200, description="Confirmação dupla: o nome do coletor digitado de novo pelo operador"
@@ -136,6 +176,7 @@ CommandType = Literal[
     "promote_master",
     "wake_host",
     "ping_host",
+    "set_server",
 ]
 
 PARAMS_BY_TYPE: dict[str, type[_Params]] = {
@@ -158,6 +199,7 @@ PARAMS_BY_TYPE: dict[str, type[_Params]] = {
     "promote_master": NoParams,
     "wake_host": WakeHostParams,
     "ping_host": PingHostParams,
+    "set_server": SetServerParams,
 }
 
 COMMAND_LABELS: dict[str, str] = {
@@ -180,6 +222,7 @@ COMMAND_LABELS: dict[str, str] = {
     "promote_master": "Tornar MASTER",
     "wake_host": "Ligar PC (Wake-on-LAN)",
     "ping_host": "Ping",
+    "set_server": "Mudar endereço do servidor",
 }
 
 

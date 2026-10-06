@@ -2,9 +2,12 @@
 ;
 ; Compile com scripts\build-installer.ps1 (passa a versão, o servidor padrão, os nomes do product.json e
 ; a pasta dos binários). Uso:
-;   setup.exe                                         assistente: servidor + código de 8 caracteres
-;   setup.exe /VERYSILENT /CODE=ABCD1234 /SERVER=https://monitor.exemplo.com.br
+;   setup.exe                                         assistente: chave de cadastro (servidor gravado no
+;                                                     build) ou servidor + chave (build sem servidor)
+;   setup.exe /VERYSILENT /CODE=ABCD1234 [/SERVER=https://monitor.exemplo.com.br]
 ;   /INSECUREDEV=1 aceita servidor http:// fora do localhost (somente desenvolvimento)
+;   Build com InsecureLan=1 (servidor http:// de rede local): o coletor aceita http:// só para IP de rede
+;   privada (--insecure-lan); endereço público continua exigindo HTTPS.
 ;
 ; O que faz: recusa Windows 7/8/8.1/Server 2008/2012 com a mensagem do PROMPT; confere o código no
 ; servidor SEM gastá-lo (dm-agent enroll --check-only) antes de copiar arquivos; instala dm-agent,
@@ -32,6 +35,9 @@
 #endif
 #ifndef DefaultServer
   #define DefaultServer ""
+#endif
+#ifndef InsecureLan
+  #define InsecureLan "0"
 #endif
 #ifndef BinDir
   #define BinDir "..\..\dist"
@@ -232,7 +238,31 @@ function DevFlag: String;
 begin
   Result := '';
   if ExpandConstant('{param:INSECUREDEV|0}') = '1' then
-    Result := ' --insecure-dev';
+    Result := ' --insecure-dev'
+  else if '{#InsecureLan}' = '1' then
+    Result := ' --insecure-lan';
+end;
+
+{ Servidor gravado no build (/SERVER= na linha de comando tem prioridade): a tela pede só a chave. }
+function ServerFixed: Boolean;
+begin
+  Result := ExpandConstant('{param:SERVER|{#DefaultServer}}') <> '';
+end;
+
+function ServerValue: String;
+begin
+  if ServerFixed then
+    Result := Trim(ExpandConstant('{param:SERVER|{#DefaultServer}}'))
+  else
+    Result := Trim(CodePage.Values[0]);
+end;
+
+function CodeValue: String;
+begin
+  if ServerFixed then
+    Result := NormalizeCode(CodePage.Values[0])
+  else
+    Result := NormalizeCode(CodePage.Values[1]);
 end;
 
 { Confere o código no servidor sem gastá-lo. }
@@ -300,14 +330,27 @@ end;
 
 procedure InitializeWizard;
 begin
-  CodePage := CreateInputQueryPage(wpWelcome, 'Cadastro do coletor',
-    'Endereço do servidor e código de cadastro',
-    'No portal: Coletores → Novo coletor. O código tem 8 caracteres e vale por 7 dias. ' +
-    'Ele será conferido agora, sem ser usado: o cadastro só acontece no fim da instalação.');
-  CodePage.Add('Endereço do servidor:', False);
-  CodePage.Add('Código de cadastro:', False);
-  CodePage.Values[0] := ExpandConstant('{param:SERVER|{#DefaultServer}}');
-  CodePage.Values[1] := ExpandConstant('{param:CODE|}');
+  if ServerFixed then
+  begin
+    CodePage := CreateInputQueryPage(wpWelcome, 'Cadastro do coletor',
+      'Chave de cadastro',
+      'Servidor: ' + ExpandConstant('{param:SERVER|{#DefaultServer}}') + #13#10#13#10 +
+      'Informe a chave de cadastro (8 caracteres) gerada no portal em Coletores → Novo coletor. ' +
+      'Ela vale por 7 dias e será conferida agora, sem ser usada: o cadastro só acontece no fim da instalação.');
+    CodePage.Add('Chave de cadastro:', False);
+    CodePage.Values[0] := ExpandConstant('{param:CODE|}');
+  end
+  else
+  begin
+    CodePage := CreateInputQueryPage(wpWelcome, 'Cadastro do coletor',
+      'Endereço do servidor e chave de cadastro',
+      'No portal: Coletores → Novo coletor. A chave tem 8 caracteres e vale por 7 dias. ' +
+      'Ela será conferida agora, sem ser usada: o cadastro só acontece no fim da instalação.');
+    CodePage.Add('Endereço do servidor:', False);
+    CodePage.Add('Chave de cadastro:', False);
+    CodePage.Values[0] := ExpandConstant('{param:SERVER|}');
+    CodePage.Values[1] := ExpandConstant('{param:CODE|}');
+  end;
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -320,8 +363,8 @@ function ValidateCodePage: Boolean;
 var
   Server, Code, Msg: String;
 begin
-  Server := Trim(CodePage.Values[0]);
-  Code := NormalizeCode(CodePage.Values[1]);
+  Server := ServerValue;
+  Code := CodeValue;
   Result := False;
   if (Pos('https://', Lowercase(Server)) <> 1) and (Pos('http://', Lowercase(Server)) <> 1) then
   begin
@@ -330,12 +373,12 @@ begin
   end;
   if Length(Code) <> 8 then
   begin
-    SuppressibleMsgBox('O código de cadastro tem 8 caracteres (letras e números).', mbError, MB_OK, IDOK);
+    SuppressibleMsgBox('A chave de cadastro tem 8 caracteres (letras e números).', mbError, MB_OK, IDOK);
     Exit;
   end;
   if not CheckCode(Server, Code, Msg) then
   begin
-    SuppressibleMsgBox('O servidor recusou o código:' + #13#10#13#10 + Msg, mbError, MB_OK, IDOK);
+    SuppressibleMsgBox('O servidor recusou a chave:' + #13#10#13#10 + Msg, mbError, MB_OK, IDOK);
     Exit;
   end;
   CheckedServer := Server;
