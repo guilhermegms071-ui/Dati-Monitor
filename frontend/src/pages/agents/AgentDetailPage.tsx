@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { AgentState, CommandState, CommandWatch, RoleBadge } from '../../components/domain';
+import { AgentState, CommandState, CommandWatch, LogView, RoleBadge } from '../../components/domain';
 import { LoadMore } from '../../components/paging';
 import { ReactivateButton } from '../../components/Reactivate';
 import { Button } from '../../components/ui/button';
@@ -633,12 +633,10 @@ function LogsTab({ agentId, canCommand }: { agentId: string; canCommand: boolean
           onOpenChange={(o) => {
             if (!o) setText(null);
           }}
-          title="Log do coletor (últimas 500 linhas)"
+          title="Log do coletor (últimas 500 linhas, mais novas primeiro)"
           wide
         >
-          <pre className="scroll-thin max-h-[70vh] overflow-auto rounded bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">
-            {text || '(vazio)'}
-          </pre>
+          <LogView text={text} />
         </Dialog>
       ) : null}
       {watcher}

@@ -6,7 +6,7 @@ import { api, unwrap, type Schemas } from '../lib/api';
 import { fmtDateTime, fmtPercent } from '../lib/format';
 import { AGENT_STATE, COMMAND_STATE, DEVICE_STATUS, FINAL_COMMAND_STATES, SUPPLY_COLOR } from '../lib/labels';
 import { useSendCommand, type CommandType } from '../lib/commands';
-import { detailRows, deviceRows } from '../lib/commandDetails';
+import { dataTables, detailRows, deviceRows, label, parseLogLine } from '../lib/commandDetails';
 import { commandSummary } from '../lib/commandSummary';
 import { showError, showSuccess } from '../lib/notify';
 import { cn } from '../lib/utils';
@@ -96,7 +96,6 @@ function CommandResult({ cmd }: { cmd: Command }) {
   const devices = deviceRows(result);
   // Com resumo, os números já estão nas frases; a lista mostra só o que o resumo não cobre.
   const covered = summary.length ? Object.keys(result) : [];
-  const rows = detailRows(result, ['error', 'devices', 'not_found', ...covered]);
   const hasData = Object.keys(result).length > 0;
   return (
     <div className="space-y-3">
@@ -143,16 +142,7 @@ function CommandResult({ cmd }: { cmd: Command }) {
           </table>
         </div>
       ) : null}
-      {rows.length ? (
-        <dl className="divide-y divide-slate-100 rounded-md border border-slate-200 text-sm dark:divide-slate-800 dark:border-slate-800">
-          {rows.map((r) => (
-            <div key={r.label} className="flex justify-between gap-4 px-3 py-2">
-              <dt className="text-slate-500">{r.label}</dt>
-              <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{r.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      <DataList data={result} skip={['error', 'devices', 'not_found', ...covered]} />
       {cmd.output ? (
         <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-700 dark:bg-slate-900 dark:text-slate-300">
           {cmd.output}
@@ -182,19 +172,100 @@ function CommandResult({ cmd }: { cmd: Command }) {
   );
 }
 
-/** Dados de evento/auditoria como lista "rótulo: valor" em português (no lugar de JSON). */
-export function DataList({ data, compact }: { data: Record<string, unknown>; compact?: boolean }) {
-  const rows = detailRows(data);
-  if (!rows.length) return null;
+/** Dados técnicos legíveis: "rótulo: valor" em português e listas de itens como tabela (no lugar de JSON). */
+export function DataList({
+  data,
+  compact,
+  skip = [],
+}: {
+  data: Record<string, unknown> | unknown[];
+  compact?: boolean;
+  skip?: string[];
+}) {
+  const obj = Array.isArray(data) ? { itens: data } : data;
+  const tables = dataTables(obj, skip);
+  const rows = detailRows(obj, [...skip, ...Object.keys(obj).filter((k) => tables.some((t) => t.title === label(k)))]);
+  if (!rows.length && !tables.length) return null;
   return (
-    <dl className={cn('space-y-0.5', compact ? 'text-xs' : 'text-sm')}>
-      {rows.map((r) => (
-        <div key={r.label} className="flex gap-2">
-          <dt className="shrink-0 text-slate-500">{r.label}:</dt>
-          <dd className="min-w-0 break-words font-medium text-slate-800 dark:text-slate-200">{r.value}</dd>
+    <div className="space-y-3">
+      {rows.length ? (
+        <dl className={cn('space-y-0.5', compact ? 'text-xs' : 'text-sm')}>
+          {rows.map((r) => (
+            <div key={r.label} className="flex gap-2">
+              <dt className="shrink-0 text-slate-500">{r.label}:</dt>
+              <dd className="min-w-0 break-words font-medium text-slate-800 dark:text-slate-200">{r.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {tables.map((t) => (
+        <div key={t.title} className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-800">
+          <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            {t.title} ({t.rows.length})
+          </p>
+          <table className={cn('w-full', compact ? 'text-xs' : 'text-sm')}>
+            <thead>
+              <tr>
+                {t.columns.map((c) => (
+                  <th key={c.key} className="px-3 py-1.5 text-left">
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.rows.map((r, i) => (
+                <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+                  {r.map((v, j) => (
+                    <td key={t.columns[j]?.key ?? j} className="px-3 py-1.5">
+                      {v}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ))}
-    </dl>
+    </div>
+  );
+}
+
+const LOG_LEVEL: Record<string, { label: string; tone: 'gray' | 'blue' | 'yellow' | 'red' }> = {
+  debug: { label: 'Detalhe', tone: 'gray' },
+  info: { label: 'Info', tone: 'blue' },
+  warn: { label: 'Aviso', tone: 'yellow' },
+  error: { label: 'Erro', tone: 'red' },
+};
+
+/** Log do coletor legível: hora, nível e mensagem por linha (as mais novas primeiro). */
+export function LogView({ text }: { text: string }) {
+  const lines = text
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map(parseLogLine)
+    .reverse();
+  if (!lines.length) return <p className="text-sm text-slate-500">Log vazio.</p>;
+  return (
+    <ul className="scroll-thin max-h-[70vh] divide-y divide-slate-100 overflow-auto rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+      {lines.map((l, i) => {
+        const lv = l.level ? LOG_LEVEL[l.level] : null;
+        return (
+          <li key={i} className="px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              {l.time ? <span className="text-xs text-slate-500 tabular-nums">{l.time}</span> : null}
+              {lv ? <Badge tone={lv.tone}>{lv.label}</Badge> : null}
+              <span className="font-medium text-slate-800 dark:text-slate-200">{l.message}</span>
+            </div>
+            {l.fields.length ? (
+              <p className="mt-0.5 text-xs text-slate-500">
+                {l.fields.map((f) => `${f.label}: ${f.value}`).join(' · ')}
+              </p>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

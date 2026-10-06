@@ -74,6 +74,15 @@ const LABELS: Record<string, string> = {
   note: 'Observação',
   last_error: 'Último erro',
   version_agent: 'Versão do coletor',
+  items: 'Itens',
+  itens: 'Itens',
+  readings: 'Leituras',
+  total: 'Total',
+  mono: 'Preto e branco',
+  color: 'Colorido',
+  read_at: 'Lido em',
+  customer: 'Cliente',
+  erro: 'Erro',
 };
 
 export interface DetailRow {
@@ -88,11 +97,11 @@ export interface DeviceRow {
   error: string | null;
 }
 
-function label(key: string): string {
+export function label(key: string): string {
   return LABELS[key] ?? key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
 
-function value(key: string, v: unknown): string {
+export function value(key: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
   if (typeof v === 'boolean') {
     if (key === 'ok') return v ? 'OK' : 'Falhou';
@@ -157,4 +166,58 @@ export function deviceRows(result: Record<string, unknown>): DeviceRow[] {
       },
     ];
   });
+}
+
+export interface DataTable {
+  title: string;
+  columns: { key: string; label: string }[];
+  rows: string[][];
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Listas de objetos (itens enviados ao ERP, resultados por equipamento...) viram tabelas legíveis. */
+export function dataTables(data: Record<string, unknown>, skip: string[] = []): DataTable[] {
+  const out: DataTable[] = [];
+  for (const [k, v] of Object.entries(data)) {
+    if (skip.includes(k) || !Array.isArray(v) || !v.length || !v.every(isRecord)) continue;
+    const keys: string[] = [];
+    for (const item of v) for (const key of Object.keys(item)) if (!keys.includes(key)) keys.push(key);
+    const simple = keys.filter((key) => v.some((item) => !isRecord(item[key])));
+    out.push({
+      title: label(k),
+      columns: simple.map((key) => ({ key, label: label(key) })),
+      rows: v.map((item) => simple.map((key) => value(key, item[key]))),
+    });
+  }
+  return out;
+}
+
+export interface LogLine {
+  time: string | null;
+  level: 'info' | 'warn' | 'error' | 'debug' | null;
+  message: string;
+  fields: DetailRow[];
+}
+
+/** Linha de log do coletor (JSON do slog) → hora local, nível, mensagem e campos; texto puro fica como está. */
+export function parseLogLine(line: string): LogLine {
+  let obj: unknown;
+  try {
+    obj = JSON.parse(line);
+  } catch {
+    return { time: null, level: null, message: line, fields: [] };
+  }
+  if (!isRecord(obj)) return { time: null, level: null, message: line, fields: [] };
+  const { time, level, msg, ...rest } = obj;
+  const lv = typeof level === 'string' ? level.toLowerCase() : '';
+  const when = typeof time === 'string' && !Number.isNaN(Date.parse(time)) ? new Date(time) : null;
+  return {
+    time: when
+      ? when.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium' })
+      : null,
+    level: lv === 'info' || lv === 'warn' || lv === 'error' || lv === 'debug' ? lv : null,
+    message: typeof msg === 'string' ? msg : line,
+    fields: detailRows(rest),
+  };
 }

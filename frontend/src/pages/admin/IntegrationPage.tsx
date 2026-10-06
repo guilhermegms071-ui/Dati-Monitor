@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
+import { DataList } from '../../components/domain';
 import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog } from '../../components/ui/dialog';
@@ -504,9 +505,9 @@ function QueueDetail({ id, onClose }: { id: string; onClose: () => void }) {
       ) : q.isError ? (
         <ErrorState error={q.error} />
       ) : (
-        <pre className="max-h-[60vh] overflow-auto rounded bg-slate-50 p-3 text-xs dark:bg-slate-800">
-          {JSON.stringify(q.data.payload, null, 2)}
-        </pre>
+        <div className="scroll-thin max-h-[60vh] overflow-auto">
+          <DataList data={q.data.payload} />
+        </div>
       )}
     </Dialog>
   );
