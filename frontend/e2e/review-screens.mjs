@@ -12,7 +12,13 @@ const errors = [];
 page.on('console', (m) => {
   if (m.type() === 'error') errors.push(m.text());
 });
+page.on('response', (r) => {
+  if (r.status() >= 400) errors.push(`${String(r.status())} ${r.url()}`);
+});
 await page.goto(`${base}/login`);
+await page.getByLabel('E-mail').waitFor();
+await page.waitForTimeout(600);
+await page.screenshot({ path: `${out}/00-login.png` });
 await page.getByLabel('E-mail').fill(process.env.DM_E2E_EMAIL);
 await page.getByLabel('Senha').fill(process.env.DM_E2E_PASSWORD);
 await page.getByRole('button', { name: 'Entrar' }).click();

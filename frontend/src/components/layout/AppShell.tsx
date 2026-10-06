@@ -26,6 +26,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 
+import logoMark from '../../assets/logo-dc.svg';
 import { api, unwrap } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useLiveEvents, type LiveStatus } from '../../lib/live';
@@ -166,10 +167,11 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-white/5 px-5 text-[15px] font-semibold text-white">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600">
-          <Printer className="h-4.5 w-4.5 text-white" aria-hidden />
+        <img src={logoMark} alt="" className="h-8 w-auto" aria-hidden />
+        <span className="leading-tight">
+          {product.name}
+          <span className="block text-[11px] font-medium tracking-wide text-nav-400">Daticopy</span>
         </span>
-        {product.name}
       </div>
       <nav className="scroll-thin flex flex-1 flex-col gap-6 overflow-y-auto px-3 pt-5" aria-label="Menu principal">
         {GROUPS.map((g) => {

@@ -10,7 +10,15 @@ import { fmtInt } from '../../lib/format';
 import { showError, showSuccess } from '../../lib/notify';
 
 /** Leitura manual (folha de contadores) — impressoras USB sem PJL e qualquer equipamento sem contador. */
-export function ManualReadingButton({ deviceId, label = 'Leitura manual' }: { deviceId: string; label?: string }) {
+export function ManualReadingButton({
+  deviceId,
+  label = 'Leitura manual',
+  size = 'sm',
+}: {
+  deviceId: string;
+  label?: string;
+  size?: 'sm' | 'md';
+}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [total, setTotal] = useState('');
@@ -25,13 +33,13 @@ export function ManualReadingButton({ deviceId, label = 'Leitura manual' }: { de
   return (
     <>
       <Button
-        size="sm"
+        size={size}
         variant="secondary"
         onClick={() => {
           setOpen(true);
         }}
       >
-        <ClipboardPen className="h-3.5 w-3.5" /> {label}
+        <ClipboardPen className="h-4 w-4" /> {label}
       </Button>
       {open ? (
         <Dialog

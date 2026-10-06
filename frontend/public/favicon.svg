@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="152 113 336 336" role="img" aria-label="Daticopy">
+  <title>Daticopy</title>
+  <defs>
+    <linearGradient id="dcm-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1877DA"/>
+      <stop offset="1" stop-color="#2DB8F3"/>
+    </linearGradient>
+    <mask id="dcm-grad-gap" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="640" height="640" fill="#fff"/>
+      <path d="M470 262 C470 236 446 222 412 222 H356 C318 222 298 244 298 282 V352 C298 392 320 412 358 412 H412 C450 412 472 394 472 366 V346 H420 V356 C420 364 414 368 404 368 H366 C354 368 348 362 348 350 V286 C348 274 354 268 366 268 H404 C414 268 420 272 420 280 V292 H470 Z" fill="#000" stroke="#000" stroke-width="28" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <path d="M166 146 H276 C318 146 344 172 344 214 V276 C344 318 318 344 276 344 H186 V176 H166 Z M236 196 H272 C285 196 292 203 292 216 V274 C292 287 285 294 272 294 H236 Z" fill="url(#dcm-grad)" fill-rule="evenodd" mask="url(#dcm-grad-gap)"/>
+  <path d="M470 262 C470 236 446 222 412 222 H356 C318 222 298 244 298 282 V352 C298 392 320 412 358 412 H412 C450 412 472 394 472 366 V346 H420 V356 C420 364 414 368 404 368 H366 C354 368 348 362 348 350 V286 C348 274 354 268 366 268 H404 C414 268 420 272 420 280 V292 H470 Z" fill="url(#dcm-grad)"/>
+</svg>

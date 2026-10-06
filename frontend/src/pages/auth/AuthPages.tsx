@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 
+import logo from '../../assets/logo-daticopy.svg';
 import { ApiStatus } from '../../components/ApiStatus';
 import { Button } from '../../components/ui/button';
 import { Field, Input } from '../../components/ui/form';
@@ -24,10 +25,11 @@ function AuthCard({
   footer?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-3 p-4">
-      <Card className="w-full max-w-sm p-6">
+    <div className="flex min-h-full flex-col items-center justify-center gap-5 p-4">
+      <img src={logo} alt="Daticopy" className="h-28 w-auto" />
+      <Card className="w-full max-w-sm p-7 shadow-lg">
         <p className="mb-1 text-sm font-semibold text-brand-600">{product.name}</p>
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <h1 className="text-xl font-semibold">{title}</h1>
         {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
         <div className="mt-5">{children}</div>
       </Card>

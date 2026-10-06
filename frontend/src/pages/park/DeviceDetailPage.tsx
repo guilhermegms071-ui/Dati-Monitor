@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download } from 'lucide-react';
+import { ChevronDown, Download, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import {
@@ -15,10 +15,10 @@ import {
   YAxis,
 } from 'recharts';
 
-import { DeviceStatus, SupplyBars } from '../../components/domain';
+import { DeviceStatus } from '../../components/domain';
 import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
-import { Dialog } from '../../components/ui/dialog';
+import { Dialog, Menu, MenuItem } from '../../components/ui/dialog';
 import { Field, Input, Select, Textarea } from '../../components/ui/form';
 import {
   Badge,
@@ -26,7 +26,6 @@ import {
   CardHeader,
   EmptyState,
   ErrorState,
-  KeyValue,
   PageHeader,
   RelativeTime,
   Spinner,
@@ -38,7 +37,7 @@ import {
 import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useSendCommand } from '../../lib/commands';
-import { dayKey, fmtCommunication, fmtDate, fmtDateTime, fmtInt, fmtPercent } from '../../lib/format';
+import { dayKey, fmtDate, fmtDateTime, fmtInt, fmtPercent } from '../../lib/format';
 import { printerName } from '../../lib/printers';
 import { describeForecast } from '../../lib/forecast';
 import { DEVICE_EVENT } from '../../lib/labels';
@@ -48,6 +47,7 @@ import { showError, showSuccess } from '../../lib/notify';
 import { AlertsList } from '../alerts/AlertsList';
 
 import { AttributesCard, DeviceForm, DeviceTonerCard } from './DeviceRegistration';
+import { CounterTiles, DetailedCounters, DeviceTechCard, SupplyPanel } from './DeviceOverview';
 import { ManualReadingButton } from './ManualReading';
 import { WebAccessButton } from './WebAccess';
 
@@ -64,91 +64,76 @@ export function DeviceDetailPage() {
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <PageHeader
         title={printerName(d.brand, d.model) || d.serial}
         subtitle={
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="font-mono">{d.serial}</span>· {d.ip ?? 'sem IP'} · {d.customer_name} / {d.site_name}
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <DeviceStatus status={d.last_status} disconnected={d.disconnected} />
             {!d.active ? <Badge>Desativado</Badge> : null}
             {d.discovery_state === 'pending' ? <Badge tone="yellow">Pendente em Descobertas</Badge> : null}
             {d.discovery_state === 'discarded' ? <Badge tone="red">Descartado</Badge> : null}
+            <span className="font-mono text-slate-700 dark:text-slate-300">{d.serial}</span>
+            <span className="text-slate-300 dark:text-slate-600">•</span>
+            <span>{d.ip ?? 'sem IP'}</span>
+            <span className="text-slate-300 dark:text-slate-600">•</span>
+            <span>
+              {d.customer_name} <span className="text-slate-400">›</span> {d.site_name}
+            </span>
           </span>
         }
         actions={
           <>
+            {d.ip && can('devices.web_access') ? <WebAccessButton deviceId={d.id} size="md" /> : null}
+            {can('readings.adjust') ? <ManualReadingButton deviceId={d.id} size="md" /> : null}
             {d.last_agent_id && can('agents.command') ? <DeviceActions device={d} agentId={d.last_agent_id} /> : null}
-            {d.ip && can('devices.web_access') ? <WebAccessButton deviceId={d.id} /> : null}
-            {can('readings.adjust') ? <ManualReadingButton deviceId={d.id} /> : null}
           </>
         }
       />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-4 lg:col-span-2">
-          <KeyValue
-            items={[
-              ['Comunicação', fmtCommunication(d.last_read_at)],
-              ['Descoberta', fmtDate(d.first_seen_at)],
-              [
-                'Total',
-                <span className="text-lg font-semibold" key="t">
-                  {fmtInt(d.last_total)}
-                </span>,
-              ],
-              ['PB / Cor', `${fmtInt(d.last_mono)} / ${fmtInt(d.last_color)}`],
-              ['Coletor (DCA)', d.agent_name ?? '—'],
-              ['Perfil / fonte', `${d.profile_key ?? '—'} / ${d.counter_source ?? '—'}`],
-              ['MAC', d.mac ?? '—'],
-              ['Firmware', d.firmware ?? '—'],
-              ['Painel', d.last_panel_text ?? '—'],
-              ['Erros', d.last_error_reasons.length ? d.last_error_reasons.join(', ') : 'nenhum'],
-            ]}
-          />
-        </Card>
-        <Card>
-          <CardHeader title="Níveis" />
-          <div className="p-4">
-            <SupplyBars supplies={d.supplies} />
-          </div>
-        </Card>
-      </div>
-      <Tabs defaultValue="counters">
+      <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="counters">Contadores</TabsTrigger>
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="readings">Leituras</TabsTrigger>
           <TabsTrigger value="supplies">Suprimentos</TabsTrigger>
-          <TabsTrigger value="events">Eventos</TabsTrigger>
-          <TabsTrigger value="adjustments">Ajustes</TabsTrigger>
-          <TabsTrigger value="alerts">Alertas</TabsTrigger>
-          <TabsTrigger value="attributes">Atributos</TabsTrigger>
-          <TabsTrigger value="data">Dados cadastrais</TabsTrigger>
+          <TabsTrigger value="events">Alertas e eventos</TabsTrigger>
+          <TabsTrigger value="data">Cadastro</TabsTrigger>
         </TabsList>
-        <TabsContent value="counters">
-          <CountersChart deviceId={deviceId} />
+        <TabsContent value="overview" className="space-y-5">
+          <CounterTiles device={d} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <DetailedCounters deviceId={d.id} color={d.is_color !== false} />
+            </div>
+            <SupplyPanel deviceId={d.id} />
+          </div>
+          <div className="grid gap-5 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <CountersChart deviceId={deviceId} />
+            </div>
+            <DeviceTechCard device={d} />
+          </div>
         </TabsContent>
-        <TabsContent value="readings">
+        <TabsContent value="readings" className="space-y-5">
           <ReadingsTable deviceId={deviceId} canAdjust={can('readings.adjust')} />
+          <AdjustmentsTab deviceId={deviceId} />
         </TabsContent>
         <TabsContent value="supplies">
           <SuppliesTab deviceId={deviceId} />
         </TabsContent>
-        <TabsContent value="events">
+        <TabsContent value="events" className="space-y-5">
+          <Card>
+            <CardHeader title="Alertas" />
+            <div className="p-4">
+              <AlertsList deviceId={deviceId} compact />
+            </div>
+          </Card>
           <EventsTab deviceId={deviceId} />
         </TabsContent>
-        <TabsContent value="adjustments">
-          <AdjustmentsTab deviceId={deviceId} />
-        </TabsContent>
-        <TabsContent value="alerts">
-          <AlertsList deviceId={deviceId} compact />
-        </TabsContent>
-        <TabsContent value="attributes">
-          <AttributesCard deviceId={deviceId} />
-        </TabsContent>
         <TabsContent value="data">
-          <div className="space-y-4">
+          <div className="space-y-5">
             <DeviceForm deviceId={d.id} editable={can('devices.update')} />
             {can('supplies.monitor') ? <DeviceTonerCard deviceId={d.id} editable={can('devices.update')} /> : null}
+            <AttributesCard deviceId={deviceId} />
           </div>
         </TabsContent>
       </Tabs>
@@ -162,8 +147,20 @@ function DeviceActions({ device, agentId }: { device: Row; agentId: string }) {
   const target = device.ip ? { ip: device.ip, port: device.snmp_port } : null;
   return (
     <>
+      {target ? (
+        <Menu
+          trigger={
+            <Button variant="secondary">
+              Mais ações <ChevronDown className="h-4 w-4" />
+            </Button>
+          }
+        >
+          <MenuItem onSelect={() => void send('snmp_test', target)}>Testar SNMP</MenuItem>
+          <MenuItem onSelect={() => void send('read_device', target)}>Leitura bruta</MenuItem>
+          <MenuItem onSelect={() => void send('mib_walk', target)}>Walk SNMP</MenuItem>
+        </Menu>
+      ) : null}
       <Button
-        size="sm"
         loading={busy}
         onClick={() => {
           void unwrap(api.POST('/api/v1/devices/bulk', { body: { device_ids: [device.id], action: 'read_now' } }))
@@ -176,21 +173,8 @@ function DeviceActions({ device, agentId }: { device: Row; agentId: string }) {
             });
         }}
       >
-        Ler agora
+        <RefreshCw className="h-4 w-4" /> Ler agora
       </Button>
-      {target ? (
-        <>
-          <Button size="sm" variant="secondary" onClick={() => void send('snmp_test', target)}>
-            Testar SNMP
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => void send('read_device', target)}>
-            Leitura bruta
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => void send('mib_walk', target)}>
-            Walk
-          </Button>
-        </>
-      ) : null}
       {watcher}
     </>
   );
@@ -216,6 +200,7 @@ function CountersChart({ deviceId }: { deviceId: string }) {
     <Card>
       <CardHeader
         title="Páginas por período"
+        subtitle="Produção calculada pela diferença entre as leituras"
         actions={
           <Select
             value={granularity}
@@ -230,7 +215,7 @@ function CountersChart({ deviceId }: { deviceId: string }) {
           </Select>
         }
       />
-      <div className="h-72 p-3">
+      <div className="h-72 px-3 py-4">
         {q.isPending ? (
           <Spinner />
         ) : q.isError ? (
@@ -245,8 +230,8 @@ function CountersChart({ deviceId }: { deviceId: string }) {
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtInt(v)} width={60} />
               <ChartTooltip formatter={(v) => fmtInt(Number(v))} />
               <Legend />
-              <Bar dataKey="PB" stackId="p" fill="#334155" />
-              <Bar dataKey="Cor" stackId="p" fill="#0ea5e9" />
+              <Bar dataKey="PB" stackId="p" fill="#475569" />
+              <Bar dataKey="Cor" stackId="p" fill="#0ea5e9" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

@@ -16,7 +16,7 @@ const OPTIONS: { label: string; port: number; scheme: 'http' | 'https' }[] = [
 ];
 
 /** Abrir a página web da impressora pelo túnel do coletor (seção 4.9), em nova aba. */
-export function WebAccessButton({ deviceId }: { deviceId: string }) {
+export function WebAccessButton({ deviceId, size = 'sm' }: { deviceId: string; size?: 'sm' | 'md' }) {
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -48,7 +48,7 @@ export function WebAccessButton({ deviceId }: { deviceId: string }) {
   return (
     <>
       <Button
-        size="sm"
+        size={size}
         variant="secondary"
         onClick={() => {
           setOpen(true);

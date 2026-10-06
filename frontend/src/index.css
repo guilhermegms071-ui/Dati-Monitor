@@ -6,20 +6,21 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Identidade visual (referência: console de administração do PaperCut): fundo claro, menu lateral escuro,
- * verde como cor de ação e destaque, cartões brancos com borda fina e bastante respiro.
+ * Identidade visual (layout de referência: console de administração do PaperCut; cores: logo da Daticopy):
+ * fundo claro, menu lateral grafite, azul como cor de ação e destaque, cartões brancos com borda fina.
  */
 @theme {
-  --color-brand-50: #eff8f0;
-  --color-brand-100: #d8eedb;
-  --color-brand-200: #b3ddb8;
-  --color-brand-300: #84c68c;
-  --color-brand-400: #5aad63;
-  --color-brand-500: #3f9548;
-  --color-brand-600: #2f7d38;
-  --color-brand-700: #27662e;
-  --color-brand-800: #225228;
-  --color-brand-900: #1d4423;
+  /* Azul do logo da Daticopy (degradê #1877DA → #2DB8F3); 600 = botões, com contraste AA no texto branco. */
+  --color-brand-50: #eef6fe;
+  --color-brand-100: #d7eafc;
+  --color-brand-200: #b0d8f9;
+  --color-brand-300: #78bdf4;
+  --color-brand-400: #3d9eec;
+  --color-brand-500: #1d84e0;
+  --color-brand-600: #156cc4;
+  --color-brand-700: #13589f;
+  --color-brand-800: #144a82;
+  --color-brand-900: #143e6a;
   /* Menu lateral (grafite) */
   --color-nav-900: #1c2326;
   --color-nav-800: #252e32;

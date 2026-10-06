@@ -225,11 +225,14 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
 
 export const TabsContent = TabsPrimitive.Content;
 
-export function KeyValue({ items }: { items: [string, ReactNode][] }) {
+export function KeyValue({ items, columns = 2 }: { items: [string, ReactNode][]; columns?: 1 | 2 }) {
   return (
-    <dl className="grid grid-cols-1 gap-x-8 text-sm sm:grid-cols-2">
+    <dl className={cn('grid grid-cols-1 gap-x-8 text-sm', columns === 2 && 'sm:grid-cols-2')}>
       {items.map(([k, v]) => (
-        <div key={k} className="flex justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-800">
+        <div
+          key={k}
+          className="flex justify-between gap-3 border-b border-slate-100 py-2 last:border-0 dark:border-slate-800"
+        >
           <dt className="text-slate-500">{k}</dt>
           <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{v ?? '—'}</dd>
         </div>
