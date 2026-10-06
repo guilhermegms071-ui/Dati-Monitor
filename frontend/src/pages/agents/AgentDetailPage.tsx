@@ -172,11 +172,18 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
             </Button>
           }
         >
-          {ACTIONS.map(([t, label]) => (
-            <MenuItem key={t} onSelect={() => void send(t)}>
-              {label}
-            </MenuItem>
-          ))}
+          {ACTIONS.map(([t, label]) =>
+            t === 'scan_now' && a.cluster_role !== 'master' ? (
+              // Varrer a rede é só do MASTER do local; o STANDBY assume se o MASTER cair.
+              <MenuItem key={t} disabled onSelect={() => undefined}>
+                {label} (só o MASTER)
+              </MenuItem>
+            ) : (
+              <MenuItem key={t} onSelect={() => void send(t)}>
+                {t === 'read_now' && a.cluster_role !== 'master' ? 'Ler agora (impressoras USB deste PC)' : label}
+              </MenuItem>
+            ),
+          )}
           <MenuItem onSelect={() => void send(a.paused ? 'resume' : 'pause')}>
             {a.paused ? 'Retomar coletas' : 'Pausar coletas'}
           </MenuItem>

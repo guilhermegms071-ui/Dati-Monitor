@@ -492,23 +492,36 @@ async def bulk(
 async def _bulk_read(
     session: AsyncSession, settings: Settings, p: Principal, rows: list[Device], out: BulkDevicesOut
 ) -> BulkDevicesOut:
-    """read_now is sent to the MASTER of each site, with the site's selected devices."""
-    by_site: dict[uuid.UUID, list[Device]] = defaultdict(list)
+    """read_now goes to the MASTER of each site (network printers) or to the PC the USB printer is
+    plugged into (only that PC sees it, MASTER or STANDBY)."""
+    by_agent: dict[uuid.UUID, list[Device]] = defaultdict(list)
+    masters: dict[uuid.UUID, Agent | None] = {}
     for d in rows:
-        by_site[d.site_id].append(d)
-    for site_id, devices in by_site.items():
-        site = await session.get(Site, site_id)
-        master = await session.get(Agent, site.master_agent_id) if site and site.master_agent_id else None
-        if master is None or master.revoked_at is not None or master.deleted_at is not None:
-            out.skipped += [
-                {"device_id": str(d.id), "reason": "o local não tem coletor MASTER"} for d in devices
-            ]
+        if d.source == "usb" and d.usb_agent_id:
+            usb_agent = await session.get(Agent, d.usb_agent_id)
+            if usb_agent is None or usb_agent.revoked_at is not None or usb_agent.deleted_at is not None:
+                out.skipped.append(
+                    {"device_id": str(d.id), "reason": "o PC desta impressora USB não tem mais coletor"}
+                )
+                continue
+            by_agent[usb_agent.id].append(d)
             continue
+        if d.site_id not in masters:
+            site = await session.get(Site, d.site_id)
+            master = await session.get(Agent, site.master_agent_id) if site and site.master_agent_id else None
+            ok = master is not None and master.revoked_at is None and master.deleted_at is None
+            masters[d.site_id] = master if ok else None
+        master = masters[d.site_id]
+        if master is None:
+            out.skipped.append({"device_id": str(d.id), "reason": "o local não tem coletor MASTER"})
+            continue
+        by_agent[master.id].append(d)
+    for agent_id, devices in by_agent.items():
         cmd = await commands_svc.create_command(
             session,
             settings,
             p,
-            master.id,
+            agent_id,
             CommandIn(type="read_now", params={"device_ids": [str(d.id) for d in devices]}),
         )
         out.commands.append(cmd.id)

@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -153,12 +154,62 @@ func (a *Agent) cmdReadNow(ctx context.Context, cmd protocol.CommandMessage, pro
 		return commands.Result{}, err
 	}
 	progress("lendo os equipamentos")
-	sum, err := a.Collector.ReadNow(ctx, p.Devices)
-	if err != nil {
-		return commands.Result{}, err
+	// USB: só este PC enxerga as suas, então lê sempre (MASTER ou STANDBY).
+	var usbSerials []string
+	var network []collector.Selector
+	for _, d := range p.Devices {
+		if d.IP == "" && d.Serial != "" {
+			usbSerials = append(usbSerials, d.Serial)
+		} else {
+			network = append(network, d)
+		}
+	}
+	var usb []collector.DeviceReadResult
+	var usbErr error
+	if len(p.Devices) == 0 || len(usbSerials) > 0 {
+		usb, usbErr = a.Collector.ReadUSBNow(ctx, a.USB, usbSerials)
+	}
+	var sum collector.ReadSummary
+	var note string
+	if len(p.Devices) == 0 || len(network) > 0 {
+		var err error
+		sum, err = a.Collector.ReadNow(ctx, network)
+		switch {
+		case errors.Is(err, collector.ErrNotMaster):
+			// STANDBY: as de rede ficam com o MASTER; as USB deste PC foram lidas acima.
+			if len(network) > 0 || (len(usb) == 0 && usbErr == nil) {
+				return commands.Result{}, err
+			}
+			note = "As impressoras de rede são lidas pelo MASTER do local; este coletor leu as USB deste PC."
+		case err != nil:
+			return commands.Result{}, err
+		}
+	}
+	if usbErr != nil && len(sum.Devices) == 0 && len(p.Devices) > 0 {
+		return commands.Result{}, usbErr
+	}
+	for _, r := range usb {
+		sum.Requested++
+		if r.OK {
+			sum.OK++
+		} else {
+			sum.Failed++
+		}
+		sum.Devices = append(sum.Devices, r)
+	}
+	for _, s := range usbSerials {
+		found := false
+		for _, r := range usb {
+			found = found || r.Serial == s
+		}
+		if !found {
+			sum.Requested++
+			sum.Failed++
+			sum.NotFound = append(sum.NotFound, collector.Selector{Serial: s})
+		}
 	}
 	a.Uploader.Kick()
-	return commands.Result{Data: toMap(sum)}, nil
+	return commands.Result{Data: toMap(sum), Output: note}, nil
 }
 
 // readDeviceParams: `profile` is a draft being tested in the portal (Perfis de modelos, PROMPT 6.6).

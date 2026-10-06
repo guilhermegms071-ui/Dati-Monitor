@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/daticopy/dati-monitor/agent/internal/protocol"
 	"github.com/daticopy/dati-monitor/agent/internal/usbprint"
 )
 
@@ -103,5 +104,42 @@ func TestRunUSBStopsWithContext(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("primeiro ciclo logo na partida: %d", calls)
+	}
+}
+
+// "Ler agora" das USB funciona em qualquer coletor (o STANDBY também: só este PC vê as suas) e devolve o
+// resultado de cada impressora; com seriais, lê só essas.
+func TestReadUSBNowOnStandby(t *testing.T) {
+	f := newFixture(t)
+	f.c.mu.Lock()
+	f.c.role = "standby"
+	f.c.cfg = &protocol.AgentConfig{ClusterRole: "standby"}
+	f.c.mu.Unlock()
+	deps := USBDeps{
+		Hostname: func() string { return "PC-RECEPCAO" },
+		List: func(context.Context) ([]usbprint.Printer, error) {
+			return []usbprint.Printer{
+				{Name: "HP", Driver: "HP LaserJet M14-M17", Port: "USB001", Parent: `USB\VID_03F0&PID_8D2A\VNC3K1`},
+				{Name: "Brother HL", Driver: "Brother HL-1212W", Port: "USB003", Parent: `USB\VID_04F9&PID_1\BRX9`, Offline: true},
+			}, nil
+		},
+		PageCount: func(context.Context, usbprint.Printer) (int64, string, error) { return 500, "", nil },
+	}
+	all, err := f.c.ReadUSBNow(context.Background(), deps, nil)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("todas as USB: %+v %v", all, err)
+	}
+	if !all[0].OK || all[0].Serial != "VNC3K1" || all[0].IP != "USB USB001" {
+		t.Fatalf("HP: %+v", all[0])
+	}
+	if all[1].OK || all[1].Error == "" {
+		t.Fatalf("Brother desligada: %+v", all[1])
+	}
+	one, err := f.c.ReadUSBNow(context.Background(), deps, []string{"VNC3K1"})
+	if err != nil || len(one) != 1 || one[0].Serial != "VNC3K1" {
+		t.Fatalf("só a escolhida: %+v %v", one, err)
+	}
+	if _, err := f.c.ReadNow(context.Background(), nil); !errors.Is(err, ErrNotMaster) {
+		t.Fatalf("as de rede continuam só com o MASTER: %v", err)
 	}
 }

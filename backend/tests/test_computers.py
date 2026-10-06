@@ -154,3 +154,30 @@ async def test_manual_reading_rules(
     _, viewer_email = await factory.user(tenant.reseller_id, role="customer_viewer")
     viewer = await login(client, viewer_email)
     assert (await client.post(url, json={"total": 900}, headers=auth(viewer))).status_code == 403
+
+
+async def test_read_now_of_usb_printer_goes_to_its_pc(client: httpx.AsyncClient, factory: Factory) -> None:
+    """Só o PC em que a impressora USB está ligada a enxerga: o "Ler agora" vai para ele, mesmo que outro
+    coletor do local seja o MASTER (que continua lendo as de rede)."""
+    tenant = await factory.tenant()
+    admin = await login(client, tenant.admin_email)
+    master = await enrolled_agent(client, tenant, "PC do MASTER")
+    await master.heartbeat()
+    standby = await enrolled_agent(client, tenant, "PC da recepção")
+    await standby.heartbeat()
+    await standby.send([usb_item(standby, "status", "VNC3K1", **status())])
+    await master.send([master.reading("KM-001", {"total": 100, "mono": 100})])
+    rows = {
+        r["serial"]: r["id"] for r in (await client.get("/api/v1/park", headers=auth(admin))).json()["items"]
+    }
+    resp = await client.post(
+        "/api/v1/devices/bulk",
+        json={"device_ids": [rows["VNC3K1"], rows["KM-001"]], "action": "read_now"},
+        headers=auth(admin),
+    )
+    assert resp.status_code == 200, resp.text
+    targets = {}
+    for cid in resp.json()["commands"]:
+        cmd = (await client.get(f"/api/v1/commands/{cid}", headers=auth(admin))).json()
+        targets[cmd["agent_id"]] = [d["serial"] for d in cmd["params"]["devices"]]
+    assert targets == {standby.agent_id: ["VNC3K1"], master.agent_id: ["KM-001"]}
