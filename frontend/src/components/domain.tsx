@@ -6,6 +6,7 @@ import { api, unwrap, type Schemas } from '../lib/api';
 import { fmtDateTime, fmtPercent } from '../lib/format';
 import { AGENT_STATE, COMMAND_STATE, DEVICE_STATUS, FINAL_COMMAND_STATES, SUPPLY_COLOR } from '../lib/labels';
 import { useSendCommand, type CommandType } from '../lib/commands';
+import { commandSummary } from '../lib/commandSummary';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Dialog } from './ui/dialog';
@@ -85,10 +86,11 @@ export function SupplyBars({ supplies }: { supplies: Schemas['SupplyLevel'][] })
   );
 }
 
-/** Resultado de um comando, legível (JSON formatado) + saída de texto. */
+/** Resultado de um comando: resumo em português, JSON completo em "Ver detalhes" e saída de texto. */
 function CommandResult({ cmd }: { cmd: Command }) {
   const result = cmd.result ?? {};
   const error = typeof result.error === 'string' ? result.error : null;
+  const summary = commandSummary(cmd.type, result);
   return (
     <div className="space-y-3">
       {error ? (
@@ -96,10 +98,26 @@ function CommandResult({ cmd }: { cmd: Command }) {
           {error}
         </p>
       ) : null}
+      {summary.length ? (
+        <ul className="space-y-1 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-900">
+          {summary.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
       {Object.keys(result).length > (error ? 1 : 0) ? (
-        <pre className="scroll-thin max-h-96 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
-          {JSON.stringify(result, null, 2)}
-        </pre>
+        summary.length ? (
+          <details>
+            <summary className="cursor-pointer text-xs text-slate-500">Ver detalhes técnicos</summary>
+            <pre className="scroll-thin mt-2 max-h-96 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
+        ) : (
+          <pre className="scroll-thin max-h-96 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        )
       ) : null}
       {cmd.output ? (
         <pre className="scroll-thin max-h-72 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
