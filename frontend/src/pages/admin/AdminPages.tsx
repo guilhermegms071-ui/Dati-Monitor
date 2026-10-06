@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 
+import { DataList } from '../../components/domain';
 import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
 import { ConfirmButton, Dialog } from '../../components/ui/dialog';
@@ -402,9 +403,20 @@ export function AuditPage() {
                     {r.after || r.before ? (
                       <details>
                         <summary className="cursor-pointer text-xs text-brand-600">ver</summary>
-                        <pre className="mt-1 overflow-x-auto text-[11px]">
-                          {JSON.stringify({ antes: r.before, depois: r.after }, null, 2)}
-                        </pre>
+                        <div className="mt-1 space-y-2">
+                          {r.before ? (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase text-slate-400">Antes</p>
+                              <DataList data={r.before} compact />
+                            </div>
+                          ) : null}
+                          {r.after ? (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase text-slate-400">Depois</p>
+                              <DataList data={r.after} compact />
+                            </div>
+                          ) : null}
+                        </div>
                       </details>
                     ) : null}
                   </td>

@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { Crown, Radio, WifiOff } from 'lucide-react';
+import { Copy, Crown, Radio, WifiOff } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { api, unwrap, type Schemas } from '../lib/api';
 import { fmtDateTime, fmtPercent } from '../lib/format';
 import { AGENT_STATE, COMMAND_STATE, DEVICE_STATUS, FINAL_COMMAND_STATES, SUPPLY_COLOR } from '../lib/labels';
 import { useSendCommand, type CommandType } from '../lib/commands';
+import { detailRows, deviceRows } from '../lib/commandDetails';
 import { commandSummary } from '../lib/commandSummary';
+import { showError, showSuccess } from '../lib/notify';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Dialog } from './ui/dialog';
@@ -86,11 +88,16 @@ export function SupplyBars({ supplies }: { supplies: Schemas['SupplyLevel'][] })
   );
 }
 
-/** Resultado de um comando: resumo em português, JSON completo em "Ver detalhes" e saída de texto. */
+/** Resultado de um comando, só em português: resumo, equipamentos em tabela, demais dados como lista. */
 function CommandResult({ cmd }: { cmd: Command }) {
   const result = cmd.result ?? {};
   const error = typeof result.error === 'string' ? result.error : null;
   const summary = commandSummary(cmd.type, result);
+  const devices = deviceRows(result);
+  // Com resumo, os números já estão nas frases; a lista mostra só o que o resumo não cobre.
+  const covered = summary.length ? Object.keys(result) : [];
+  const rows = detailRows(result, ['error', 'devices', 'not_found', ...covered]);
+  const hasData = Object.keys(result).length > 0;
   return (
     <div className="space-y-3">
       {error ? (
@@ -105,26 +112,89 @@ function CommandResult({ cmd }: { cmd: Command }) {
           ))}
         </ul>
       ) : null}
-      {Object.keys(result).length > (error ? 1 : 0) ? (
-        summary.length ? (
-          <details>
-            <summary className="cursor-pointer text-xs text-slate-500">Ver detalhes técnicos</summary>
-            <pre className="scroll-thin mt-2 max-h-96 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </details>
-        ) : (
-          <pre className="scroll-thin max-h-96 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        )
+      {devices.length ? (
+        <div className="overflow-hidden rounded-md border border-slate-200 dark:border-slate-800">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-900">
+              <tr>
+                <th className="px-3 py-2 text-left">Nº de série</th>
+                <th className="px-3 py-2 text-left">IP</th>
+                <th className="px-3 py-2 text-left">Resultado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {devices.map((d, i) => (
+                <tr
+                  key={`${d.serial}-${d.ip}-${String(i)}`}
+                  className="border-t border-slate-100 dark:border-slate-800"
+                >
+                  <td className="px-3 py-2 font-mono text-xs">{d.serial}</td>
+                  <td className="px-3 py-2">{d.ip}</td>
+                  <td className="px-3 py-2">
+                    {d.ok ? (
+                      <Badge tone="green">Lido</Badge>
+                    ) : (
+                      <span className="text-red-600">{d.error ?? 'Falhou'}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {rows.length ? (
+        <dl className="divide-y divide-slate-100 rounded-md border border-slate-200 text-sm dark:divide-slate-800 dark:border-slate-800">
+          {rows.map((r) => (
+            <div key={r.label} className="flex justify-between gap-4 px-3 py-2">
+              <dt className="text-slate-500">{r.label}</dt>
+              <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{r.value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
       {cmd.output ? (
-        <pre className="scroll-thin max-h-72 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">
+        <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-700 dark:bg-slate-900 dark:text-slate-300">
           {cmd.output}
-        </pre>
+        </p>
+      ) : null}
+      {hasData ? (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              navigator.clipboard
+                .writeText(JSON.stringify(result, null, 2))
+                .then(() => {
+                  showSuccess('Dados técnicos copiados (para enviar ao suporte)');
+                })
+                .catch((err: unknown) => {
+                  showError(err, 'Não foi possível copiar');
+                });
+            }}
+          >
+            <Copy className="h-3.5 w-3.5" /> Copiar dados técnicos
+          </Button>
+        </div>
       ) : null}
     </div>
+  );
+}
+
+/** Dados de evento/auditoria como lista "rótulo: valor" em português (no lugar de JSON). */
+export function DataList({ data, compact }: { data: Record<string, unknown>; compact?: boolean }) {
+  const rows = detailRows(data);
+  if (!rows.length) return null;
+  return (
+    <dl className={cn('space-y-0.5', compact ? 'text-xs' : 'text-sm')}>
+      {rows.map((r) => (
+        <div key={r.label} className="flex gap-2">
+          <dt className="shrink-0 text-slate-500">{r.label}:</dt>
+          <dd className="min-w-0 break-words font-medium text-slate-800 dark:text-slate-200">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

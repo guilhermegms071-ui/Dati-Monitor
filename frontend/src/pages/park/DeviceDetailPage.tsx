@@ -15,7 +15,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { DeviceStatus } from '../../components/domain';
+import { DataList, DeviceStatus } from '../../components/domain';
 import { LoadMore } from '../../components/paging';
 import { Button } from '../../components/ui/button';
 import { Dialog, Menu, MenuItem } from '../../components/ui/dialog';
@@ -560,9 +560,9 @@ function EventsTab({ deviceId }: { deviceId: string }) {
               <RelativeTime value={e.created_at} />
             </p>
             {Object.keys(e.data).length ? (
-              <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-[11px] dark:bg-slate-800">
-                {JSON.stringify(e.data, null, 2)}
-              </pre>
+              <div className="mt-1.5 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                <DataList data={e.data} compact />
+              </div>
             ) : null}
           </li>
         ))}
