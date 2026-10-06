@@ -20,6 +20,7 @@ def usb_item(
     it = agent.item(kind, serial=serial, read_at=read_at, **payload)
     it["device"] = {
         "ip": "",
+        "port": 0,  # como os coletores até 1.0.6 mandam (USB não tem porta SNMP)
         "serial": serial,
         "source": "usb",
         "brand": "HP",

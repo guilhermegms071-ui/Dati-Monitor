@@ -7,7 +7,7 @@ docs/protocol.md and docs/protocol-schemas/*.json are generated from these model
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PROTOCOL_VERSION = 1
 
@@ -179,6 +179,14 @@ class DeviceRef(BaseModel):
         default="snmp", description="usb = impressora ligada por USB ao PC do coletor (PROMPT 11)"
     )
     brand: str | None = Field(default=None, max_length=100, description="Marca (USB: pelo driver)")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _usb_has_no_port(cls, data: Any) -> Any:
+        # Coletores até 1.0.6 mandam port=0 nas impressoras USB (não há porta SNMP): vale o padrão.
+        if isinstance(data, dict) and data.get("source") == "usb" and not data.get("port"):
+            return {k: v for k, v in data.items() if k != "port"}
+        return data
 
 
 CounterKind = Literal["total", "print", "copy", "fax", "scan", "report", "duplex", "other"]

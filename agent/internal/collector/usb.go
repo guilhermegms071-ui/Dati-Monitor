@@ -95,7 +95,7 @@ func (c *Collector) scanUSB(ctx context.Context, d USBDeps, only map[string]bool
 	var results []DeviceReadResult
 	for _, p := range printers {
 		ref := protocol.DeviceRef{
-			Serial: p.Serial(host), Model: p.Model(), Brand: p.Brand(), Hostname: host, Source: "usb",
+			Serial: p.Serial(host), Model: p.Model(), Brand: p.Brand(), Hostname: host, Source: "usb", Port: 161,
 			SysDescr: p.Name + " (" + p.Port + ")",
 		}
 		if only != nil && !only[ref.Serial] {
