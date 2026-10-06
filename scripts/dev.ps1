@@ -30,7 +30,7 @@ function Assert-PortFree([int]$Port, [string]$Proto = 'TCP') {
     if ($busy) {
         $procId = @($busy)[0].OwningProcess
         $name = (Get-Process -Id $procId -ErrorAction SilentlyContinue).ProcessName
-        Stop-WithError "Porta $Proto $Port já está em uso por $name (PID $procId). Encerre-o ou feche outro dev.ps1."
+        Stop-WithError "Porta $Proto $Port já está em uso por $name (PID $procId). Rode scripts\stop-dev.ps1 (encerra sobras de execuções anteriores) e tente de novo."
     }
 }
 
