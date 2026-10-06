@@ -30,7 +30,9 @@ func TestSetServerSignatureMatchesTheServer(t *testing.T) {
 // "Mudar endereço do servidor": só troca com assinatura válida, pedido no prazo e o NOVO servidor
 // autenticando o coletor com a credencial dele; senão continua no atual e informa o motivo.
 func TestSetServerSwitchesOnlyToAValidatedServer(t *testing.T) {
+	prev := SwitchDelay
 	SwitchDelay = 50 * time.Millisecond
+	t.Cleanup(func() { SwitchDelay = prev })
 	current := &fakeServer{}
 	dir, _ := setup(t, current)
 	key := current.key

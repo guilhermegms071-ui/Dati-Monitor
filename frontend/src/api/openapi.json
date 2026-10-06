@@ -2425,7 +2425,8 @@
               "resume",
               "promote_master",
               "wake_host",
-              "ping_host"
+              "ping_host",
+              "set_server"
             ],
             "title": "Type",
             "type": "string"

@@ -44,6 +44,7 @@ import { PAGE_SIZE, useCursorList } from '../../lib/paging';
 import { watchdogStatus } from '../../lib/watchdog';
 import { EnrollmentInfo } from './AgentsPage';
 import { PreferredMasterButton, UninstallDialog, UpdateDialog, WatchdogBadge, WatchdogCard } from './WatchdogPanels';
+import { SetServerDialog } from './SetServerDialog';
 
 type Agent = Schemas['AgentOut'];
 
@@ -153,7 +154,7 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
   const { send, watcher } = useSendCommand(a.id);
   const [code, setCode] = useState<Schemas['EnrollmentCodeOut'] | null>(null);
   const [editing, setEditing] = useState(false);
-  const [dialog, setDialog] = useState<'update' | 'uninstall' | null>(null);
+  const [dialog, setDialog] = useState<'update' | 'uninstall' | 'set_server' | null>(null);
   const { user } = useAuth();
   const enrolled = Boolean(a.enrolled_at) && !a.revoked_at;
   const watchdogSeen = Boolean(a.last_watchdog_seen_at);
@@ -197,6 +198,15 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
           </MenuItem>
           {previous ? (
             <MenuItem onSelect={() => void send('rollback')}>Voltar para a versão {previous}</MenuItem>
+          ) : null}
+          {isAdmin ? (
+            <MenuItem
+              onSelect={() => {
+                setDialog('set_server');
+              }}
+            >
+              Mudar endereço do servidor…
+            </MenuItem>
           ) : null}
           {isAdmin && canWrite && watchdogSeen ? (
             <>
@@ -276,6 +286,15 @@ function AgentActions({ agent: a, canCommand, canWrite }: { agent: Agent; canCom
       {watcher}
       {dialog === 'update' ? (
         <UpdateDialog
+          agent={a}
+          send={send}
+          onClose={() => {
+            setDialog(null);
+          }}
+        />
+      ) : null}
+      {dialog === 'set_server' ? (
+        <SetServerDialog
           agent={a}
           send={send}
           onClose={() => {

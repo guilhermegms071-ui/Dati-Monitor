@@ -1492,6 +1492,37 @@ estabiliza é repetir mais vezes cada pacote perdido, com espera curta.
 2. Capturas em `var/telas/`: Visão geral, Parque nas 4 abas, aviso com tooltip e Configurações aberto.
    Nenhum erro no console.
 
+## Coletor na rede local e troca de servidor pelo portal (06/10/2026) ✅
+
+### Pedido
+Instalador do coletor para testar em outro PC da mesma rede, com o servidor no PC de desenvolvimento
+(sem hospedagem), e coletor que migre para a hospedagem sem reinstalar.
+
+### O que foi feito
+- **Instalador**: servidor gravado no build (`build-installer.ps1 -Server`); com ele, a tela pede só a
+  chave e mostra o endereço. `-InsecureLan` (só `http://` + IP privado) grava `--insecure-lan` no cadastro.
+- **Coletor**: `--insecure-lan` aceita `http://` só para IP literal de rede privada (`net.IP.IsPrivate`);
+  produção e endereços públicos continuam exigindo HTTPS. `--insecure-dev` não mudou.
+- **Comando `set_server`** ("Mudar endereço do servidor", permissão `agents.admin`): o servidor valida o
+  endereço (https, ou http com IP privado; sem loopback) e assina com a chave do coletor
+  (`set_server_signature`). O coletor confere a assinatura e a validade (7 dias), autentica no novo
+  servidor com a própria credencial, salva o `config.json` e troca o cliente HTTP e o WebSocket sem
+  reiniciar. O watchdog relê o endereço a cada 30 s. Portal: diálogo no menu Comandos do coletor.
+- **Rede**: `scripts\lan-setup.ps1` (IP no `.env`, aviso se o nome do PC não resolve no DNS, regra
+  "Dati Monitor dev" no Firewall só para rede Privada) e `dev.ps1 -Lan` (API e gateway em 0.0.0.0).
+
+### Testes
+- Go: `TestSetServerSwitchesOnlyToAValidatedServer` (assinatura errada, servidor impostor, pedido
+  vencido, http público → recusados; troca válida → passa a falar com o novo servidor),
+  `TestSetServerSignatureMatchesTheServer` (vetor igual ao do Python) e regras do `--insecure-lan`.
+- pytest: `test_set_server_is_signed_with_the_agent_key`, `test_set_server_signature_vector`.
+- Vitest: `SetServerDialog.test.tsx`.
+
+### Para concluir (ações do usuário, no Windows)
+1. `scripts\lan-setup.ps1` e `scripts\dev.ps1 -Lan`; de outro PC, abrir `http://10.10.10.25:8000/api/health`.
+2. `scripts\build-installer.ps1 -Version 1.0.0 -Server http://10.10.10.25:8000 -InsecureLan`.
+3. Reservar o IP 10.10.10.25 no roteador (o nome NTB-SOLUCOES não resolve no DNS da rede).
+
 ---
 
 ## Decisões
@@ -1635,4 +1666,6 @@ estabiliza é repetir mais vezes cada pacote perdido, com espera curta.
 | D135 | Parque com colunas fixas (Status, Equipamento, Cliente/Setor, Total, PB, Cor, Toner, Última comunicação) no lugar das colunas configuráveis do Datacount (IP, DCA, PAT, Descoberta, Monitor) | Pedido explícito do usuário; os demais dados seguem no detalhe, na exportação e no filtro avançado |
 | D136 | "Com alerta" = erro, atenção ou toner abaixo de 10% (mesmo limite da barra vermelha) | Uma regra só para a aba, a contagem e a cor da barra |
 | D137 | Comunicação instável: telemetria nova `transport` na leitura (tentativas SNMP usadas × padrão do coletor); 3 de 5 leituras acima do padrão marcam o equipamento | Detecta link ruim (cabo/porta/duplex) sem tratar como erro e sem tocar em contadores ou faturamento |
+| D139 | Teste em rede local: `http://` só com IP literal de rede privada (`--insecure-lan`), nunca nome | Um nome pode passar a resolver para fora da rede; o IP privado é conferível no build e no coletor |
+| D140 | Troca de servidor assinada com a chave do coletor e confirmada por autenticação no novo servidor | Nem quem tem acesso ao portal desvia coletores: só um servidor com a mesma base de coletores passa |
 | D138 | Geist Mono instalada pelo pacote `@fontsource-variable/geist-mono` (embutida no build) | O portal roda em redes de cliente; não depender de CDN externo |

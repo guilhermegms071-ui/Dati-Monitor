@@ -15,6 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
+from app.core.security import derive_agent_key, set_server_signature
 from app.gateway.listener import asyncpg_dsn
 from app.models import Agent, AgentPresence, AuditLog, ClusterEvent, Command, Device, Site
 from app.services import commands as commands_svc
@@ -467,3 +468,64 @@ async def test_new_command_notifies_the_gateway(
         assert await asyncio.wait_for(got.get(), 5) == ("dm_agent_revoked", agent.agent_id)
     finally:
         await conn.close()
+
+
+async def test_set_server_is_signed_with_the_agent_key(client: httpx.AsyncClient, factory: Factory) -> None:
+    """ "Mudar endereço do servidor": só quem administra coletores; o endereço segue as regras do cadastro
+    (https, ou http só com IP de rede privada) e vai assinado com a chave do coletor, que confere antes de
+    trocar (agent/internal/agent/setserver.go)."""
+    tenant, admin, agent = await setup(client, factory)
+    _, tech_email = await factory.user(tenant.reseller_id, role="technician")
+    tech = await login(client, tech_email)
+    target = {"server_url": "https://monitor.exemplo.com.br/"}
+    denied = await send_command(client, tech, agent.agent_id, "set_server", target)
+    assert denied.status_code == 403, denied.text
+
+    for bad in (
+        "http://monitor.exemplo.com.br",  # http com nome: pode resolver para fora da rede
+        "http://8.8.8.8:8000",  # http com IP público
+        "http://127.0.0.1:8000",  # loopback: o coletor perderia o servidor
+        "ftp://10.0.0.1",
+        "https://monitor.exemplo.com.br/api",
+    ):
+        resp = await send_command(client, admin, agent.agent_id, "set_server", {"server_url": bad})
+        assert resp.status_code == 400, (bad, resp.text)
+    bad_ws = {
+        "server_url": "https://monitor.exemplo.com.br",
+        "ws_url": "ws://monitor.exemplo.com.br/ws/agent",
+    }
+    assert (await send_command(client, admin, agent.agent_id, "set_server", bad_ws)).status_code == 400
+
+    lan = await send_command(
+        client, admin, agent.agent_id, "set_server", {"server_url": "http://10.10.10.25:8000"}
+    )
+    assert lan.status_code == 201, lan.text
+    resp = await send_command(client, admin, agent.agent_id, "set_server", target)
+    assert resp.status_code == 201, resp.text
+    cmd = resp.json()
+    assert cmd["type_label"] == "Mudar endereço do servidor"
+    delivered = {c["id"]: c for c in await pending(agent)}[cmd["id"]]
+    params = delivered["params"]
+    assert params["server_url"] == "https://monitor.exemplo.com.br"
+    assert params["ws_url"] == ""
+    assert abs(params["issued_at"] - int(datetime.now(UTC).timestamp())) < 60
+    key = derive_agent_key(agent.secret)
+    expected = set_server_signature(key, agent.agent_id, params["server_url"], "", params["issued_at"])
+    assert params["signature"] == expected
+    # Outra chave (outro coletor) não produz a mesma assinatura.
+    other = set_server_signature(
+        derive_agent_key(b"x" * 32), agent.agent_id, params["server_url"], "", params["issued_at"]
+    )
+    assert params["signature"] != other
+
+
+def test_set_server_signature_vector() -> None:
+    """Mesmo vetor de agent/internal/agent/setserver_test.go: Go e Python assinam igual."""
+    sig = set_server_signature(
+        bytes(range(32)),
+        "agent-1",
+        "https://monitor.exemplo.com.br",
+        "wss://monitor.exemplo.com.br/ws/agent",
+        1700000000,
+    )
+    assert sig == "47b35e12c44e8df0fb944350a185bcb06204ab1bf635ee609c068cfb2d0bacd1"

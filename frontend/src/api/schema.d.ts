@@ -3375,7 +3375,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "reconnect" | "restart_agent" | "update" | "rollback" | "uninstall" | "restart_watchdog" | "scan_now" | "read_now" | "read_device" | "snmp_test" | "mib_walk" | "set_config" | "get_logs" | "diagnostics" | "pause" | "resume" | "promote_master" | "wake_host" | "ping_host";
+            type: "reconnect" | "restart_agent" | "update" | "rollback" | "uninstall" | "restart_watchdog" | "scan_now" | "read_now" | "read_device" | "snmp_test" | "mib_walk" | "set_config" | "get_logs" | "diagnostics" | "pause" | "resume" | "promote_master" | "wake_host" | "ping_host" | "set_server";
         };
         /**
          * CommandMessage

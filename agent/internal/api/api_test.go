@@ -25,6 +25,11 @@ func TestNewHTTPRequiresHTTPSOutsideLoopback(t *testing.T) {
 		{ServerURL: "http://localhost:8000/"},
 		{ServerURL: "http://[::1]:8000"},
 		{ServerURL: "http://10.0.0.5:8000", InsecureDev: true},
+		// --insecure-lan: http:// só com IP de rede privada.
+		{ServerURL: "http://10.10.10.25:8000", InsecureLAN: true},
+		{ServerURL: "http://172.16.0.9:8000", InsecureLAN: true},
+		{ServerURL: "http://192.168.1.20:8000", InsecureLAN: true},
+		{ServerURL: "https://monitor.example.com", InsecureLAN: true},
 	}
 	for _, o := range ok {
 		if _, _, err := NewHTTP(o); err != nil {
@@ -33,6 +38,10 @@ func TestNewHTTPRequiresHTTPSOutsideLoopback(t *testing.T) {
 	}
 	bad := []Options{
 		{ServerURL: "http://10.0.0.5:8000"},
+		{ServerURL: "http://8.8.8.8:8000", InsecureLAN: true},        // IP público: HTTPS sempre
+		{ServerURL: "http://172.32.0.1:8000", InsecureLAN: true},     // fora de 172.16/12
+		{ServerURL: "http://monitor.example.com", InsecureLAN: true}, // nome: pode resolver para fora
+		{ServerURL: "http://NTB-SOLUCOES:8000", InsecureLAN: true},   // nome da rede local também
 		{ServerURL: "ftp://monitor.example.com"},
 		{ServerURL: "monitor.example.com"},
 		{ServerURL: "https://monitor.example.com", ProxyURL: "::"},

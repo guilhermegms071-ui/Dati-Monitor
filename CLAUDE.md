@@ -64,6 +64,7 @@ Trabalhe **por fases, na ordem da seção 14 do PROMPT**.
 scripts\setup-db.ps1        # cria papel "dati" e bancos dati_dev/dati_test (idempotente)
 scripts\init-env.ps1 -PostgresPassword X   # cria .env com segredos aleatórios (instalação nova)
 scripts\dev.ps1             # migra, faz seed e sobe API, gateway, worker, portal, smtp_catcher e snmpsim; Ctrl+C encerra
+scripts\lan-setup.ps1       # teste em rede local: IP no .env + Firewall "Dati Monitor dev" (Privada); depois dev.ps1 -Lan
 scripts\stop-dev.ps1        # encerra o dev.ps1 (se a janela foi fechada sem Ctrl+C)
 scripts\test.ps1            # Go (-race, cobertura >= 80% internal/), pytest (>= 80%), Vitest
 scripts\test.ps1 -E2E       # + Playwright
