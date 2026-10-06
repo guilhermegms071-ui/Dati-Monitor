@@ -18,8 +18,9 @@ import (
 // listScript queries WMI for USB printers and, for each USB port (USB001...), which USB device is on it and
 // whether it is connected now. Win32_Printer.PNPDeviceID is often empty: then the port's entry under
 // DeviceClasses\{GUID_DEVINTERFACE_USBPRINT} gives the device (key name = interface path; "#\Device
-// Parameters" = Base Name + Port Number; "#\Control\Linked" = 1 when plugged in). Queues of printers that
-// were unplugged long ago point to ports with Linked = 0. PowerShell 5.1 ships with every supported
+// Parameters" = Base Name + Port Number; "#\Control\Linked" = 1 when plugged in). A queue counts as
+// connected when the spooler does not mark it offline or the port's device is linked now; queues of
+// printers unplugged long ago are marked offline by the spooler. PowerShell 5.1 ships with every supported
 // Windows; output is JSON in UTF-8.
 const listScript = `$ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -43,11 +44,13 @@ $out = @(Get-CimInstance Win32_Printer | Where-Object { $_.PortName -like 'USB*'
     $prop = Get-PnpDeviceProperty -InstanceId $_.PNPDeviceID -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
     if ($prop) { $parent = [string]$prop.Data }
   }
+  # Conectada = o spooler não a marca offline, ou o registro da porta diz que o aparelho está ligado agora.
+  # (Só o Linked do registro escondia a impressora ligada em alguns Windows: não basta para descartar.)
   $present = -not [bool]$_.WorkOffline
   $mapped = $ports[[string]$_.PortName]
   if ($mapped) {
     if (-not $parent) { $parent = $mapped.parent }
-    $present = $present -and $mapped.present
+    $present = $present -or $mapped.present
   }
   [pscustomobject]@{ name = $_.Name; driver = $_.DriverName; port = $_.PortName; pnp_device_id = [string]$_.PNPDeviceID; parent = [string]$parent; offline = [bool]$_.WorkOffline; present = [bool]$present }
 })
