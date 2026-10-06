@@ -9,7 +9,7 @@ import (
 
 func TestDefinitionConfig(t *testing.T) {
 	d := Definition{Name: "DatiMonitorAgent", DisplayName: "Dati Monitor - Coletor", Description: "d", Arguments: []string{"run"}}
-	c := d.Config()
+	c := d.configFor("linux")
 	if c.Name != d.Name || c.Arguments[0] != "run" || c.Option["DelayedAutoStart"] != true || c.Option["StartType"] != "automatic" {
 		t.Fatalf("%+v", c)
 	}
@@ -22,9 +22,16 @@ func TestDefinitionConfig(t *testing.T) {
 			t.Errorf("unit sem %q", want)
 		}
 	}
+	// Windows: nenhuma dependência no SCM (as linhas do systemd viravam nomes de serviço inexistentes).
+	if got := d.configFor("windows").Dependencies; len(got) != 0 {
+		t.Fatalf("dependências no Windows: %v", got)
+	}
 	d.Dependencies = []string{"After=x"}
-	if got := d.Config().Dependencies; len(got) != 1 {
+	if got := d.configFor("linux").Dependencies; len(got) != 1 {
 		t.Fatalf("%v", got)
+	}
+	if got := d.configFor("windows").Dependencies; len(got) != 0 {
+		t.Fatalf("dependências no Windows: %v", got)
 	}
 	if _, err := New(d, &Runner{}); err != nil {
 		t.Fatal(err)

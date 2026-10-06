@@ -1522,6 +1522,11 @@ Instalador do coletor para testar em outro PC da mesma rede, com o servidor no P
   perfis, pelo novo `python -m app.cli init`), apaga `var\storage` e grava `DEV_SEED=false` no `.env`,
   que faz o `dev.ps1` pular os clientes de exemplo.
 
+- **Bug corrigido (primeira instalação real pelo setup.exe)**: o serviço do Windows saía com as
+  dependências do systemd (`network-online.target`), que o kardianos passa ao SCM como nomes de serviço;
+  o start falhava com "The dependency service does not exist". No Windows agora não há dependências
+  (`svc.Definition.configFor`). Serviço já criado errado: `sc config <serviço> depend= /`.
+
 ### Para concluir (ações do usuário, no Windows)
 1. `scripts\lan-setup.ps1` e `scripts\dev.ps1 -Lan`; de outro PC, abrir `http://10.10.10.25:8000/api/health`.
 2. `scripts\build-installer.ps1 -Version 1.0.0 -Server http://10.10.10.25:8000 -InsecureLan`.

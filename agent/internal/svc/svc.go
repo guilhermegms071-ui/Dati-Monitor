@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -19,15 +20,22 @@ type Definition struct {
 	DisplayName string
 	Description string
 	Arguments   []string // argumentos passados ao binário quando roda como serviço
-	// Dependencies for systemd (e.g. network-online.target).
+	// Dependencies for systemd (e.g. network-online.target). Ignored on Windows: kardianos passes this
+	// list to the SCM as names of services to depend on, and a systemd line there makes the service
+	// fail to start ("The dependency service does not exist").
 	Dependencies []string
 }
 
 // Config builds the kardianos configuration (LocalSystem on Windows; see docs for the reason).
-func (d Definition) Config() *service.Config {
-	deps := d.Dependencies
-	if len(deps) == 0 {
-		deps = []string{"Requires=network-online.target", "After=network-online.target"}
+func (d Definition) Config() *service.Config { return d.configFor(runtime.GOOS) }
+
+func (d Definition) configFor(goos string) *service.Config {
+	var deps []string
+	if goos != "windows" {
+		deps = d.Dependencies
+		if len(deps) == 0 {
+			deps = []string{"Requires=network-online.target", "After=network-online.target"}
+		}
 	}
 	return &service.Config{
 		Name:         d.Name,
