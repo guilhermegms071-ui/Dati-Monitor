@@ -8,9 +8,9 @@ import (
 )
 
 func TestParseList(t *testing.T) {
-	one := `{"name":"HP","driver":"HP LJ","port":"USB001","pnp_device_id":"USBPRINT\\HP\\1","parent":"USB\\VID_1&PID_2\\ABC","offline":false}`
+	one := `{"name":"HP","driver":"HP LJ","port":"USB001","pnp_device_id":"USBPRINT\\HP\\1","parent":"USB\\VID_1&PID_2\\ABC","offline":false,"present":true}`
 	got, err := parseList([]byte("[" + one + "]"))
-	if err != nil || len(got) != 1 || got[0].Port != "USB001" || got[0].Parent != `USB\VID_1&PID_2\ABC` {
+	if err != nil || len(got) != 1 || got[0].Port != "USB001" || got[0].Parent != `USB\VID_1&PID_2\ABC` || !got[0].Present {
 		t.Fatalf("lista: %+v %v", got, err)
 	}
 	if got, err := parseList([]byte("")); err != nil || got != nil {

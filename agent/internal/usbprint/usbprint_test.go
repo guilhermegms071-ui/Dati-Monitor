@@ -93,3 +93,25 @@ func TestQueryOverFakePort(t *testing.T) {
 		t.Fatalf("resposta inválida: %v", err)
 	}
 }
+
+// Filas de impressoras desconectadas há tempo somem; duas filas na mesma porta viram uma (sem a cópia).
+func TestConnectedDropsGhostsAndDuplicates(t *testing.T) {
+	list := []Printer{
+		{Name: "HP LaserJet (Cópia 1)", Port: "USB005", Present: true},
+		{Name: "HP LaserJet", Port: "USB005", Present: true, Parent: `USB\VID_03F0&PID_8D2A\VNC3K1`},
+		{Name: "Epson L3150", Port: "usb006", Present: true},
+		{Name: "Epson L3150 (Copy 1)", Port: "USB006", Present: true},
+		{Name: "Antiga", Port: "USB001", Present: false},
+		{Name: "Antiga 2", Port: "USB002", Present: false},
+	}
+	got := Connected(list)
+	if len(got) != 2 {
+		t.Fatalf("esperava 2 impressoras ligadas: %+v", got)
+	}
+	if got[0].Name != "HP LaserJet" || got[0].Parent == "" {
+		t.Fatalf("USB005 deveria ficar com a fila original: %+v", got[0])
+	}
+	if got[1].Name != "Epson L3150" {
+		t.Fatalf("USB006: %+v", got[1])
+	}
+}

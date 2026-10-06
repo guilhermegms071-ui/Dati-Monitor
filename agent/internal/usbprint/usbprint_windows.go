@@ -15,16 +15,41 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// listScript queries WMI for USB printers and the parent USB device of each (serial lives there).
-// PowerShell 5.1 ships with every supported Windows; output is JSON in UTF-8.
+// listScript queries WMI for USB printers and, for each USB port (USB001...), which USB device is on it and
+// whether it is connected now. Win32_Printer.PNPDeviceID is often empty: then the port's entry under
+// DeviceClasses\{GUID_DEVINTERFACE_USBPRINT} gives the device (key name = interface path; "#\Device
+// Parameters" = Base Name + Port Number; "#\Control\Linked" = 1 when plugged in). Queues of printers that
+// were unplugged long ago point to ports with Linked = 0. PowerShell 5.1 ships with every supported
+// Windows; output is JSON in UTF-8.
 const listScript = `$ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
+$ports = @{}
+$base = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}'
+if (Test-Path $base) {
+  foreach ($k in Get-ChildItem $base) {
+    $dp = Get-ItemProperty -LiteralPath (Join-Path $k.PSPath '#\Device Parameters') -ErrorAction SilentlyContinue
+    if (-not $dp -or $null -eq $dp.'Port Number') { continue }
+    $port = [string]$dp.'Base Name' + ('{0:D3}' -f [int]$dp.'Port Number')
+    $ctl = Get-ItemProperty -LiteralPath (Join-Path $k.PSPath '#\Control') -ErrorAction SilentlyContinue
+    $linked = [bool]($ctl -and $ctl.Linked -eq 1)
+    $name = $k.PSChildName -replace '^##\?#', '' -replace '#\{[^}]+\}$', ''
+    $parent = $name -replace '#', '\'
+    if ($linked -or -not $ports.ContainsKey($port)) { $ports[$port] = @{ parent = $parent; present = $linked } }
+  }
+}
 $out = @(Get-CimInstance Win32_Printer | Where-Object { $_.PortName -like 'USB*' } | ForEach-Object {
   $parent = ''
   if ($_.PNPDeviceID) {
-    try { $parent = (Get-PnpDeviceProperty -InstanceId $_.PNPDeviceID -KeyName 'DEVPKEY_Device_Parent').Data } catch { $parent = '' }
+    $prop = Get-PnpDeviceProperty -InstanceId $_.PNPDeviceID -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+    if ($prop) { $parent = [string]$prop.Data }
   }
-  [pscustomobject]@{ name = $_.Name; driver = $_.DriverName; port = $_.PortName; pnp_device_id = [string]$_.PNPDeviceID; parent = [string]$parent; offline = [bool]$_.WorkOffline }
+  $present = -not [bool]$_.WorkOffline
+  $mapped = $ports[[string]$_.PortName]
+  if ($mapped) {
+    if (-not $parent) { $parent = $mapped.parent }
+    $present = $present -and $mapped.present
+  }
+  [pscustomobject]@{ name = $_.Name; driver = $_.DriverName; port = $_.PortName; pnp_device_id = [string]$_.PNPDeviceID; parent = [string]$parent; offline = [bool]$_.WorkOffline; present = [bool]$present }
 })
 ConvertTo-Json -InputObject $out -Compress`
 
@@ -43,7 +68,11 @@ func List(ctx context.Context) ([]Printer, error) {
 		}
 		return nil, fmt.Errorf("consulta WMI de impressoras USB: %w %s", err, stderr)
 	}
-	return parseList(out)
+	list, err := parseList(out)
+	if err != nil {
+		return nil, err
+	}
+	return Connected(list), nil
 }
 
 func parseList(out []byte) ([]Printer, error) {

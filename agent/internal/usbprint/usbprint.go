@@ -38,6 +38,37 @@ type Printer struct {
 	// Parent is the USB device instance (USB\VID_xxxx&PID_xxxx\<serial>) of the USBPRINT node.
 	Parent  string `json:"parent"`
 	Offline bool   `json:"offline"`
+	// Present: the USB device on this port is plugged in now (false = queue left from a printer unplugged
+	// long ago, or the printer is off).
+	Present bool `json:"present"`
+}
+
+// Connected keeps one printer per USB port, only the ones plugged in now: Windows keeps a queue for every
+// port a printer was ever plugged into (USB001...USB006) and may have two queues for the same printer
+// (another driver, "Cópia 1"). The first queue of the port wins, preferring the one that is not a copy.
+func Connected(list []Printer) []Printer {
+	out := make([]Printer, 0, len(list))
+	at := map[string]int{}
+	for _, p := range list {
+		if !p.Present {
+			continue
+		}
+		i, seen := at[strings.ToUpper(p.Port)]
+		if !seen {
+			at[strings.ToUpper(p.Port)] = len(out)
+			out = append(out, p)
+			continue
+		}
+		if isCopy(out[i].Name) && !isCopy(p.Name) {
+			out[i] = p
+		}
+	}
+	return out
+}
+
+func isCopy(name string) bool {
+	n := strings.ToLower(name)
+	return strings.Contains(n, "(cópia") || strings.Contains(n, "(copia") || strings.Contains(n, "(copy")
 }
 
 // InterfacePath is the USBPRINT device interface path built from the parent USB instance id
