@@ -1509,7 +1509,7 @@ Instalador do coletor para testar em outro PC da mesma rede, com o servidor no P
   servidor com a própria credencial, salva o `config.json` e troca o cliente HTTP e o WebSocket sem
   reiniciar. O watchdog relê o endereço a cada 30 s. Portal: diálogo no menu Comandos do coletor.
 - **Rede**: `scripts\lan-setup.ps1` (IP no `.env`, aviso se o nome do PC não resolve no DNS, regra
-  "Dati Monitor dev" no Firewall só para rede Privada) e `dev.ps1 -Lan` (API e gateway em 0.0.0.0).
+  "Dati Monitor dev" no Firewall, portas 8000/8001/5173, só rede Privada) e `dev.ps1 -Lan` (API, gateway e portal em 0.0.0.0).
 
 ### Testes
 - Go: `TestSetServerSwitchesOnlyToAValidatedServer` (assinatura errada, servidor impostor, pedido

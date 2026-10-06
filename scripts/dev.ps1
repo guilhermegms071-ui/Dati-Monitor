@@ -5,7 +5,8 @@
   profiles\recordings\sim (porta 1160 + NN). Mostra a saída de todos com prefixo e grava em var\log.
   Ctrl+C encerra tudo. Se algum processo morrer, o erro aparece na tela e o script encerra os demais.
 .PARAMETER Lan
-  API (8000) e gateway (8001) escutam na rede (0.0.0.0) para coletores de outros PCs da rede local.
+  API (8000), gateway (8001) e portal (5173) escutam na rede (0.0.0.0): coletores e navegadores de
+  outros PCs da rede local.
   Prepare antes com scripts\lan-setup.ps1 (endereço no .env e regra do Firewall só para rede Privada).
 #>
 param([switch]$NoReload, [switch]$Lan)
@@ -36,7 +37,7 @@ function Assert-PortFree([int]$Port, [string]$Proto = 'TCP') {
 $reload = if ($NoReload) { @() } else { @('--reload') }
 $bindHost = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
 if ($Lan) {
-    Write-Host "AVISO API e gateway escutando na rede: coletores usam $($envVals['PUBLIC_SERVER_URL']) (veja scripts\lan-setup.ps1)." -ForegroundColor Yellow
+    Write-Host "AVISO API, gateway e portal escutando na rede: coletores usam $($envVals['PUBLIC_SERVER_URL']); portal em $($envVals['PUBLIC_BASE_URL']) (veja scripts\lan-setup.ps1)." -ForegroundColor Yellow
 }
 $services = [System.Collections.Generic.List[hashtable]]::new()
 $services.Add(@{ Name = 'api'; Color = 'Cyan'; Port = 8000; Cwd = 'backend'; File = $VenvPython
@@ -44,7 +45,7 @@ $services.Add(@{ Name = 'api'; Color = 'Cyan'; Port = 8000; Cwd = 'backend'; Fil
 $services.Add(@{ Name = 'gateway'; Color = 'Blue'; Port = 8001; Cwd = 'backend'; File = $VenvPython
     Args = @('-m', 'uvicorn', 'app.gateway.main:create_app', '--factory', '--host', $bindHost, '--port', '8001', '--ws', 'websockets-sansio') + $reload })
 $services.Add(@{ Name = 'worker'; Color = 'Magenta'; Cwd = 'backend'; File = $VenvPython; Args = @('-m', 'app.worker.main') })
-$services.Add(@{ Name = 'portal'; Color = 'Green'; Port = 5173; Cwd = 'frontend'; File = 'npm.cmd'; Args = @('run', 'dev') })
+$services.Add(@{ Name = 'portal'; Color = 'Green'; Port = 5173; Cwd = 'frontend'; File = 'npm.cmd'; Args = @('run', 'dev') + $(if ($Lan) { @('--', '--host', '0.0.0.0') } else { @() }) })
 $services.Add(@{ Name = 'smtp'; Color = 'Yellow'; Port = 8025; ExtraPort = 1025; Cwd = '.'; File = $VenvPython; Args = @('scripts\smtp_catcher.py') })
 # Página web de impressora simulada (acesso remoto pelo túnel, seção 4.9): http://127.0.0.1:8080/
 $services.Add(@{ Name = 'webprinter'; Color = 'DarkYellow'; Port = 8080; Cwd = '.'; File = $VenvPython; Args = @('scripts\printer_web_sim.py', '--port', '8080') })

@@ -5,8 +5,10 @@
   1. Descobre o IPv4 da placa com rota padrão (ou usa -Address) e confere se é de rede privada.
      Mostra se o nome do PC resolve pelo DNS da rede. Para http:// o coletor só aceita IP (nome não):
      o que um nome resolve pode mudar, então o instalador de teste grava o IP.
-  2. Grava no .env PUBLIC_SERVER_URL=http://IP:8000 e PUBLIC_WS_URL=ws://IP:8001/ws/agent.
-  3. Cria a regra "Dati Monitor dev" no Firewall do Windows (TCP 8000 e 8001, entrada, só perfil Privado).
+  2. Grava no .env PUBLIC_SERVER_URL=http://IP:8000, PUBLIC_WS_URL=ws://IP:8001/ws/agent e
+     PUBLIC_BASE_URL=http://IP:5173 (links dos e-mails).
+  3. Cria a regra "Dati Monitor dev" no Firewall do Windows (TCP 8000, 8001 e 5173, entrada, só perfil
+     Privado): API, gateway e portal.
      Sem administrador, abre um PowerShell elevado só para essa parte (confirme o UAC).
   Depois: scripts\dev.ps1 -Lan
 .EXAMPLE
@@ -41,8 +43,8 @@ function Set-FirewallRule([bool]$Present) {
     if ($existing) { $existing | Remove-NetFirewallRule }
     if ($Present) {
         New-NetFirewallRule -DisplayName $RuleName -Direction Inbound -Action Allow -Protocol TCP `
-            -LocalPort 8000, 8001 -Profile Private -Description 'API (8000) e gateway (8001) do Dati Monitor para coletores da rede local' | Out-Null
-        Write-Ok "regra `"$RuleName`" criada: TCP 8000 e 8001, entrada, só rede Privada"
+            -LocalPort 8000, 8001, 5173 -Profile Private -Description 'API (8000), gateway (8001) e portal (5173) do Dati Monitor para a rede local' | Out-Null
+        Write-Ok "regra `"$RuleName`" criada: TCP 8000, 8001 e 5173, entrada, só rede Privada"
     } else {
         Write-Ok "regra `"$RuleName`" removida"
     }
@@ -77,7 +79,7 @@ if ($FirewallOnly) {
 
 if ($Remove) {
     Set-FirewallRule $false
-    Set-EnvValues @{ PUBLIC_SERVER_URL = 'http://127.0.0.1:8000'; PUBLIC_WS_URL = 'ws://127.0.0.1:8001/ws/agent' }
+    Set-EnvValues @{ PUBLIC_SERVER_URL = 'http://127.0.0.1:8000'; PUBLIC_WS_URL = 'ws://127.0.0.1:8001/ws/agent'; PUBLIC_BASE_URL = 'http://localhost:5173' }
     Write-Ok 'pronto: rode scripts\dev.ps1 (sem -Lan)'
     exit 0
 }
@@ -116,10 +118,10 @@ if ($route) {
     else { Write-Host "AVISO o nome $env:COMPUTERNAME não resolve no DNS da rede: use o IP." -ForegroundColor Yellow }
 }
 
-Set-EnvValues @{ PUBLIC_SERVER_URL = "http://${Address}:8000"; PUBLIC_WS_URL = "ws://${Address}:8001/ws/agent" }
+Set-EnvValues @{ PUBLIC_SERVER_URL = "http://${Address}:8000"; PUBLIC_WS_URL = "ws://${Address}:8001/ws/agent"; PUBLIC_BASE_URL = "http://${Address}:5173" }
 Set-FirewallRule $true
 Write-Host ''
 Write-Host "IMPORTANTE reserve o IP $Address para este PC no roteador (DHCP): o instalador de teste grava esse endereço." -ForegroundColor Yellow
 Write-Host 'Próximos passos:'
-Write-Host '    scripts\dev.ps1 -Lan'
+Write-Host "    scripts\dev.ps1 -Lan      (portal na rede: http://${Address}:5173)"
 Write-Host "    scripts\build-installer.ps1 -Version 1.0.0 -Server http://${Address}:8000 -InsecureLan"
