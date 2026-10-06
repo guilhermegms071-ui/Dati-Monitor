@@ -2,7 +2,7 @@
 .SYNOPSIS
   Encerra o ambiente de desenvolvimento iniciado pelo scripts\dev.ps1 (útil quando a janela foi fechada
   sem Ctrl+C, ou em testes automatizados) e as sobras que ainda ocupam as portas dele (8000, 8001, 5173,
-  8025, 1025, 8080 e as UDP das impressoras simuladas).
+  8025, 1025, 8080 e as UDP das impressoras simuladas), além do worker e de filhos órfãos do Python.
 #>
 . "$PSScriptRoot\common.ps1"
 $n = Stop-DevProcesses
@@ -40,4 +40,19 @@ foreach ($o in ($owners | Sort-Object Pid -Unique)) {
         else { Write-Fail "$($o.Port): não consegui encerrar o processo $t (taskkill código $LASTEXITCODE)" }
     }
 }
-if ($killed -eq 0) { Write-Ok 'Nenhuma sobra nas portas do dev.ps1' }
+
+# Serviços sem porta (worker) e filhos do Python do venv: no Windows o python.exe do .venv relança o Python
+# base com os mesmos argumentos, então o caminho do projeto não aparece na linha de comando; os módulos
+# e scripts do dev.ps1, sim.
+$devModules = 'app\.worker\.main|app\.api\.main|app\.gateway\.main|smtp_catcher\.py|printer_web_sim\.py|sleepy_udp_proxy\.py'
+$leftovers = @(Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -and $_.CommandLine -match $devModules })
+foreach ($l in $leftovers) {
+    if (-not (Get-Process -Id $l.ProcessId -ErrorAction SilentlyContinue)) { continue }  # caiu junto com o pai
+    & taskkill.exe /T /F /PID $l.ProcessId 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Ok "processo $($l.ProcessId) encerrado ($([regex]::Match($l.CommandLine, $devModules).Value))"; $killed++ }
+    elseif (Get-Process -Id $l.ProcessId -ErrorAction SilentlyContinue) {
+        Write-Fail "não consegui encerrar o processo $($l.ProcessId) (taskkill código $LASTEXITCODE)"
+    }
+}
+if ($killed -eq 0) { Write-Ok 'Nenhuma sobra do dev.ps1' }
