@@ -1,13 +1,13 @@
 import type { Tone } from '../components/ui/primitives';
 
 export const DEVICE_STATUS: Record<string, { label: string; tone: Tone }> = {
-  ready: { label: 'Pronta', tone: 'green' },
+  ready: { label: 'Online', tone: 'green' },
   printing: { label: 'Imprimindo', tone: 'blue' },
   warmup: { label: 'Aquecendo', tone: 'blue' },
   energy_saving: { label: 'Economia de energia', tone: 'purple' },
   warning: { label: 'Atenção', tone: 'yellow' },
   error: { label: 'Erro', tone: 'red' },
-  offline: { label: 'Sem resposta', tone: 'red' },
+  offline: { label: 'Sem conexão', tone: 'red' },
   unknown: { label: 'Desconhecido', tone: 'gray' },
 };
 

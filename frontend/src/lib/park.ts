@@ -8,24 +8,33 @@ export type StatusTone = 'green' | 'orange' | 'red' | 'gray' | 'muted';
 /** Toner abaixo disto fica vermelho (mesmo limite da aba "Com alerta" no servidor). */
 export const LOW_TONER_PERCENT = 10;
 
-const OK_LABEL: Record<string, string> = {
-  ready: 'Pronta',
+/** Situações em que a impressora está respondendo normalmente: aparecem como "Online" (o detalhe vai na dica). */
+const ONLINE_DETAIL: Record<string, string> = {
+  ready: 'Pronta para imprimir',
   printing: 'Imprimindo',
   warmup: 'Aquecendo',
-  energy_saving: 'Economia',
+  energy_saving: 'Em economia de energia',
 };
 
-/** Selo do Parque: verde = ok · laranja = Atenção · vermelho = Erro · cinza = Sem conexão · claro = Desativado. */
+/**
+ * Selo do Parque: verde = Online · laranja = Atenção · vermelho = Erro · cinza = Sem conexão · claro = Desativado.
+ * `detail` explica o selo (dica ao passar o mouse).
+ */
 export function parkStatus(r: Pick<Row, 'active' | 'disconnected' | 'last_status'>): {
   label: string;
   tone: StatusTone;
+  detail: string;
 } {
-  if (!r.active) return { label: 'Desativado', tone: 'muted' };
-  if (r.disconnected || r.last_status === 'offline') return { label: 'Sem conexão', tone: 'gray' };
-  if (r.last_status === 'error') return { label: 'Erro', tone: 'red' };
-  if (r.last_status === 'warning') return { label: 'Atenção', tone: 'orange' };
-  const ok = OK_LABEL[r.last_status];
-  return ok ? { label: ok, tone: 'green' } : { label: 'Sem leitura', tone: 'gray' };
+  if (!r.active) return { label: 'Desativado', tone: 'muted', detail: 'Equipamento desativado no cadastro' };
+  if (r.disconnected || r.last_status === 'offline') {
+    return { label: 'Sem conexão', tone: 'gray', detail: 'O coletor não está conseguindo ler esta impressora' };
+  }
+  if (r.last_status === 'error') return { label: 'Erro', tone: 'red', detail: 'A impressora informou um erro' };
+  if (r.last_status === 'warning') return { label: 'Atenção', tone: 'orange', detail: 'A impressora pede atenção' };
+  const ok = ONLINE_DETAIL[r.last_status];
+  return ok
+    ? { label: 'Online', tone: 'green', detail: ok }
+    : { label: 'Sem leitura', tone: 'gray', detail: 'Ainda não há leitura desta impressora' };
 }
 
 const BAR_ORDER = ['black', 'cyan', 'magenta', 'yellow'] as const;

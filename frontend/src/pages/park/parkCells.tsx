@@ -17,17 +17,63 @@ const TONE_CLASS: Record<StatusTone, string> = {
   muted: 'bg-zinc-50 text-zinc-400 ring-zinc-400/15 dark:bg-zinc-900 dark:text-zinc-500',
 };
 
+const DOT_CLASS: Record<StatusTone, string> = {
+  green: 'bg-emerald-500',
+  orange: 'bg-amber-500',
+  red: 'bg-red-500',
+  gray: 'bg-zinc-400',
+  muted: 'bg-zinc-300',
+};
+
 export function StatusPill({ row }: { row: Pick<Row, 'active' | 'disconnected' | 'last_status'> }) {
   const s = parkStatus(row);
   return (
+    <Tooltip content={s.detail}>
+      <span
+        className={cn(
+          'inline-flex w-[112px] items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
+          TONE_CLASS[s.tone],
+        )}
+        data-tone={s.tone}
+      >
+        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', DOT_CLASS[s.tone])} aria-hidden />
+        {s.label}
+      </span>
+    </Tooltip>
+  );
+}
+
+/**
+ * Medidor do Parque: contador total em destaque e, embaixo, a divisão PB / Cor (monocromática mostra só PB).
+ * Sem leitura: "—".
+ */
+export function Meter({ row }: { row: Pick<Row, 'last_total' | 'last_mono' | 'last_color' | 'is_color'> }) {
+  if (row.last_total === null && row.last_mono === null) {
+    return <span className="font-mono text-sm text-zinc-400">—</span>;
+  }
+  const color = row.is_color === false ? null : row.last_color;
+  return (
     <span
-      className={cn(
-        'inline-flex w-[104px] items-center justify-start rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-        TONE_CLASS[s.tone],
-      )}
-      data-tone={s.tone}
+      className="inline-flex min-w-[164px] flex-col items-center rounded-lg border border-zinc-200 bg-white px-3 py-1 shadow-[0_1px_1px_rgba(16,24,40,0.04)] dark:border-zinc-700 dark:bg-zinc-900"
+      data-testid="meter"
     >
-      {s.label}
+      <span className="font-mono text-[15px] font-semibold leading-5 tabular-nums text-zinc-900 dark:text-white">
+        {fmtInt(row.last_total)}
+      </span>
+      {row.last_mono !== null || color !== null ? (
+        <span className="flex items-center gap-2.5 whitespace-nowrap font-mono text-[11px] leading-4 tabular-nums text-zinc-500 dark:text-zinc-400">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-700 dark:bg-zinc-300" aria-hidden />
+            PB {fmtInt(row.last_mono)}
+          </span>
+          {color !== null ? (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
+              Cor {fmtInt(color)}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </span>
   );
 }

@@ -18,7 +18,7 @@ export function DeviceStatus({ status, disconnected }: { status: string; disconn
   if (disconnected) {
     return (
       <Badge tone="red">
-        <WifiOff className="h-3 w-3" aria-hidden /> Desconectado
+        <WifiOff className="h-3 w-3" aria-hidden /> Sem conexão
       </Badge>
     );
   }

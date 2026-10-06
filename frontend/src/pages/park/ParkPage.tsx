@@ -20,7 +20,7 @@ import { printerName } from '../../lib/printers';
 import { useMediaQuery } from '../../lib/useMediaQuery';
 import { cn } from '../../lib/utils';
 
-import { LastCommunication, Num, StatusPill, TonerBars } from './parkCells';
+import { LastCommunication, Meter, StatusPill, TonerBars } from './parkCells';
 
 type Row = Schemas['ParkRow'];
 type SortKey = 'status' | 'serial' | 'customer' | 'total' | 'mono' | 'color' | 'last_read_at';
@@ -41,67 +41,57 @@ interface Column {
 const COLUMNS: Column[] = [
   { id: 'status', label: 'Status', track: '132px', min: 132, sort: 'status', render: (r) => <StatusPill row={r} /> },
   {
+    id: 'serial',
+    label: 'Nº de série',
+    track: '150px',
+    min: 150,
+    sort: 'serial',
+    render: (r) => (
+      <Link
+        to={`/parque/${r.id}`}
+        className="truncate font-mono text-[13px] font-semibold text-brand-700 hover:underline dark:text-brand-300"
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {r.serial}
+      </Link>
+    ),
+  },
+  {
     id: 'device',
     label: 'Equipamento',
-    track: 'minmax(220px, 2fr)',
-    min: 220,
-    sort: 'serial',
+    track: 'minmax(200px, 2fr)',
+    min: 200,
     render: (r) => (
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {printerName(r.brand, r.model) || 'Modelo não identificado'}
         </span>
-        <Link
-          to={`/parque/${r.id}`}
-          className="truncate font-mono text-[13px] text-[#71717A] hover:underline"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-        >
-          {r.serial}
-        </Link>
+        <span className="truncate text-[12px] text-zinc-500">{r.ip ?? 'USB'}</span>
       </div>
     ),
   },
   {
     id: 'customer',
     label: 'Cliente/Setor',
-    track: 'minmax(180px, 1.5fr)',
-    min: 180,
+    track: 'minmax(170px, 1.5fr)',
+    min: 170,
     sort: 'customer',
     render: (r) => (
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-sm text-zinc-800 dark:text-zinc-200">{r.customer_name}</span>
-        {r.sector ? <span className="truncate text-[13px] text-[#71717A]">{r.sector}</span> : null}
+        <span className="truncate text-[12px] text-zinc-500">{r.sector ?? r.site_name}</span>
       </div>
     ),
   },
   {
-    id: 'total',
-    label: 'Total',
-    track: '112px',
-    min: 112,
+    id: 'meter',
+    label: 'Contador',
+    track: '196px',
+    min: 196,
     sort: 'total',
-    numeric: true,
-    render: (r) => <Num value={r.last_total} />,
-  },
-  {
-    id: 'mono',
-    label: 'PB',
-    track: '104px',
-    min: 104,
-    sort: 'mono',
-    numeric: true,
-    render: (r) => <Num value={r.last_mono} />,
-  },
-  {
-    id: 'color',
-    label: 'Cor',
-    track: '104px',
-    min: 104,
-    sort: 'color',
-    numeric: true,
-    render: (r) => <Num value={colorValue(r)} />,
+    render: (r) => <Meter row={r} />,
   },
   { id: 'toner', label: 'Toner', track: '96px', min: 96, render: (r) => <TonerBars supplies={r.supplies} /> },
   {
@@ -113,7 +103,7 @@ const COLUMNS: Column[] = [
     render: (r, tab) => <LastCommunication row={r} highlight={tab === 'disconnected'} />,
   },
 ];
-const ROW_HEIGHT = 56;
+const ROW_HEIGHT = 64;
 const CARD_HEIGHT = 128;
 
 /** Linha do parque no celular: o essencial em um cartão (sem hover: os níveis aparecem em %). */
@@ -533,7 +523,7 @@ export function ParkPage() {
         <div ref={scrollRef} className="scroll-thin min-h-[420px] flex-1 overflow-auto" data-testid="park-table">
           <div style={{ minWidth: compact ? undefined : minTableWidth }}>
             <div
-              className="sticky top-0 z-10 hidden border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 md:grid dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+              className="sticky top-0 z-10 hidden border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 md:grid [&_button]:font-semibold [&_button]:uppercase [&_button]:tracking-wide dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
               style={{ gridTemplateColumns: template }}
               role="row"
             >

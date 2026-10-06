@@ -8,21 +8,19 @@ const row = (p: Partial<{ active: boolean; disconnected: boolean; last_status: s
 });
 
 describe('parkStatus', () => {
-  it('verde para ok, laranja para Atenção, vermelho para Erro', () => {
-    expect(parkStatus(row({}))).toEqual({ label: 'Pronta', tone: 'green' });
-    expect(parkStatus(row({ last_status: 'printing' }))).toEqual({ label: 'Imprimindo', tone: 'green' });
-    expect(parkStatus(row({ last_status: 'energy_saving' }))).toEqual({ label: 'Economia', tone: 'green' });
-    expect(parkStatus(row({ last_status: 'warning' }))).toEqual({ label: 'Atenção', tone: 'orange' });
-    expect(parkStatus(row({ last_status: 'error' }))).toEqual({ label: 'Erro', tone: 'red' });
+  const pick = (r: ReturnType<typeof parkStatus>) => [r.label, r.tone];
+  it('Online (verde) para impressora respondendo; laranja para Atenção, vermelho para Erro', () => {
+    expect(parkStatus(row({}))).toEqual({ label: 'Online', tone: 'green', detail: 'Pronta para imprimir' });
+    expect(pick(parkStatus(row({ last_status: 'printing' })))).toEqual(['Online', 'green']);
+    expect(parkStatus(row({ last_status: 'energy_saving' })).detail).toBe('Em economia de energia');
+    expect(pick(parkStatus(row({ last_status: 'warning' })))).toEqual(['Atenção', 'orange']);
+    expect(pick(parkStatus(row({ last_status: 'error' })))).toEqual(['Erro', 'red']);
   });
   it('sem conexão (cinza) vence o último status; desativado (cinza-claro) vence tudo', () => {
-    expect(parkStatus(row({ disconnected: true, last_status: 'error' }))).toEqual({
-      label: 'Sem conexão',
-      tone: 'gray',
-    });
-    expect(parkStatus(row({ last_status: 'offline' }))).toEqual({ label: 'Sem conexão', tone: 'gray' });
-    expect(parkStatus(row({ active: false, disconnected: true }))).toEqual({ label: 'Desativado', tone: 'muted' });
-    expect(parkStatus(row({ last_status: 'unknown' }))).toEqual({ label: 'Sem leitura', tone: 'gray' });
+    expect(pick(parkStatus(row({ disconnected: true, last_status: 'error' })))).toEqual(['Sem conexão', 'gray']);
+    expect(pick(parkStatus(row({ last_status: 'offline' })))).toEqual(['Sem conexão', 'gray']);
+    expect(pick(parkStatus(row({ active: false, disconnected: true })))).toEqual(['Desativado', 'muted']);
+    expect(pick(parkStatus(row({ last_status: 'unknown' })))).toEqual(['Sem leitura', 'gray']);
   });
 });
 
