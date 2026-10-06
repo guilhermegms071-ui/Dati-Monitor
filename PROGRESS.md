@@ -1532,6 +1532,26 @@ Instalador do coletor para testar em outro PC da mesma rede, com o servidor no P
 2. `scripts\build-installer.ps1 -Version 1.0.0 -Server http://10.10.10.25:8000 -InsecureLan`.
 3. Reservar o IP 10.10.10.25 no roteador (o nome NTB-SOLUCOES não resolve no DNS da rede).
 
+## Portal com nova cara (06/10/2026) ✅
+
+### Pedido
+Portal mais bonito, organizado e fácil de ler (referência visual: PaperCut), logo da Daticopy, formulário de
+cliente melhor, tela da impressora com contadores claros e Parque com serial, medidor e status Online.
+
+### O que foi feito
+- **Base**: menu lateral grafite, fundo claro, azul do logo como cor de ação, cartões/tabelas/diálogos com mais
+  respiro, campos de 40 px com marca de obrigatório e erro embaixo do campo, `FormSection` e `Switch`; tema
+  claro como padrão. Erros de validação da API dizem o campo e o motivo (`lib/validation.ts`).
+- **Logo**: SVG sem fundo com as letras em contornos (`src/assets/logo-daticopy.svg`, `logo-dc.svg`), no login,
+  no menu e como favicon (antes o navegador pedia `/favicon.ico` e dava 404).
+- **Cliente**: seções, máscara de CNPJ/telefone (`lib/br.ts`), conferência de CNPJ e e-mail, aviso com link
+  quando não há empresa.
+- **Impressora**: cartões de Contador total/PB/Cor/Produção do mês, contadores detalhados, suprimentos em
+  barras com previsão, dados técnicos à parte; 5 abas; "Ler agora" em destaque e o resto em "Mais ações".
+- **Parque**: coluna de nº de série, "Contador" (total + PB/Cor), status Online / Sem conexão / Atenção / Erro.
+- **Visão geral, Coletores, Clientes**: cartões no mesmo padrão, rótulos claros, CNPJ formatado.
+- `e2e/review-screens.mjs`: prints das telas para revisão visual.
+
 ---
 
 ## Decisões
@@ -1677,4 +1697,5 @@ Instalador do coletor para testar em outro PC da mesma rede, com o servidor no P
 | D137 | Comunicação instável: telemetria nova `transport` na leitura (tentativas SNMP usadas × padrão do coletor); 3 de 5 leituras acima do padrão marcam o equipamento | Detecta link ruim (cabo/porta/duplex) sem tratar como erro e sem tocar em contadores ou faturamento |
 | D139 | Teste em rede local: `http://` só com IP literal de rede privada (`--insecure-lan`), nunca nome | Um nome pode passar a resolver para fora da rede; o IP privado é conferível no build e no coletor |
 | D140 | Troca de servidor assinada com a chave do coletor e confirmada por autenticação no novo servidor | Nem quem tem acesso ao portal desvia coletores: só um servidor com a mesma base de coletores passa |
+| D141 | Status da impressora em linguagem de operação: "Online" (pronta, imprimindo, economia) e "Sem conexão" | O detalhe técnico fica na dica; o que importa no parque é se está respondendo |
 | D138 | Geist Mono instalada pelo pacote `@fontsource-variable/geist-mono` (embutida no build) | O portal roda em redes de cliente; não depender de CDN externo |

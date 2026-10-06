@@ -43,15 +43,26 @@ function Stat({
   to?: string;
 }) {
   const body = (
-    <Card className="flex items-center gap-3 p-4 transition-shadow hover:shadow-md">
-      <div className={`rounded-lg p-2.5 ${tone}`}>{icon}</div>
-      <div>
-        <p className="text-2xl font-semibold tabular-nums">{fmtInt(value)}</p>
-        <p className="text-xs text-slate-500">{label}</p>
+    <Card className="h-full p-5 transition-all hover:border-slate-300 hover:shadow-md dark:hover:border-slate-700">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-snug text-slate-500 dark:text-slate-400">{label}</p>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
       </div>
+      <p className="mt-2 font-mono text-[28px] font-semibold leading-none tabular-nums text-slate-900 dark:text-white">
+        {fmtInt(value)}
+      </p>
     </Card>
   );
-  return to ? <Link to={to}>{body}</Link> : body;
+  return to ? (
+    <Link
+      to={to}
+      className="block rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-500/30"
+    >
+      {body}
+    </Link>
+  ) : (
+    body
+  );
 }
 
 export function DashboardPage() {
@@ -68,55 +79,58 @@ export function DashboardPage() {
   }));
   const month = d.month_production;
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <PageHeader title="Visão geral" subtitle="Situação do parque monitorado" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <Stat
-          label="Equipamentos monitorados"
+          label="Impressoras monitoradas"
           value={d.cards.devices_monitored}
-          icon={<Printer className="h-5 w-5" />}
-          tone="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+          icon={<Printer className="h-4.5 w-4.5" />}
+          tone="bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"
           to="/parque"
         />
         <Stat
-          label="Equipamentos online"
+          label="Impressoras online"
           value={d.cards.devices_online}
-          icon={<Printer className="h-5 w-5" />}
+          icon={<Printer className="h-4.5 w-4.5" />}
           tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
           to="/parque"
         />
         <Stat
-          label="Desconectados"
+          label="Sem conexão"
           value={d.cards.devices_disconnected}
-          icon={<WifiOff className="h-5 w-5" />}
+          icon={<WifiOff className="h-4.5 w-4.5" />}
           tone="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
           to="/parque?desconectados=1"
         />
         <Stat
           label="Coletores online"
           value={d.cards.agents_online}
-          icon={<Server className="h-5 w-5" />}
+          icon={<Server className="h-4.5 w-4.5" />}
           tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
           to="/coletores"
         />
         <Stat
           label="Coletores offline"
           value={d.cards.agents_offline}
-          icon={<Server className="h-5 w-5" />}
+          icon={<Server className="h-4.5 w-4.5" />}
           tone="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
           to="/coletores?estado=offline"
         />
         <Stat
-          label="Toners críticos (≤ 10%)"
+          label="Toner crítico"
           value={d.cards.toners_critical}
-          icon={<Droplet className="h-5 w-5" />}
+          icon={<Droplet className="h-4.5 w-4.5" />}
           tone="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
         />
       </div>
       {d.cards.alerts_open ? (
-        <p className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-          <AlertTriangle className="h-4 w-4" /> {fmtInt(d.cards.alerts_open)} alerta(s) aberto(s)
-        </p>
+        <Link
+          to="/alertas"
+          className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        >
+          <AlertTriangle className="h-4 w-4" /> {fmtInt(d.cards.alerts_open)} alerta(s) aberto(s) — ver alertas
+        </Link>
       ) : null}
 
       <Card>
@@ -124,17 +138,24 @@ export function DashboardPage() {
           title={`Produção do mês (${month.month.slice(5)}/${month.month.slice(0, 4)})`}
           subtitle={`${fmtInt(month.devices)} equipamento(s) com leitura; regressões de contador não entram`}
         />
-        <div className="grid grid-cols-3 gap-3 p-4" data-testid="month-production">
+        <div
+          className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800"
+          data-testid="month-production"
+        >
           {(
             [
-              ['PB', month.mono],
-              ['Cor', month.color],
-              ['Total', month.total],
+              ['Preto e branco', month.mono, 'bg-slate-600'],
+              ['Colorido', month.color, 'bg-sky-500'],
+              ['Total', month.total, 'bg-brand-600'],
             ] as const
-          ).map(([label, v]) => (
-            <div key={label}>
-              <p className="text-2xl font-semibold tabular-nums">{fmtInt(v)}</p>
-              <p className="text-xs text-slate-500">{label}</p>
+          ).map(([label, v, dot]) => (
+            <div key={label} className="px-5 py-4">
+              <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden /> {label}
+              </p>
+              <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                {fmtInt(v)}
+              </p>
             </div>
           ))}
         </div>
@@ -151,10 +172,10 @@ export function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#94a3b833" />
               <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtInt(v)} width={70} />
-              <ChartTooltip formatter={(v) => fmtInt(Number(v))} />
+              <ChartTooltip formatter={(v) => fmtInt(Number(v))} cursor={{ fill: '#94a3b822' }} />
               <Legend />
-              <Bar dataKey="PB" stackId="p" fill="#334155" />
-              <Bar dataKey="Cor" stackId="p" fill="#0ea5e9" />
+              <Bar dataKey="PB" stackId="p" fill="#475569" />
+              <Bar dataKey="Cor" stackId="p" fill="#0ea5e9" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -168,8 +189,8 @@ export function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#94a3b833" />
               <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={50} />
-              <ChartTooltip formatter={(v) => fmtInt(Number(v))} />
-              <Bar dataKey="Equipamentos" fill="#22c55e" />
+              <ChartTooltip formatter={(v) => fmtInt(Number(v))} cursor={{ fill: '#94a3b822' }} />
+              <Bar dataKey="Equipamentos" fill="#1d84e0" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

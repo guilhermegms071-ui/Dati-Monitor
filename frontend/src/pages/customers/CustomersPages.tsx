@@ -53,6 +53,7 @@ export function CustomersPage() {
     <div className="space-y-3">
       <PageHeader
         title="Clientes"
+        subtitle="Clientes atendidos, seus locais, coletores e impressoras"
         related={[
           { to: '/mapa', label: 'Mapa dos locais' },
           ...(can('customers.update') ? [{ to: '/empresas', label: 'Empresas' }] : []),
@@ -148,7 +149,7 @@ export function CustomersPage() {
                       {c.name}
                     </Link>
                   </td>
-                  <td className="px-3 py-2 text-xs">{c.cnpj ?? '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{c.cnpj ? maskCnpj(c.cnpj) : '—'}</td>
                   <td className="px-3 py-2 text-xs">
                     {c.contact_name ?? '—'}
                     {c.phone ? ` · ${c.phone}` : ''}
@@ -400,7 +401,7 @@ export function CustomerDetailPage() {
     <div className="space-y-4">
       <PageHeader
         title={c.name}
-        subtitle={c.cnpj ?? undefined}
+        subtitle={c.cnpj ? `CNPJ ${maskCnpj(c.cnpj)}` : undefined}
         actions={
           can('customers.update') ? (
             <Button

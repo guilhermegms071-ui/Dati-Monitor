@@ -75,7 +75,7 @@ export function AgentsPage() {
     <div className="space-y-3">
       <PageHeader
         title="Coletores"
-        subtitle="PCs com o dm-agent instalado nos clientes"
+        subtitle="PCs dos clientes com o coletor instalado"
         related={[{ to: '/computadores', label: 'Computadores e impressoras USB' }]}
         actions={
           can('agents.create') ? (
@@ -103,7 +103,7 @@ export function AgentsPage() {
           />
         </div>
         <Select
-          className="w-44"
+          className="w-52"
           value={state}
           onChange={(e) => {
             setState(e.target.value);
