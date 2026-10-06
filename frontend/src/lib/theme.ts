@@ -6,9 +6,10 @@ const KEY = 'dm-theme';
 export function storedTheme(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    // Padrão claro (visual de console de administração); "do sistema" só quando o usuário escolhe.
+    return v === 'light' || v === 'dark' || v === 'system' ? v : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 

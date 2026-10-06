@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Search, X } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { api, unwrap } from '../lib/api';
@@ -88,7 +88,10 @@ export function RemotePicker({
   const shown = open ? text : (selected.data?.label ?? (value ? '…' : ''));
   return (
     <div ref={box} className="relative">
-      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        aria-hidden
+      />
       <Input
         id={id}
         role="combobox"
@@ -127,7 +130,7 @@ export function RemotePicker({
         <button
           type="button"
           aria-label="Limpar seleção"
-          className="absolute right-2 top-2 rounded p-0.5 text-slate-400 hover:text-slate-700"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700"
           onClick={() => {
             onChange('');
           }}
@@ -139,7 +142,7 @@ export function RemotePicker({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute z-50 mt-1.5 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900"
         >
           {options.isPending ? (
             <li className="px-3 py-2 text-slate-500">Buscando…</li>
@@ -154,9 +157,9 @@ export function RemotePicker({
                 role="option"
                 aria-selected={o.id === value}
                 className={cn(
-                  'cursor-pointer px-3 py-1.5',
-                  i === active ? 'bg-brand-50 dark:bg-slate-800' : '',
-                  o.id === value ? 'font-medium' : '',
+                  'flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2',
+                  i === active ? 'bg-brand-50 text-brand-900 dark:bg-slate-800 dark:text-slate-100' : '',
+                  o.id === value ? 'font-semibold' : '',
                 )}
                 onMouseEnter={() => {
                   setActive(i);
@@ -166,8 +169,11 @@ export function RemotePicker({
                   pick(o);
                 }}
               >
-                {o.label}
-                {o.hint ? <span className="ml-1 text-xs text-slate-500">· {o.hint}</span> : null}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{o.label}</span>
+                  {o.hint ? <span className="block truncate text-xs font-normal text-slate-500">{o.hint}</span> : null}
+                </span>
+                {o.id === value ? <Check className="h-4 w-4 shrink-0 text-brand-600" aria-hidden /> : null}
               </li>
             ))
           )}

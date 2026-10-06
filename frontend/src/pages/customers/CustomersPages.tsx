@@ -8,7 +8,7 @@ import { LoadMore } from '../../components/paging';
 import { CompanyPicker } from '../../components/pickers';
 import { Button } from '../../components/ui/button';
 import { Dialog } from '../../components/ui/dialog';
-import { Field, Input } from '../../components/ui/form';
+import { Field, FormSection, Input, Switch } from '../../components/ui/form';
 import {
   Badge,
   Card,
@@ -26,9 +26,11 @@ import {
 } from '../../components/ui/primitives';
 import { api, downloadFile, unwrap, type Schemas } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { isValidCnpj, isValidEmail, maskCnpj, maskPhone } from '../../lib/br';
 import { fmtCommunication, fmtInt } from '../../lib/format';
 import { showError, showSuccess } from '../../lib/notify';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
+import { fieldErrors } from '../../lib/validation';
 import { siteAddress } from '../../lib/viacep';
 
 import { AlertsList } from '../alerts/AlertsList';
@@ -105,7 +107,7 @@ export function CustomersPage() {
       ) : null}
       <Card className="p-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
           <Input
             className="pl-8"
             placeholder="Nome, CNPJ ou código ERP"
@@ -183,7 +185,7 @@ function CustomerDialog({ customer, onClose }: { customer: Customer | null; onCl
   const [form, setForm] = useState({
     company_id: customer?.company_id ?? '',
     name: customer?.name ?? '',
-    cnpj: customer?.cnpj ?? '',
+    cnpj: customer?.cnpj ? maskCnpj(customer.cnpj) : '',
     contact_name: customer?.contact_name ?? '',
     phone: customer?.phone ?? '',
     email: customer?.email ?? '',
@@ -191,11 +193,58 @@ function CustomerDialog({ customer, onClose }: { customer: Customer | null; onCl
     active: customer?.active ?? true,
   });
   const [busy, setBusy] = useState(false);
+  // Erros só aparecem depois da primeira tentativa de salvar (não assusta enquanto a pessoa digita).
+  const [tried, setTried] = useState(false);
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const set = (p: Partial<typeof form>) => {
     setForm((f) => ({ ...f, ...p }));
+    setServerErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !(k in p))));
   };
   const nullable = (v: string) => (v.trim() ? v.trim() : null);
   const companyId = form.company_id || firstCompany.data?.items[0]?.id || '';
+  const noCompanies = !customer && firstCompany.isSuccess && !firstCompany.data.items.length;
+  const local: Record<string, string> = {};
+  if (!companyId) local.company_id = 'Escolha a empresa';
+  if (form.name.trim().length < 2) local.name = 'Informe o nome do cliente';
+  if (form.cnpj.trim() && !isValidCnpj(form.cnpj)) local.cnpj = 'CNPJ inválido (confira os 14 dígitos)';
+  if (form.email.trim() && !isValidEmail(form.email)) local.email = 'E-mail inválido';
+  const errors = { ...(tried ? local : {}), ...serverErrors };
+  const save = () => {
+    setTried(true);
+    if (Object.keys(local).length) return;
+    setBusy(true);
+    const body = {
+      name: form.name.trim(),
+      cnpj: nullable(form.cnpj.replace(/\D/g, '')),
+      contact_name: nullable(form.contact_name),
+      phone: nullable(form.phone),
+      email: nullable(form.email),
+      erp_code: nullable(form.erp_code),
+      active: form.active,
+    };
+    const req = customer
+      ? unwrap(
+          api.PATCH('/api/v1/customers/{customer_id}', {
+            params: { path: { customer_id: customer.id } },
+            body: { ...body, company_id: companyId },
+          }),
+        )
+      : unwrap(api.POST('/api/v1/customers', { body: { ...body, company_id: companyId } }));
+    req
+      .then(() => {
+        showSuccess('Cliente salvo');
+        void qc.invalidateQueries({ queryKey: ['customers'] });
+        if (customer) void qc.invalidateQueries({ queryKey: ['customer', customer.id] });
+        onClose();
+      })
+      .catch((err: unknown) => {
+        setServerErrors(fieldErrors(err));
+        showError(err, 'Cliente não salvo');
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
   return (
     <Dialog
       open
@@ -203,122 +252,134 @@ function CustomerDialog({ customer, onClose }: { customer: Customer | null; onCl
         if (!o) onClose();
       }}
       title={customer ? 'Editar cliente' : 'Novo cliente'}
+      description="Campos com * são obrigatórios."
       footer={
-        <Button
-          loading={busy}
-          onClick={() => {
-            setBusy(true);
-            const body = {
-              name: form.name,
-              cnpj: nullable(form.cnpj),
-              contact_name: nullable(form.contact_name),
-              phone: nullable(form.phone),
-              email: nullable(form.email),
-              erp_code: nullable(form.erp_code),
-              active: form.active,
-            };
-            const req = customer
-              ? unwrap(
-                  api.PATCH('/api/v1/customers/{customer_id}', {
-                    params: { path: { customer_id: customer.id } },
-                    body: { ...body, company_id: companyId },
-                  }),
-                )
-              : unwrap(api.POST('/api/v1/customers', { body: { ...body, company_id: companyId } }));
-            req
-              .then(() => {
-                showSuccess('Cliente salvo');
-                void qc.invalidateQueries({ queryKey: ['customers'] });
-                if (customer) void qc.invalidateQueries({ queryKey: ['customer', customer.id] });
-                onClose();
-              })
-              .catch((err: unknown) => {
-                showError(err, 'Cliente não salvo');
-              })
-              .finally(() => {
-                setBusy(false);
-              });
-          }}
-        >
-          Salvar
-        </Button>
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button loading={busy} onClick={save}>
+            Salvar
+          </Button>
+        </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Empresa" htmlFor="c-company" className="sm:col-span-2">
-          <CompanyPicker
-            id="c-company"
-            value={companyId}
-            onChange={(id) => {
-              set({ company_id: id });
-            }}
-          />
-        </Field>
-        <Field label="Nome" htmlFor="c-name" className="sm:col-span-2">
-          <Input
-            id="c-name"
-            value={form.name}
-            onChange={(e) => {
-              set({ name: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="CNPJ" htmlFor="c-cnpj">
-          <Input
-            id="c-cnpj"
-            value={form.cnpj}
-            onChange={(e) => {
-              set({ cnpj: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="Código no ERP" htmlFor="c-erp">
-          <Input
-            id="c-erp"
-            value={form.erp_code}
-            onChange={(e) => {
-              set({ erp_code: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="Contato" htmlFor="c-contact">
-          <Input
-            id="c-contact"
-            value={form.contact_name}
-            onChange={(e) => {
-              set({ contact_name: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="Telefone" htmlFor="c-phone">
-          <Input
-            id="c-phone"
-            value={form.phone}
-            onChange={(e) => {
-              set({ phone: e.target.value });
-            }}
-          />
-        </Field>
-        <Field label="E-mail" htmlFor="c-email" className="sm:col-span-2">
-          <Input
-            id="c-email"
-            value={form.email}
-            onChange={(e) => {
-              set({ email: e.target.value });
-            }}
-          />
-        </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={form.active}
-            onChange={(e) => {
-              set({ active: e.target.checked });
-            }}
-          />{' '}
-          Ativo
-        </label>
-      </div>
+      <form
+        className="space-y-6"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <FormSection title="Identificação">
+          <Field
+            label="Empresa"
+            htmlFor="c-company"
+            className="sm:col-span-2"
+            required
+            error={errors.company_id}
+            hint={noCompanies ? undefined : 'Sua empresa (a que atende este cliente).'}
+          >
+            {noCompanies ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                Nenhuma empresa cadastrada.{' '}
+                <Link to="/empresas" className="font-medium underline">
+                  Cadastre a sua empresa
+                </Link>{' '}
+                antes do primeiro cliente.
+              </p>
+            ) : (
+              <CompanyPicker
+                id="c-company"
+                value={companyId}
+                onChange={(id) => {
+                  set({ company_id: id });
+                }}
+              />
+            )}
+          </Field>
+          <Field label="Nome" htmlFor="c-name" className="sm:col-span-2" required error={errors.name}>
+            <Input
+              id="c-name"
+              placeholder="Ex.: Escola Modelo Centro"
+              aria-invalid={Boolean(errors.name)}
+              value={form.name}
+              onChange={(e) => {
+                set({ name: e.target.value });
+              }}
+            />
+          </Field>
+          <Field label="CNPJ" htmlFor="c-cnpj" error={errors.cnpj}>
+            <Input
+              id="c-cnpj"
+              inputMode="numeric"
+              placeholder="00.000.000/0000-00"
+              aria-invalid={Boolean(errors.cnpj)}
+              value={form.cnpj}
+              onChange={(e) => {
+                set({ cnpj: maskCnpj(e.target.value) });
+              }}
+            />
+          </Field>
+          <Field label="Código no ERP" htmlFor="c-erp" hint="Código do cliente no Dataclassic." error={errors.erp_code}>
+            <Input
+              id="c-erp"
+              placeholder="Ex.: CLI-0001"
+              value={form.erp_code}
+              onChange={(e) => {
+                set({ erp_code: e.target.value });
+              }}
+            />
+          </Field>
+        </FormSection>
+        <FormSection title="Contato">
+          <Field label="Contato" htmlFor="c-contact" hint="Nome de quem atende no cliente." error={errors.contact_name}>
+            <Input
+              id="c-contact"
+              placeholder="Ex.: Maria Souza"
+              value={form.contact_name}
+              onChange={(e) => {
+                set({ contact_name: e.target.value });
+              }}
+            />
+          </Field>
+          <Field label="Telefone" htmlFor="c-phone" error={errors.phone}>
+            <Input
+              id="c-phone"
+              inputMode="tel"
+              placeholder="(21) 99999-0000"
+              value={form.phone}
+              onChange={(e) => {
+                set({ phone: maskPhone(e.target.value) });
+              }}
+            />
+          </Field>
+          <Field label="E-mail" htmlFor="c-email" className="sm:col-span-2" error={errors.email}>
+            <Input
+              id="c-email"
+              type="email"
+              inputMode="email"
+              placeholder="contato@cliente.com.br"
+              aria-invalid={Boolean(errors.email)}
+              value={form.email}
+              onChange={(e) => {
+                set({ email: e.target.value });
+              }}
+            />
+          </Field>
+        </FormSection>
+        <Switch
+          id="c-active"
+          label="Ativo"
+          description="Cliente inativo sai das listas e dos relatórios, mas o histórico fica guardado."
+          checked={form.active}
+          onChange={(v) => {
+            set({ active: v });
+          }}
+        />
+        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+      </form>
     </Dialog>
   );
 }

@@ -12,7 +12,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900',
+        'rounded-lg border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] dark:border-slate-800 dark:bg-slate-900',
         className,
       )}
       {...props}
@@ -30,10 +30,10 @@ export function CardHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-      <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+        {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </div>
@@ -125,15 +125,19 @@ export function PageHeader({
   related?: RelatedLink[];
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
-        {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{title}</h1>
+        {subtitle ? <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</div> : null}
         {related?.length ? (
-          <nav aria-label="Ver também" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <nav aria-label="Ver também" className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-400">Ver também:</span>
             {related.map((r) => (
-              <Link key={r.to} to={r.to} className="text-brand-600 hover:underline dark:text-brand-100">
+              <Link
+                key={r.to}
+                to={r.to}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 font-medium text-slate-700 hover:border-brand-300 hover:text-brand-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-brand-200"
+              >
                 {r.label}
               </Link>
             ))}
@@ -202,7 +206,7 @@ export const Tabs = TabsPrimitive.Root;
 
 export function TabsList({ children }: { children: ReactNode }) {
   return (
-    <TabsPrimitive.List className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
+    <TabsPrimitive.List className="mb-5 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
       {children}
     </TabsPrimitive.List>
   );
@@ -212,7 +216,7 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
   return (
     <TabsPrimitive.Trigger
       value={value}
-      className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-600 hover:text-slate-900 data-[state=active]:border-brand-600 data-[state=active]:font-medium data-[state=active]:text-brand-700 dark:text-slate-400 dark:data-[state=active]:text-brand-100"
+      className="-mb-px border-b-2 border-transparent px-3.5 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 data-[state=active]:border-brand-600 data-[state=active]:text-brand-700 dark:text-slate-400 dark:hover:text-slate-100 dark:data-[state=active]:text-brand-200"
     >
       {children}
     </TabsPrimitive.Trigger>
@@ -223,11 +227,11 @@ export const TabsContent = TabsPrimitive.Content;
 
 export function KeyValue({ items }: { items: [string, ReactNode][] }) {
   return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+    <dl className="grid grid-cols-1 gap-x-8 text-sm sm:grid-cols-2">
       {items.map(([k, v]) => (
-        <div key={k} className="flex justify-between gap-3 border-b border-slate-100 py-1 dark:border-slate-800">
+        <div key={k} className="flex justify-between gap-3 border-b border-slate-100 py-2 dark:border-slate-800">
           <dt className="text-slate-500">{k}</dt>
-          <dd className="text-right font-medium">{v ?? '—'}</dd>
+          <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{v ?? '—'}</dd>
         </div>
       ))}
     </dl>

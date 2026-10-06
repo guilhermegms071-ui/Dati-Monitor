@@ -125,7 +125,7 @@ const THEME_ICON: Record<ThemeChoice, ReactNode> = {
   system: <SunMoon className="h-4 w-4" />,
 };
 
-/** Item do menu: ativo com fundo #F4F4F5, texto 600 e barra fina à esquerda; hover discreto. */
+/** Item do menu (grafite, estilo PaperCut): ativo com fundo mais claro, texto branco e barra verde à esquerda. */
 function SideLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
   return (
     <NavLink
@@ -134,10 +134,10 @@ function SideLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void 
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'relative flex h-9 items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 transition-colors',
-          'hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100',
+          'relative flex h-10 items-center gap-3 rounded-md px-3 text-sm text-nav-200 transition-colors',
+          'hover:bg-white/5 hover:text-white',
           isActive &&
-            'bg-[#F4F4F5] font-semibold text-zinc-900 before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-r before:bg-zinc-900 hover:bg-[#F4F4F5] dark:bg-zinc-800 dark:text-white dark:before:bg-white dark:hover:bg-zinc-800',
+            'bg-white/10 font-semibold text-white before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r before:bg-brand-400 hover:bg-white/10',
         )
       }
     >
@@ -148,11 +148,7 @@ function SideLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void 
 }
 
 function GroupLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-      {children}
-    </p>
-  );
+  return <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-nav-400">{children}</p>;
 }
 
 function Sidebar({ onNavigate }: { onNavigate: () => void }) {
@@ -169,11 +165,13 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-2 px-5 font-semibold text-zinc-900 dark:text-white">
-        <Printer className="h-5 w-5 text-brand-600" aria-hidden />
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-white/5 px-5 text-[15px] font-semibold text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600">
+          <Printer className="h-4.5 w-4.5 text-white" aria-hidden />
+        </span>
         {product.name}
       </div>
-      <nav className="scroll-thin flex flex-1 flex-col gap-6 overflow-y-auto px-3 pt-3" aria-label="Menu principal">
+      <nav className="scroll-thin flex flex-1 flex-col gap-6 overflow-y-auto px-3 pt-5" aria-label="Menu principal">
         {GROUPS.map((g) => {
           const items = g.items.filter(visible);
           if (!items.length) return null;
@@ -189,14 +187,14 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           );
         })}
       </nav>
-      <div className="shrink-0 border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+      <div className="shrink-0 border-t border-white/5 px-3 py-3">
         {settings.length ? (
           <nav className="mb-2" aria-label="Configurações">
             <button
               type="button"
               className={cn(
-                'flex h-9 w-full items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100',
-                inSettings && 'font-semibold text-zinc-900 dark:text-white',
+                'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm text-nav-200 hover:bg-white/5 hover:text-white',
+                inSettings && 'font-semibold text-white',
               )}
               aria-expanded={open}
               aria-controls="menu-configuracoes"
@@ -218,16 +216,23 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           </nav>
         ) : null}
         <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
-          <UserCircle className="h-8 w-8 shrink-0 text-zinc-400" aria-hidden />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-nav-700 text-xs font-semibold text-white">
+            {initials(user?.name)}
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100" data-testid="sidebar-user">
+            <p className="truncate text-sm font-medium text-white" data-testid="sidebar-user">
               {user?.name}
             </p>
-            <p className="truncate text-xs text-zinc-500">{user?.role_name}</p>
+            <p className="truncate text-xs text-nav-400">{user?.role_name}</p>
           </div>
           <Menu
             trigger={
-              <Button variant="ghost" size="icon" aria-label="Menu do usuário">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Menu do usuário"
+                className="text-nav-200 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             }
@@ -257,7 +262,7 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         </div>
         <button
           type="button"
-          className="mt-1 flex h-9 w-full items-center gap-2.5 rounded-md px-3 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+          className="mt-1 flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm text-nav-200 hover:bg-white/5 hover:text-white"
           onClick={() => void logout()}
         >
           <LogOut className={ICON} /> Sair
@@ -265,6 +270,11 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
       </div>
     </div>
   );
+}
+
+function initials(name: string | undefined): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '')).toUpperCase() || '?';
 }
 
 export function AppShell() {
@@ -285,17 +295,17 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-[248px] shrink-0 border-r border-zinc-200 bg-white lg:block dark:border-zinc-800 dark:bg-zinc-950">
+      <aside className="hidden w-[248px] shrink-0 bg-nav-900 lg:block">
         <Sidebar onNavigate={close} />
       </aside>
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button type="button" aria-label="Fechar menu" className="absolute inset-0 bg-zinc-950/50" onClick={close} />
-          <aside className="absolute inset-y-0 left-0 w-[248px] bg-white shadow-xl dark:bg-zinc-950">
+          <aside className="absolute inset-y-0 left-0 w-[248px] bg-nav-900 shadow-xl">
             <button
               type="button"
               aria-label="Fechar menu"
-              className="absolute right-3 top-4 text-zinc-500"
+              className="absolute right-3 top-5 text-nav-200"
               onClick={close}
             >
               <X className="h-5 w-5" />
@@ -306,7 +316,7 @@ export function AppShell() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -319,7 +329,7 @@ export function AppShell() {
             <MenuIcon className="h-5 w-5" />
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user?.reseller_name}</p>
+            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{user?.reseller_name}</p>
             <Breadcrumb />
           </div>
           <Tooltip content={LIVE_LABEL[live].text}>
@@ -355,8 +365,10 @@ export function AppShell() {
             </Link>
           </Tooltip>
         </header>
-        <main className="scroll-thin min-w-0 flex-1 overflow-auto p-3 sm:p-5">
-          <Outlet />
+        <main className="scroll-thin min-w-0 flex-1 overflow-auto p-3 sm:p-6">
+          <div className="mx-auto max-w-[1600px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

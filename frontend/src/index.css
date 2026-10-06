@@ -5,12 +5,29 @@
 /* Tema escuro por classe no <html> (escolha do usuário: claro, escuro ou do sistema). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Identidade visual (referência: console de administração do PaperCut): fundo claro, menu lateral escuro,
+ * verde como cor de ação e destaque, cartões brancos com borda fina e bastante respiro.
+ */
 @theme {
-  --color-brand-50: #eef6ff;
-  --color-brand-100: #d9ebff;
-  --color-brand-500: #2563eb;
-  --color-brand-600: #1d4ed8;
-  --color-brand-700: #1e40af;
+  --color-brand-50: #eff8f0;
+  --color-brand-100: #d8eedb;
+  --color-brand-200: #b3ddb8;
+  --color-brand-300: #84c68c;
+  --color-brand-400: #5aad63;
+  --color-brand-500: #3f9548;
+  --color-brand-600: #2f7d38;
+  --color-brand-700: #27662e;
+  --color-brand-800: #225228;
+  --color-brand-900: #1d4423;
+  /* Menu lateral (grafite) */
+  --color-nav-900: #1c2326;
+  --color-nav-800: #252e32;
+  --color-nav-700: #313c41;
+  --color-nav-400: #8d9aa0;
+  --color-nav-200: #cfd6d9;
+  /* Fundo das telas */
+  --color-canvas: #f3f5f6;
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
@@ -22,7 +39,23 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-canvas text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/*
+ * Tabelas: cabeçalho discreto em caixa alta, linhas com respiro e destaque ao passar o mouse. Fica na camada
+ * "components", então as classes utilitárias de cada tela continuam podendo sobrescrever.
+ */
+@layer components {
+  main table thead th {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+  }
+  main table tbody tr {
+    @apply transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40;
+  }
+  main table tbody td {
+    @apply align-middle;
+  }
 }
 
 /* Barras de rolagem discretas nas tabelas longas. */

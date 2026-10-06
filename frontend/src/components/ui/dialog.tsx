@@ -8,9 +8,9 @@ import { showError } from '../../lib/notify';
 import { cn } from '../../lib/utils';
 import { Button } from './button';
 
-const overlay = 'fixed inset-0 z-40 bg-slate-950/50';
+const overlay = 'fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[1px]';
 const panel =
-  'fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900';
+  'fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900';
 
 export function Dialog({
   open,
@@ -34,11 +34,13 @@ export function Dialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={overlay} />
         <DialogPrimitive.Content className={cn(panel, wide ? 'max-w-4xl' : 'max-w-lg')}>
-          <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-6 pb-4 pt-5 dark:border-slate-800">
             <div>
-              <DialogPrimitive.Title className="text-base font-semibold">{title}</DialogPrimitive.Title>
+              <DialogPrimitive.Title className="text-lg font-semibold text-slate-900 dark:text-white">
+                {title}
+              </DialogPrimitive.Title>
               {description ? (
-                <DialogPrimitive.Description className="text-sm text-slate-500">
+                <DialogPrimitive.Description className="mt-0.5 text-sm text-slate-500">
                   {description}
                 </DialogPrimitive.Description>
               ) : (
@@ -52,8 +54,12 @@ export function Dialog({
               <X className="h-4 w-4" />
             </DialogPrimitive.Close>
           </div>
-          {children}
-          {footer ? <div className="mt-5 flex justify-end gap-2">{footer}</div> : null}
+          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          {footer ? (
+            <div className="flex shrink-0 justify-end gap-2 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-3.5 dark:border-slate-800 dark:bg-slate-900/60">
+              {footer}
+            </div>
+          ) : null}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -94,11 +100,15 @@ export function ConfirmButton({
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={overlay} />
         <AlertDialog.Content className={cn(panel, 'max-w-md')}>
-          <AlertDialog.Title className="text-base font-semibold">{title}</AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            {description}
-          </AlertDialog.Description>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="px-6 pb-2 pt-5">
+            <AlertDialog.Title className="text-lg font-semibold text-slate-900 dark:text-white">
+              {title}
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              {description}
+            </AlertDialog.Description>
+          </div>
+          <div className="mt-4 flex justify-end gap-2 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-3.5 dark:border-slate-800 dark:bg-slate-900/60">
             <AlertDialog.Cancel asChild>
               <Button variant="secondary">Cancelar</Button>
             </AlertDialog.Cancel>
@@ -136,7 +146,7 @@ export function Menu({ trigger, children }: { trigger: ReactNode; children: Reac
         <Dropdown.Content
           align="end"
           sideOffset={4}
-          className="z-50 min-w-48 rounded-md border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-900"
+          className="z-50 min-w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-800 dark:bg-slate-900"
         >
           {children}
         </Dropdown.Content>
@@ -161,7 +171,7 @@ export function MenuItem({
       disabled={disabled}
       onSelect={onSelect}
       className={cn(
-        'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800',
+        'flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm text-slate-700 outline-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900 dark:text-slate-200 dark:data-[highlighted]:bg-slate-800',
         danger && 'text-red-600',
       )}
     >

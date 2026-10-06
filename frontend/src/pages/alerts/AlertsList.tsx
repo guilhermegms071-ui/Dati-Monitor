@@ -116,7 +116,10 @@ export function AlertsList({
         </Select>
         {!compact ? (
           <div className="relative min-w-52 flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden
+            />
             <Input
               aria-label="Pesquisar alertas"
               className="pl-8"

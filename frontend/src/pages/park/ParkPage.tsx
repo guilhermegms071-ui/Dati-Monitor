@@ -441,7 +441,7 @@ export function ParkPage() {
 
       <Card className="flex flex-wrap items-center gap-3 p-3">
         <div className="relative min-w-60 flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
           <Input
             placeholder="Pesquisa global (serial, IP, modelo, cliente, setor, PAT…)"
             className="pl-8"
