@@ -260,7 +260,7 @@ func serviceControl(action string) func([]string, io.Writer, io.Writer) int {
 			_ = s.Stop()
 			err = s.Uninstall()
 		case "start":
-			err = s.Start()
+			err = svc.Start(def.Name) // já rodando = sucesso (o coletor sobe o watchdog sozinho, vigia mútua)
 		case "stop":
 			err = s.Stop()
 		}
