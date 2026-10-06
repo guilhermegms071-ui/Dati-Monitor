@@ -34,7 +34,10 @@ function Assert-PortFree([int]$Port, [string]$Proto = 'TCP') {
     }
 }
 
-$reload = if ($NoReload) { @() } else { @('--reload') }
+# Ao recarregar (git pull, edição), o uvicorn espera as conexões abertas fecharem; o canal ao vivo do portal
+# (SSE /api/v1/events) e o WebSocket dos coletores nunca fecham sozinhos, e a API ficava parada em
+# "Waiting for connections to close" (portal com HTTP 502). Com o limite, ela fecha e volta em segundos.
+$reload = if ($NoReload) { @() } else { @('--reload', '--timeout-graceful-shutdown', '3') }
 $bindHost = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
 if ($Lan) {
     Write-Host "AVISO API, gateway e portal escutando na rede: coletores usam $($envVals['PUBLIC_SERVER_URL']); portal em $($envVals['PUBLIC_BASE_URL']) (veja scripts\lan-setup.ps1)." -ForegroundColor Yellow
