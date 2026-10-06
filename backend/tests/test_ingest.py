@@ -317,3 +317,36 @@ async def test_devices_read_api_and_scope(client: httpx.AsyncClient, factory: Fa
     hb = auth(await login(client, b.admin_email))
     assert (await client.get(f"/api/v1/devices/{dev_id}", headers=hb)).status_code == 404
     assert (await client.get("/api/v1/devices", headers=hb)).json()["items"] == []
+
+
+async def test_invalid_item_is_rejected_alone_and_the_rest_of_the_batch_goes_in(
+    client: httpx.AsyncClient, factory: Factory, sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Um item fora do formato não derruba o lote: antes era 400 no lote inteiro e o coletor reenviava o
+    mesmo lote para sempre (fila travada, coletor "Degradado")."""
+    t = await factory.tenant()
+    agent = await enrolled_agent(client, t)
+    good = agent.reading("A797019500624", KONICA, ip="192.168.1.50")
+    bad = agent.reading("SERIALRUIM01", KONICA, ip="192.168.1.51")
+    bad["device"]["port"] = 0  # fora de 1..65535
+    no_kind = agent.item("telepatia", serial="X1")
+    results = await agent.send([good, bad, no_kind])
+    by_key = {r["key"]: r for r in results}
+    assert by_key[good["key"]]["status"] == "accepted"
+    assert by_key[bad["key"]]["status"] == "rejected"
+    assert "device.port" in by_key[bad["key"]]["reason"]
+    assert by_key[no_kind["key"]]["status"] == "rejected"
+    assert "kind" in by_key[no_kind["key"]]["reason"]
+    async with sessionmaker() as s:
+        serials = set((await s.execute(select(Device.serial))).scalars())
+    assert serials == {"A797019500624"}
+
+
+async def test_malformed_batch_is_still_refused_whole(client: httpx.AsyncClient, factory: Factory) -> None:
+    t = await factory.tenant()
+    agent = await enrolled_agent(client, t)
+    headers = {**agent.headers, "Content-Type": "application/json"}
+    for body in (b"{nao e json", b'{"v": 1}', b'{"v": 2, "items": []}'):
+        resp = await client.post("/api/agent/readings", content=body, headers=headers)
+        assert resp.status_code == 400, (body, resp.text)
+        assert resp.json()["detail"]["code"] == "invalid_batch"

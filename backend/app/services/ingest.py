@@ -12,10 +12,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import bad_request
 from app.core.notify import CH_DEVICES, notify_event
 from app.models import (
     Agent,
@@ -83,6 +85,44 @@ async def build_context(session: AsyncSession, agent: Agent) -> IngestContext:
     minutes = int(collection_settings(site)["counters_minutes"])
     threshold = await threshold_points(session, agent.reseller_id)
     return IngestContext(agent, site, datetime.now(UTC), max_pages, timedelta(minutes=minutes), threshold)
+
+
+MAX_BATCH_ITEMS = 500
+
+
+def _validation_reason(exc: ValidationError) -> str:
+    """Campos e motivos (sem os valores enviados), para o log do servidor e o dead_letter do coletor."""
+    parts = []
+    for err in exc.errors(include_url=False, include_context=False, include_input=False)[:10]:
+        loc = ".".join(str(x) for x in err["loc"])
+        parts.append(f"{loc}: {err['msg']}")
+    return "item inválido: " + "; ".join(parts)
+
+
+def parse_batch(raw: bytes, agent_id: uuid.UUID) -> tuple[proto.ReadingsRequest, list[proto.ItemResult]]:
+    """Valida o lote item por item: um item fora do formato é recusado sozinho, com o motivo, em vez de
+    derrubar o lote inteiro (o coletor reenviaria o mesmo lote para sempre e a fila travaria)."""
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise bad_request("invalid_batch", "Lote inválido: JSON malformado") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        raise bad_request("invalid_batch", "Lote inválido: falta a lista items")
+    if data.get("v", 1) != 1:
+        raise bad_request("invalid_batch", "Lote inválido: versão do protocolo não suportada")
+    if len(data["items"]) > MAX_BATCH_ITEMS:
+        raise bad_request("invalid_batch", f"Lote inválido: mais de {MAX_BATCH_ITEMS} itens")
+    valid: list[proto.Item] = []
+    rejected: list[proto.ItemResult] = []
+    for raw_item in data["items"]:
+        try:
+            valid.append(proto.Item.model_validate(raw_item))
+        except ValidationError as exc:
+            key = raw_item.get("key") if isinstance(raw_item, dict) else None
+            reason = _validation_reason(exc)
+            logger.warning("item %s do coletor %s recusado: %s", key, agent_id, reason)
+            rejected.append(proto.ItemResult(key=str(key or ""), status="rejected", reason=reason))
+    return proto.ReadingsRequest(items=valid), rejected
 
 
 async def ingest_batch(

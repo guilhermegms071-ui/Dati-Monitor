@@ -8,7 +8,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import FileResponse
-from pydantic import ValidationError
 
 from app.api.deps import SessionDep, SettingsDep, client_ip
 from app.core.errors import AppError, bad_request
@@ -20,7 +19,7 @@ from app.services import agents as svc
 from app.services import commands as commands_svc
 from app.services import releases as releases_svc
 from app.services import watchdog as watchdog_svc
-from app.services.ingest import ingest_batch
+from app.services.ingest import ingest_batch, parse_batch
 
 router = APIRouter(prefix="/api/agent", tags=["coletores (protocolo)"], responses=ERROR_RESPONSES)
 
@@ -130,13 +129,12 @@ async def suggest(body: proto.SuggestRangesRequest, agent: AgentDep, session: Se
 )
 async def readings(request: Request, agent: AgentDep, session: SessionDep) -> proto.ReadingsResponse:
     raw = await read_json_body(request)
-    try:
-        body = proto.ReadingsRequest.model_validate_json(raw)
-    except ValidationError as exc:
-        errors = exc.errors(include_url=False, include_context=False, include_input=False)[:20]
-        raise bad_request("invalid_batch", "Lote inválido", errors=errors) from exc
+    body, rejected = parse_batch(raw, agent.id)
     resp = await ingest_batch(session, agent, body)
     await session.commit()
+    if rejected:
+        # Item inválido é recusado sozinho (o coletor o move para dead_letter); os outros entram.
+        resp = proto.ReadingsResponse(results=[*rejected, *resp.results])
     return resp
 
 
