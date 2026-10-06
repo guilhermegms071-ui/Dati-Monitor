@@ -177,8 +177,15 @@ func (a *Agent) cmdReadNow(ctx context.Context, cmd protocol.CommandMessage, pro
 		switch {
 		case errors.Is(err, collector.ErrNotMaster):
 			// STANDBY: as de rede ficam com o MASTER; as USB deste PC foram lidas acima.
-			if len(network) > 0 || (len(usb) == 0 && usbErr == nil) {
+			if len(network) > 0 {
 				return commands.Result{}, err
+			}
+			if usbErr != nil {
+				return commands.Result{}, usbErr
+			}
+			if len(usb) == 0 {
+				return commands.Result{}, errors.New("nenhuma impressora USB conectada foi encontrada neste PC " +
+					"(as impressoras de rede são lidas pelo coletor MASTER do local)")
 			}
 			note = "As impressoras de rede são lidas pelo MASTER do local; este coletor leu as USB deste PC."
 		case err != nil:
