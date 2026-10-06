@@ -82,13 +82,18 @@ if ($Remove) {
     exit 0
 }
 
-$route = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric | Select-Object -First 1
-if (-not $Address) {
-    if (-not $route) { Stop-WithError 'Sem rota padrão: informe o IP com -Address.' }
-    $Address = (Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction Stop |
-        Where-Object { $_.PrefixOrigin -ne 'WellKnown' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1).IPAddress
-    if (-not $Address) { Stop-WithError 'Não achei o IPv4 da placa de rede: informe com -Address.' }
+# Placas com rota padrão (a de menor métrica primeiro) e o IPv4 privado de cada uma. Uma placa pode ter
+# rota padrão sem IPv4 válido (VPN, só 169.254.x): é pulada.
+$route = $null
+$routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+foreach ($r in $routes) {
+    $ips = @(Get-NetIPAddress -InterfaceIndex $r.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { Test-PrivateIPv4 $_.IPAddress } | ForEach-Object { $_.IPAddress })
+    if ($ips.Count -eq 0) { continue }
+    if (-not $Address) { $Address = $ips[0]; $route = $r; break }
+    if ($ips -contains $Address) { $route = $r; break }
 }
+if (-not $Address) { Stop-WithError 'Não achei o IPv4 de rede privada deste PC: informe com -Address (ex.: -Address 10.10.10.25).' }
 if (-not (Test-PrivateIPv4 $Address)) { Stop-WithError "$Address não é IP de rede privada (10.x, 172.16-31.x, 192.168.x)." }
 Write-Ok "IP deste PC: $Address"
 
