@@ -38,7 +38,7 @@ type docInfo1 struct {
 // SpoolerQuery sends the PJL request as a RAW job to the printer queue and reads the answer back through
 // the port monitor (bidirectional USB), for printers whose driver holds the USB device. The spooler may
 // block: run it in its own process (dm-agent usb-pjl), never inside the service.
-func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
+func SpoolerQuery(name string, wait time.Duration, postscript bool) ([]byte, error) {
 	n16, err := windows.UTF16PtrFromString(name)
 	if err != nil {
 		return nil, err
@@ -64,6 +64,10 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 	}
 	defer end()
 	data := pjlRequest("INFO ID", "INFO PAGECOUNT")
+	complete := func(b []byte) bool { return pageCountRe.Match(b) && bytes.Count(b, []byte("\f")) >= 2 }
+	if postscript {
+		data, complete = psRequest, func(b []byte) bool { return psEndRe.Match(b) }
+	}
 	var written uint32
 	if r, _, e := procWritePrinter.Call(uintptr(h), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)),
 		uintptr(unsafe.Pointer(&written))); r == 0 {
@@ -89,7 +93,7 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 			uintptr(unsafe.Pointer(&got)))
 		if got > 0 {
 			buf.Write(chunk[:got])
-			if pageCountRe.Match(buf.Bytes()) && bytes.Count(buf.Bytes(), []byte("\f")) >= 2 {
+			if complete(buf.Bytes()) {
 				break
 			}
 			continue
@@ -115,7 +119,12 @@ func spoolerPageCount(ctx context.Context, p Printer) (int64, string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, PJLTimeout+10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, "usb-pjl", "--printer", p.Name, "--wait", PJLTimeout.String())
+	_, ps := Languages("", p.Driver)
+	args := []string{"usb-pjl", "--printer", p.Name, "--wait", PJLTimeout.String()}
+	if ps {
+		args = append(args, "--ps") // driver PostScript: a impressora responde em PostScript
+	}
+	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.Output()
 	if ctx.Err() != nil {
@@ -129,11 +138,18 @@ func spoolerPageCount(ctx context.Context, p Printer) (int64, string, error) {
 		}
 		return 0, "", fmt.Errorf("pela fila de impressão: %s", firstNonEmpty(stderr, err.Error()))
 	}
+	if len(bytes.TrimSpace(out)) == 0 {
+		return 0, "", errors.New("pela fila de impressão: a impressora não respondeu")
+	}
+	if ps {
+		a, perr := ParsePS(out)
+		if perr != nil {
+			return 0, "", fmt.Errorf("pela fila de impressão: %w", perr)
+		}
+		return a.PageCount, a.Product, nil
+	}
 	count, perr := ParsePageCount(out)
 	if perr != nil {
-		if len(bytes.TrimSpace(out)) == 0 {
-			return 0, "", errors.New("pela fila de impressão: a impressora não respondeu")
-		}
 		return 0, "", fmt.Errorf("pela fila de impressão: %w", perr)
 	}
 	return count, ParseID(out), nil
@@ -178,7 +194,8 @@ func Diagnose(ctx context.Context, w io.Writer, trySpooler bool) error {
 		if !trySpooler {
 			continue
 		}
-		resp, err := SpoolerQuery(p.Name, PJLTimeout)
+		_, ps := Languages(pathDeviceID(p.InterfacePath()), p.Driver)
+		resp, err := SpoolerQuery(p.Name, PJLTimeout, ps)
 		switch {
 		case err != nil:
 			_, _ = fmt.Fprintf(w, "Fila de impressão: FALHOU: %v\n", err)
@@ -188,6 +205,8 @@ func Diagnose(ctx context.Context, w io.Writer, trySpooler bool) error {
 			_, _ = fmt.Fprintf(w, "Fila de impressão: resposta %q\n", truncate(resp, 400))
 			if n, perr := ParsePageCount(resp); perr == nil {
 				_, _ = fmt.Fprintf(w, "Fila de impressão: OK, contador %d\n", n)
+			} else if a, perr := ParsePS(resp); perr == nil {
+				_, _ = fmt.Fprintf(w, "Fila de impressão: OK, contador %d (modelo %q, série %q)\n", a.PageCount, a.Product, a.Serial)
 			}
 		}
 	}

@@ -205,11 +205,11 @@ func truncate(b []byte, n int) string {
 	return string(b)
 }
 
-// Query sends the PJL INFO request and reads until both answers arrived (each ends with a form feed),
-// the context ends or the reader closes. rw is the open USBPRINT device (or a fake in tests).
-func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string, err error) {
-	if _, err := rw.Write(pjlRequest("INFO ID", "INFO PAGECOUNT")); err != nil {
-		return 0, "", fmt.Errorf("enviar PJL: %w", err)
+// exchange writes the request and reads until complete(answer) says the whole answer arrived, the reader
+// fails or the context ends (ErrNoAnswer). rw is the open USB printer (or a fake in tests).
+func exchange(ctx context.Context, rw io.ReadWriter, request []byte, complete func([]byte) bool) ([]byte, error) {
+	if _, err := rw.Write(request); err != nil {
+		return nil, fmt.Errorf("enviar o pedido: %w", err)
 	}
 	type result struct {
 		data []byte
@@ -230,7 +230,7 @@ func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string
 				}
 				continue
 			}
-			if pageCountRe.Match(buf.Bytes()) && bytes.Count(buf.Bytes(), []byte("\f")) >= 2 {
+			if complete(buf.Bytes()) {
 				done <- result{buf.Bytes(), nil}
 				return
 			}
@@ -242,17 +242,109 @@ func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string
 	}()
 	select {
 	case <-ctx.Done():
-		return 0, "", ErrNoAnswer
+		return nil, ErrNoAnswer
 	case r := <-done:
-		count, perr := ParsePageCount(r.data)
-		if perr != nil {
-			if r.err != nil && !errors.Is(r.err, io.EOF) {
-				return 0, "", fmt.Errorf("%w: %w", ErrNoAnswer, r.err)
-			}
-			return 0, "", fmt.Errorf("%w: %w", ErrNoAnswer, perr)
-		}
-		return count, ParseID(r.data), nil
+		return r.data, r.err
 	}
+}
+
+// Query sends the PJL INFO request and reads until both answers arrived (each ends with a form feed).
+func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string, err error) {
+	data, rerr := exchange(ctx, rw, pjlRequest("INFO ID", "INFO PAGECOUNT"), func(b []byte) bool {
+		return pageCountRe.Match(b) && bytes.Count(b, []byte("\f")) >= 2
+	})
+	if errors.Is(rerr, ErrNoAnswer) {
+		return 0, "", ErrNoAnswer
+	}
+	count, perr := ParsePageCount(data)
+	if perr != nil {
+		if rerr != nil && !errors.Is(rerr, io.EOF) {
+			return 0, "", fmt.Errorf("%w: %w", ErrNoAnswer, rerr)
+		}
+		return 0, "", fmt.Errorf("%w: %w", ErrNoAnswer, perr)
+	}
+	return count, ParseID(data), nil
+}
+
+// psRequest asks a PostScript printer, between Ctrl-D (end of job on USB), for its page counter, product
+// name and serial number; each answer comes back on the USB channel as "%%[ key: value ]%%". Nothing is
+// printed (no showpage). serialnumber is optional in PostScript, so its error is caught with "stopped".
+var psRequest = []byte("\x04%!PS-Adobe-3.0\n" +
+	"(%%[ pagecount: ) print statusdict /pagecount get exec 20 string cvs print ( ]%%\\n) print flush\n" +
+	"{ (%%[ product: ) print product print ( ]%%\\n) print flush } stopped pop\n" +
+	"{ (%%[ serial: ) print serialnumber 20 string cvs print ( ]%%\\n) print flush } stopped pop\n" +
+	"(%%[ end ]%%\\n) print flush\n\x04")
+
+var (
+	psCountRe   = regexp.MustCompile(`%%\[ pagecount: (\d+) \]%%`)
+	psProductRe = regexp.MustCompile(`%%\[ product: ([^\]\r\n]*?) \]%%`)
+	psSerialRe  = regexp.MustCompile(`%%\[ serial: ([^\]\s]+) \]%%`)
+	psEndRe     = regexp.MustCompile(`%%\[ end \]%%`)
+)
+
+// PSAnswer is what a PostScript printer told about itself.
+type PSAnswer struct {
+	PageCount int64
+	Product   string
+	Serial    string
+}
+
+// ParsePS reads the answer to psRequest.
+func ParsePS(resp []byte) (PSAnswer, error) {
+	m := psCountRe.FindSubmatch(resp)
+	if m == nil {
+		return PSAnswer{}, fmt.Errorf("resposta PostScript sem pagecount: %q", truncate(resp, 160))
+	}
+	n, err := strconv.ParseInt(string(m[1]), 10, 64)
+	if err != nil {
+		return PSAnswer{}, err
+	}
+	a := PSAnswer{PageCount: n}
+	if p := psProductRe.FindSubmatch(resp); p != nil {
+		a.Product = strings.TrimSpace(string(p[1]))
+	}
+	if sn := psSerialRe.FindSubmatch(resp); sn != nil && string(sn[1]) != "0" {
+		a.Serial = string(sn[1])
+	}
+	return a, nil
+}
+
+// QueryPS asks the page counter in PostScript (printers whose USB id lists PS but not PJL, e.g. Konica).
+func QueryPS(ctx context.Context, rw io.ReadWriter) (PSAnswer, error) {
+	data, rerr := exchange(ctx, rw, psRequest, func(b []byte) bool { return psEndRe.Match(b) })
+	if errors.Is(rerr, ErrNoAnswer) {
+		if a, err := ParsePS(data); err == nil {
+			return a, nil
+		}
+		return PSAnswer{}, fmt.Errorf("%w (PostScript)", ErrNoAnswer)
+	}
+	a, err := ParsePS(data)
+	if err != nil {
+		return PSAnswer{}, fmt.Errorf("%w: %w", ErrNoAnswer, err)
+	}
+	return a, nil
+}
+
+// Languages says what to ask a printer: PJL and/or PostScript, from the languages in its USB id (CMD) or,
+// without it, from the driver name. PostScript is only sent to printers that speak it (others would print
+// the request as text).
+func Languages(deviceID, driver string) (pjl, ps bool) {
+	cmd := strings.ToUpper(ParseDeviceID(deviceID)["CMD"])
+	if cmd != "" {
+		return strings.Contains(cmd, "PJL"), strings.Contains(cmd, "POSTSCRIPT") || hasWord(cmd, "PS")
+	}
+	d := " " + strings.ToLower(driver) + " "
+	return SpoolerSafe(driver), strings.Contains(d, "postscript") || strings.Contains(d, " ps") || strings.Contains(d, "ps-ppd") ||
+		strings.Contains(d, "br-script") || strings.Contains(d, "ps3")
+}
+
+func hasWord(list, word string) bool {
+	for _, w := range strings.Split(list, ",") {
+		if strings.TrimSpace(w) == word {
+			return true
+		}
+	}
+	return false
 }
 
 // pjlDrivers are driver name markers of printers that understand PJL: only these get the query through the
@@ -308,4 +400,17 @@ func DescribeDeviceID(id string) string {
 	default:
 		return model + "; NÃO fala PJL (" + cmd + ")"
 	}
+}
+
+// ModelFromID is "fabricante modelo" from the printer's USB id ("KONICA MINOLTA C368Series"), "" without id.
+func ModelFromID(id string) string {
+	f := ParseDeviceID(id)
+	mdl := f["MDL"]
+	if mdl == "" {
+		return ""
+	}
+	if mfg := f["MFG"]; mfg != "" && !strings.HasPrefix(strings.ToUpper(mdl), strings.ToUpper(mfg)) {
+		return mfg + " " + mdl
+	}
+	return mdl
 }

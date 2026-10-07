@@ -19,7 +19,7 @@ func PageCount(context.Context, Printer) (int64, string, error) {
 }
 
 // SpoolerQuery needs the Windows print spooler.
-func SpoolerQuery(string, time.Duration) ([]byte, error) {
+func SpoolerQuery(string, time.Duration, bool) ([]byte, error) {
 	return nil, errors.New("consulta pela fila de impressão só existe no Windows")
 }
 

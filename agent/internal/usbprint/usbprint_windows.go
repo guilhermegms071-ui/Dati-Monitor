@@ -175,14 +175,16 @@ func PageCount(ctx context.Context, p Printer) (int64, string, error) {
 	if direct == nil {
 		return count, model, nil
 	}
-	count, model, spool := spoolerPageCount(ctx, p)
+	count, spoolModel, spool := spoolerPageCount(ctx, p)
 	if spool == nil {
-		return count, model, nil
+		return count, firstNonEmpty(model, spoolModel), nil
 	}
-	return 0, "", fmt.Errorf("%w: USB direta: %w; %w", ErrNoAnswer, direct, spool)
+	return 0, model, fmt.Errorf("%w: USB direta: %w; %w", ErrNoAnswer, direct, spool)
 }
 
-// directPageCount opens the printer's USBPRINT interface and asks the page counter by PJL.
+// directPageCount opens the printer's USB interface and asks the page counter in the language it speaks
+// (PJL and/or PostScript, from its USB id). The model comes from the printer's own USB id when it gives one,
+// even when there is no counter.
 func directPageCount(ctx context.Context, p Printer) (int64, string, error) {
 	path := p.InterfacePath()
 	if path == "" {
@@ -197,7 +199,49 @@ func directPageCount(ctx context.Context, p Printer) (int64, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("abrir %s: %w", path, err)
 	}
+	defer func() { _ = windows.CloseHandle(h) }()
 	id := deviceID(h)
+	model := ModelFromID(id)
+	pjl, ps := Languages(id, p.Driver)
+	var reasons []string
+	if pjl {
+		var count int64
+		var pjlModel string
+		qerr := withTimeout(ctx, h, func(ctx context.Context) error {
+			var err error
+			count, pjlModel, err = Query(ctx, handleRW{h})
+			return err
+		})
+		if qerr == nil {
+			return count, firstNonEmpty(pjlModel, model), nil
+		}
+		reasons = append(reasons, "PJL: "+qerr.Error())
+	}
+	if ps {
+		var a PSAnswer
+		qerr := withTimeout(ctx, h, func(ctx context.Context) error {
+			var err error
+			a, err = QueryPS(ctx, handleRW{h})
+			return err
+		})
+		if qerr == nil {
+			return a.PageCount, firstNonEmpty(model, a.Product), nil
+		}
+		reasons = append(reasons, "PostScript: "+qerr.Error())
+	}
+	if len(reasons) == 0 {
+		reasons = append(reasons, "a impressora não fala PJL nem PostScript")
+	}
+	msg := strings.Join(reasons, "; ")
+	if id != "" {
+		msg += " (a impressora se identifica como " + DescribeDeviceID(id) + ")"
+	}
+	return 0, model, fmt.Errorf("%w: %s", ErrNoAnswer, msg)
+}
+
+// withTimeout runs one exchange with the printer for at most PJLTimeout; a read still waiting is cancelled
+// (CancelIoEx) before the next exchange or the close.
+func withTimeout(ctx context.Context, h windows.Handle, f func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(ctx, PJLTimeout)
 	stopped := make(chan struct{})
 	go func() {
@@ -205,16 +249,10 @@ func directPageCount(ctx context.Context, p Printer) (int64, string, error) {
 		_ = windows.CancelIoEx(h, nil) // desbloqueia o ReadFile quando a impressora não responde
 		close(stopped)
 	}()
-	defer func() {
-		cancel()
-		<-stopped // só fecha o handle depois do CancelIoEx
-		_ = windows.CloseHandle(h)
-	}()
-	count, model, err := Query(ctx, handleRW{h})
-	if err != nil && id != "" {
-		return 0, "", fmt.Errorf("%w (a impressora se identifica como %s)", err, DescribeDeviceID(id))
-	}
-	return count, model, err
+	err := f(ctx)
+	cancel()
+	<-stopped
+	return err
 }
 
 // ioctlUSBPrintGet1284ID is IOCTL_USBPRINT_GET_1284_ID.

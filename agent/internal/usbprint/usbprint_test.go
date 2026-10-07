@@ -238,3 +238,42 @@ func TestDeviceID(t *testing.T) {
 		t.Fatal("vazio")
 	}
 }
+
+// Konica pela USB: o id diz PS,POSTSCRIPT,PCL (sem PJL) — o contador vem em PostScript.
+func TestPostScriptQuery(t *testing.T) {
+	id := "MFG:KONICA MINOLTA;CMD:PS,POSTSCRIPT,PCL;MDL:C368Series;CLS:PRINTER;"
+	if pjl, ps := Languages(id, "KONICA MINOLTA A3 Multi Model PS-PPD"); pjl || !ps {
+		t.Fatalf("Konica: pjl=%v ps=%v", pjl, ps)
+	}
+	if pjl, ps := Languages("MFG:HP;CMD:PJL,PCL,PCLXL;MDL:LaserJet M404;", ""); !pjl || ps {
+		t.Fatalf("HP: pjl=%v ps=%v", pjl, ps)
+	}
+	if pjl, ps := Languages("", "KONICA MINOLTA A3 Multi Model PS-PPD"); !ps || !pjl {
+		t.Fatalf("pelo driver: pjl=%v ps=%v", pjl, ps)
+	}
+	if _, ps := Languages("", "Canon GX7000 series"); ps {
+		t.Fatal("jato de tinta não recebe PostScript")
+	}
+	if got := ModelFromID(id); got != "KONICA MINOLTA C368Series" {
+		t.Fatal(got)
+	}
+	if got := ModelFromID("MFG:HP;MDL:HP LaserJet M404;"); got != "HP LaserJet M404" {
+		t.Fatal(got)
+	}
+	port := &slowPort{empty: 2, answer: "%%[ pagecount: 245362 ]%%\n%%[ product: (KONICA MINOLTA C368) ]%%\n%%[ serial: A7PU021012345 ]%%\n%%[ end ]%%\n"}
+	a, err := QueryPS(context.Background(), port)
+	if err != nil || a.PageCount != 245362 || a.Product != "(KONICA MINOLTA C368)" || a.Serial != "A7PU021012345" {
+		t.Fatalf("PostScript: %+v %v", a, err)
+	}
+	// Sem serialnumber (opcional no PostScript): só o contador e o produto.
+	a, err = ParsePS([]byte("%%[ pagecount: 10 ]%%\n%%[ product: KM ]%%\n%%[ end ]%%\n"))
+	if err != nil || a.PageCount != 10 || a.Serial != "" {
+		t.Fatalf("sem série: %+v %v", a, err)
+	}
+	if _, err := ParsePS([]byte("%%[ Error: undefined; OffendingCommand: pagecount ]%%")); err == nil {
+		t.Fatal("erro PostScript deveria falhar")
+	}
+	if !bytes.HasPrefix(psRequest, []byte("\x04%!PS")) || !bytes.HasSuffix(psRequest, []byte("\x04")) {
+		t.Fatal("pedido PostScript entre Ctrl-D")
+	}
+}

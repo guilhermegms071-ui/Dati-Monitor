@@ -338,13 +338,14 @@ func cmdUSBPJL(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	name := fs.String("printer", "", "nome da impressora (fila do Windows)")
 	wait := fs.Duration("wait", usbprint.PJLTimeout, "quanto esperar a resposta")
+	ps := fs.Bool("ps", false, "pergunta em PostScript (impressora que não fala PJL)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *name == "" {
 		return fail(stderr, "informe --printer")
 	}
-	resp, err := usbprint.SpoolerQuery(*name, *wait)
+	resp, err := usbprint.SpoolerQuery(*name, *wait, *ps)
 	if err != nil {
 		return fail(stderr, "%v", err)
 	}

@@ -105,14 +105,16 @@ func (c *Collector) scanUSB(ctx context.Context, d USBDeps, only map[string]bool
 		st := printer.StatusResult{Status: "ready"}
 		if p.Offline {
 			st.Status = "offline"
-		}
-		c.enqueue(ctx, protocol.Item{Kind: protocol.KindStatus, Device: ref, Status: &st})
-		if p.Offline {
+			c.enqueue(ctx, protocol.Item{Kind: protocol.KindStatus, Device: ref, Status: &st})
 			res.Error = "impressora USB desligada ou desconectada"
 			results = append(results, res)
 			continue
 		}
 		count, model, err := d.PageCount(ctx, p)
+		if model != "" {
+			ref.Model = model // o modelo que a própria impressora informa vale mais que o nome do driver
+		}
+		c.enqueue(ctx, protocol.Item{Kind: protocol.KindStatus, Device: ref, Status: &st})
 		if err != nil {
 			level := c.d.Log.Info
 			if !errors.Is(err, usbprint.ErrNoAnswer) {
@@ -122,9 +124,6 @@ func (c *Collector) scanUSB(ctx context.Context, d USBDeps, only map[string]bool
 			res.Error = "sem contador disponível: " + err.Error() + " (use a leitura manual no portal)"
 			results = append(results, res)
 			continue
-		}
-		if model != "" {
-			ref.Model = model
 		}
 		c.enqueue(ctx, protocol.Item{Kind: protocol.KindReading, Device: ref, Reading: &protocol.ReadingPayload{
 			Counters: map[string]int64{"total": count}, CounterSource: "pjl", Source: "usb", Status: st.Status,
