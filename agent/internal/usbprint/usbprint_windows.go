@@ -13,48 +13,70 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
-// listScript queries WMI for USB printers and, for each USB port (USB001...), which USB device is on it and
-// whether it is connected now. Win32_Printer.PNPDeviceID is often empty: then the port's entry under
-// DeviceClasses\{GUID_DEVINTERFACE_USBPRINT} gives the device (key name = interface path; "#\Device
-// Parameters" = Base Name + Port Number; "#\Control\Linked" = 1 when plugged in). A queue counts as
-// connected when the spooler does not mark it offline or the port's device is linked now; queues of
-// printers unplugged long ago are marked offline by the spooler. PowerShell 5.1 ships with every supported
-// Windows; output is JSON in UTF-8.
+// listScript queries WMI for the printer queues on USB ports (name, driver, port, spooler offline flag and
+// the parent USB device when Windows fills PNPDeviceID). Which of them is plugged in now, and the device
+// path to talk to it, come from presentPorts (the spooler keeps queues of printers unplugged long ago).
+// PowerShell 5.1 ships with every supported Windows; output is JSON in UTF-8.
 const listScript = `$ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
-$ports = @{}
-$base = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}'
-if (Test-Path $base) {
-  foreach ($k in Get-ChildItem $base) {
-    $dp = Get-ItemProperty -LiteralPath (Join-Path $k.PSPath '#\Device Parameters') -ErrorAction SilentlyContinue
-    if (-not $dp -or $null -eq $dp.'Port Number') { continue }
-    $port = [string]$dp.'Base Name' + ('{0:D3}' -f [int]$dp.'Port Number')
-    $ctl = Get-ItemProperty -LiteralPath (Join-Path $k.PSPath '#\Control') -ErrorAction SilentlyContinue
-    $linked = [bool]($ctl -and $ctl.Linked -eq 1)
-    $name = $k.PSChildName -replace '^##\?#', '' -replace '#\{[^}]+\}$', ''
-    $parent = $name -replace '#', '\'
-    if ($linked -or -not $ports.ContainsKey($port)) { $ports[$port] = @{ parent = $parent; present = $linked } }
-  }
-}
 $out = @(Get-CimInstance Win32_Printer | Where-Object { $_.PortName -like 'USB*' } | ForEach-Object {
   $parent = ''
   if ($_.PNPDeviceID) {
     $prop = Get-PnpDeviceProperty -InstanceId $_.PNPDeviceID -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
     if ($prop) { $parent = [string]$prop.Data }
   }
-  # Conectada = o spooler não a marca offline, ou o registro da porta diz que o aparelho está ligado agora.
-  # (Só o Linked do registro escondia a impressora ligada em alguns Windows: não basta para descartar.)
-  $present = -not [bool]$_.WorkOffline
-  $mapped = $ports[[string]$_.PortName]
-  if ($mapped) {
-    if (-not $parent) { $parent = $mapped.parent }
-    $present = $present -or $mapped.present
-  }
-  [pscustomobject]@{ name = $_.Name; driver = $_.DriverName; port = $_.PortName; pnp_device_id = [string]$_.PNPDeviceID; parent = [string]$parent; offline = [bool]$_.WorkOffline; present = [bool]$present }
+  [pscustomobject]@{ name = $_.Name; driver = $_.DriverName; port = $_.PortName; pnp_device_id = [string]$_.PNPDeviceID; parent = [string]$parent; offline = [bool]$_.WorkOffline }
 })
 ConvertTo-Json -InputObject $out -Compress`
+
+// deviceClassesKey is the registry key of a USBPRINT interface; its "#\Device Parameters" holds the port
+// (Base Name "USB" + Port Number 3 → USB003).
+const deviceClassesKey = `SYSTEM\CurrentControlSet\Control\DeviceClasses\` + GUIDDevInterfaceUSBPrint
+
+// presentPorts asks Windows which USB printer interfaces are plugged in now and maps each one to its port.
+func presentPorts() (map[string]string, error) {
+	guid, err := windows.GUIDFromString(GUIDDevInterfaceUSBPrint)
+	if err != nil {
+		return nil, err
+	}
+	paths, err := windows.CM_Get_Device_Interface_List("", &guid, windows.CM_GET_DEVICE_INTERFACE_LIST_PRESENT)
+	if err != nil {
+		return nil, fmt.Errorf("impressoras USB conectadas (CM_Get_Device_Interface_List): %w", err)
+	}
+	out := map[string]string{}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		port, err := portOf(path)
+		if err != nil {
+			return nil, fmt.Errorf("porta da impressora USB %s: %w", path, err)
+		}
+		out[port] = path
+	}
+	return out, nil
+}
+
+func portOf(path string) (string, error) {
+	name := "##?#" + strings.TrimPrefix(path, `\\?\`)
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, deviceClassesKey+`\`+name+`\#\Device Parameters`, registry.QUERY_VALUE)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = k.Close() }()
+	base, _, err := k.GetStringValue("Base Name")
+	if err != nil {
+		return "", fmt.Errorf("Base Name: %w", err)
+	}
+	num, _, err := k.GetIntegerValue("Port Number")
+	if err != nil {
+		return "", fmt.Errorf("Port Number: %w", err)
+	}
+	return strings.ToUpper(fmt.Sprintf("%s%03d", base, num)), nil
+}
 
 // List returns the USB printers of this PC.
 func List(ctx context.Context) ([]Printer, error) {
@@ -75,7 +97,11 @@ func List(ctx context.Context) ([]Printer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Connected(list), nil
+	present, err := presentPorts()
+	if err != nil {
+		return nil, err
+	}
+	return Connected(ApplyPresent(list, present)), nil
 }
 
 func parseList(out []byte) ([]Printer, error) {

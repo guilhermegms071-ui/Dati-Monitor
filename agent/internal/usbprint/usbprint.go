@@ -23,8 +23,12 @@ import (
 // GUIDDevInterfaceUSBPrint is GUID_DEVINTERFACE_USBPRINT.
 const GUIDDevInterfaceUSBPrint = "{28d78fad-5a12-11d1-ae5b-0000f803a8c2}"
 
-// PJLTimeout is how long we wait for a PJL answer before giving up ("sem contador disponível").
-const PJLTimeout = 5 * time.Second
+// PJLTimeout is how long we wait for a PJL answer before giving up ("sem contador disponível"). Copiers
+// coming out of energy saving take a few seconds to answer.
+const PJLTimeout = 10 * time.Second
+
+// readIdle is the pause between reads that returned nothing yet (the USB driver answers at once, empty).
+const readIdle = 50 * time.Millisecond
 
 // ErrNoAnswer means the printer did not answer PJL (common on GDI/host-based printers).
 var ErrNoAnswer = errors.New("a impressora não respondeu ao PJL pela USB")
@@ -41,6 +45,36 @@ type Printer struct {
 	// Present: the USB device on this port is plugged in now (false = queue left from a printer unplugged
 	// long ago, or the printer is off).
 	Present bool `json:"present"`
+	// Path is the USBPRINT device interface of the port as Windows reports it now (empty = not plugged in).
+	Path string `json:"path,omitempty"`
+}
+
+// ApplyPresent marks each queue by the USB printer interfaces Windows reports as plugged in now (port →
+// interface path, e.g. "USB003" → \\?\USB#VID_132B&PID_236C#000DE90C#{...}). The spooler and the registry keep
+// ports and paths of printers plugged in long ago; only this list says what is connected and how to open it.
+func ApplyPresent(list []Printer, present map[string]string) []Printer {
+	out := make([]Printer, len(list))
+	for i, p := range list {
+		path, ok := present[strings.ToUpper(p.Port)]
+		p.Present = ok
+		p.Path = path
+		if ok {
+			p.Parent = parentFromPath(path)
+			p.Offline = false // ligada na USB agora: o "offline" do spooler pode ser de antes
+		}
+		out[i] = p
+	}
+	return out
+}
+
+// parentFromPath turns an interface path (\\?\USB#VID_x&PID_y#SERIAL#{guid}) into the USB instance id
+// (USB\VID_x&PID_y\SERIAL).
+func parentFromPath(path string) string {
+	s := strings.TrimPrefix(path, `\\?\`)
+	if i := strings.LastIndex(s, "#{"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.ReplaceAll(s, "#", `\`)
 }
 
 // Connected keeps one printer per USB port, only the ones plugged in now: Windows keeps a queue for every
@@ -74,6 +108,9 @@ func isCopy(name string) bool {
 // InterfacePath is the USBPRINT device interface path built from the parent USB instance id
 // (\\?\USB#VID_03F0&PID_002A#SERIAL#{28d78fad-...}).
 func (p Printer) InterfacePath() string {
+	if p.Path != "" {
+		return p.Path
+	}
 	if p.Parent == "" {
 		return ""
 	}
@@ -173,6 +210,14 @@ func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string
 		for {
 			n, rerr := rw.Read(chunk)
 			buf.Write(chunk[:n])
+			if n == 0 && rerr == nil {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(readIdle):
+				}
+				continue
+			}
 			if pageCountRe.Match(buf.Bytes()) && bytes.Count(buf.Bytes(), []byte("\f")) >= 2 {
 				done <- result{buf.Bytes(), nil}
 				return

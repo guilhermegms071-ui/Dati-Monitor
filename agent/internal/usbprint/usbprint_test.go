@@ -115,3 +115,61 @@ func TestConnectedDropsGhostsAndDuplicates(t *testing.T) {
 		t.Fatalf("USB006: %+v", got[1])
 	}
 }
+
+// Só o que o Windows diz que está ligado agora conta, com o caminho atual (o do registro pode ser antigo).
+func TestApplyPresentUsesTheLivePath(t *testing.T) {
+	live := `\\?\USB#VID_132B&PID_236C#000DE90C#{28d78fad-5a12-11d1-ae5b-0000f803a8c2}`
+	list := []Printer{
+		{Name: "KONICA USB", Port: "usb003", Offline: true, Parent: `USB\VID_04B8&PID_118A&MI_01\6&592CD5&1&0001`},
+		{Name: "Fila antiga", Port: "USB004", Offline: true},
+		{Name: "Outra antiga", Port: "USB007"},
+	}
+	got := Connected(ApplyPresent(list, map[string]string{"USB003": live}))
+	if len(got) != 1 {
+		t.Fatalf("só a impressora ligada deveria sobrar: %+v", got)
+	}
+	k := got[0]
+	if !k.Present || k.Offline || k.InterfacePath() != live || k.Parent != `USB\VID_132B&PID_236C\000DE90C` {
+		t.Fatalf("impressora ligada: %+v", k)
+	}
+	if k.Serial("PC") != "000DE90C" {
+		t.Fatalf("serial pelo caminho atual: %s", k.Serial("PC"))
+	}
+	if got := Connected(ApplyPresent(list, map[string]string{})); len(got) != 0 {
+		t.Fatalf("nada ligado: %+v", got)
+	}
+}
+
+// O driver USB responde na hora com 0 bytes enquanto a impressora não tem a resposta: a leitura espera.
+func TestQueryWaitsWhileTheDriverReturnsNothing(t *testing.T) {
+	port := &slowPort{empty: 5, answer: "@PJL INFO ID\r\n\"bizhub\"\r\n\f@PJL INFO PAGECOUNT\r\n987\r\n\f"}
+	n, model, err := Query(context.Background(), port)
+	if err != nil || n != 987 || model != "bizhub" {
+		t.Fatalf("consulta: %d %q %v", n, model, err)
+	}
+	if port.reads < 6 {
+		t.Fatalf("deveria ler de novo depois das respostas vazias: %d leituras", port.reads)
+	}
+}
+
+type slowPort struct {
+	empty  int
+	answer string
+	reads  int
+}
+
+func (p *slowPort) Write(b []byte) (int, error) { return len(b), nil }
+
+func (p *slowPort) Read(b []byte) (int, error) {
+	p.reads++
+	if p.empty > 0 {
+		p.empty--
+		return 0, nil
+	}
+	if p.answer == "" {
+		return 0, io.EOF
+	}
+	n := copy(b, p.answer)
+	p.answer = p.answer[n:]
+	return n, nil
+}
