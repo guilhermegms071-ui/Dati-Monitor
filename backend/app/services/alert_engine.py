@@ -112,6 +112,8 @@ async def _agent_conditions(
     sites: set[uuid.UUID] = set()
     for agent, customer_id in rows:
         sites.add(agent.site_id)
+        if agent.uninstalled_at is not None:
+            continue  # desinstalado: já tem o alerta próprio (agent_uninstalled), não "sem sinal"
         if agent.state != "offline":
             online_sites.add(agent.site_id)
             continue

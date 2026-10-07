@@ -31,6 +31,7 @@ from app.models import (
     AgentEnrollmentCode,
     AgentHeartbeat,
     ClusterEvent,
+    Command,
     Customer,
     Device,
     DeviceEvent,
@@ -43,6 +44,7 @@ from app.models import (
 from app.schemas import agent as proto
 from app.schemas.collection import DEFAULT_COLLECTION, AgentIn, AgentStats, AgentUpdate
 from app.services import audit
+from app.services.alerts import open_alert
 from app.services.pagination import Direction, PageResult, SortOption, paginate
 
 logger = logging.getLogger(__name__)
@@ -530,6 +532,7 @@ async def heartbeat(
     now = _now()
     before = (agent.state, agent.cluster_role)
     agent.last_seen_at = now
+    agent.uninstalled_at = None  # voltou a falar: reinstalado (ou a desinstalação foi cancelada)
     if ip:
         agent.public_ip = ip  # IP de saída do cliente como o servidor o vê (seção 16.10)
     agent.install_path = req.install_path or agent.install_path
@@ -582,6 +585,51 @@ async def heartbeat(
         config_version=agent.config_version,
         cluster_role="master" if agent.cluster_role == "master" else "standby",
         paused=agent.paused,
+    )
+
+
+# Desinstalação pedida no portal (comando "Desinstalar do PC") nesse intervalo não gera alerta.
+EXPECTED_UNINSTALL_WINDOW = timedelta(hours=24)
+
+
+async def uninstalling(session: AsyncSession, agent: Agent, req: proto.UninstallNotice) -> None:
+    """The uninstaller is removing the collector from the PC: mark it and alert, unless the portal asked
+    for it (command "Desinstalar do PC")."""
+    now = _now()
+    agent.uninstalled_at = now
+    agent.state = "offline"
+    where = "pelo desinstalador do Windows" if req.reason == "installer" else "pelo pacote do Linux"
+    agent.last_error = f"Coletor desinstalado do PC {where}"
+    await emit_state(session, agent)
+    expected = (
+        await session.execute(
+            select(Command.id)
+            .where(
+                Command.agent_id == agent.id,
+                Command.type == "uninstall",
+                Command.state.in_(("pending", "sent", "acked", "running", "succeeded")),
+                Command.created_at >= now - EXPECTED_UNINSTALL_WINDOW,
+            )
+            .limit(1)
+        )
+    ).first()
+    if expected is not None:
+        logger.info("coletor %s desinstalado a pedido do portal", agent.id)
+        return
+    site = await session.get(Site, agent.site_id)
+    host = f" ({agent.hostname})" if agent.hostname else ""
+    await open_alert(
+        session,
+        reseller_id=agent.reseller_id,
+        customer_id=site.customer_id if site else None,
+        site_id=agent.site_id,
+        type_="agent_uninstalled",
+        severity="critical",
+        target_type="agent",
+        target_id=agent.id,
+        message=f"Coletor {agent.name} foi desinstalado do PC{host}",
+        dedup_key=f"agent_uninstalled:{agent.id}",
+        data={"agent_name": agent.name, "hostname": agent.hostname, "reason": req.reason},
     )
 
 

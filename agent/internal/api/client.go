@@ -411,6 +411,12 @@ func (c *Client) WSHTTPClient() *http.Client {
 	return &http.Client{Transport: t, Timeout: 30 * time.Second}
 }
 
+// NotifyUninstall tells the server the collector is being removed from this PC (alert in the portal).
+func (c *Client) NotifyUninstall(ctx context.Context, reason string) error {
+	req := protocol.UninstallNotice{V: protocol.Version, Reason: reason}
+	return c.call(ctx, http.MethodPost, "/api/agent/uninstalling", req, nil, false)
+}
+
 // SuggestRanges sends the agent's private /24 networks for approval in the portal.
 func (c *Client) SuggestRanges(ctx context.Context, ranges []string) error {
 	req := protocol.SuggestRangesRequest{V: protocol.Version, Ranges: ranges}

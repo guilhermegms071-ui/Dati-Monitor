@@ -25,6 +25,7 @@ ALERT_RULE_TYPES = (
     "door_open",
     "jam_recurrent",  # N atolamentos em X dias (seção 16.4)
     "printer_alert",  # alerta da prtAlertTable por categoria (seção 16.4)
+    "agent_uninstalled",  # o desinstalador avisou que o coletor saiu do PC
 )
 CHANNEL_KINDS = ("email", "whatsapp", "webhook")
 NOTIFICATION_STATES = ("pending", "sent", "failed", "suppressed")

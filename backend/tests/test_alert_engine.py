@@ -32,6 +32,7 @@ async def test_default_rules_and_customer_override(client: httpx.AsyncClient, fa
         "counter_regression",
         "suspicious_jump",
         "sum_mismatch",
+        "agent_uninstalled",
     }
     assert by_type["agent_offline"]["params"] == {"minutes": 5}
     assert by_type["jam_recurrent"]["params"] == {"count": 5, "days": 3}
@@ -107,6 +108,7 @@ async def test_collector_offline_groups_devices_and_resolves(
     # Outro coletor do local está vivo: os equipamentos sem leitura passam a alertar.
     b = await enrolled_agent(client, t, name="PC B")
     await b.heartbeat()
+    await b.watchdog_heartbeat()  # a desinstalação pelo portal é feita pelo vigia
     await evaluate(sessionmaker, now)
     keys = set(await open_alerts(sessionmaker))
     assert {k.split(":")[0] for k in keys} == {"agent_offline", "device_no_reading"}
@@ -295,3 +297,50 @@ async def test_printer_errors_recurrent_jam_and_disabled_rule(
     )
     await evaluate(sessionmaker, now)
     assert not any(k.startswith("printer_alert:") for k in await open_alerts(sessionmaker))
+
+
+async def test_uninstall_notice_alerts_once_and_skips_offline(
+    client: httpx.AsyncClient, factory: Factory, sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """O desinstalador avisa o servidor: alerta "Coletor desinstalado" (não o "sem sinal"); se a
+    desinstalação foi pedida pelo portal, não alerta; se o coletor volta a falar, a marca some."""
+    t = await factory.tenant()
+    a = await enrolled_agent(client, t, name="PC Recepção")
+    await a.heartbeat()
+    resp = await client.post(
+        "/api/agent/uninstalling", json={"v": 1, "reason": "installer"}, headers=a.headers
+    )
+    assert resp.status_code == 200, resp.text
+    async with sessionmaker() as s:
+        alert = (await s.execute(select(Alert).where(Alert.type == "agent_uninstalled"))).scalar_one()
+        assert (alert.severity, alert.customer_id) == ("critical", t.customer_id)
+        assert alert.message == "Coletor PC Recepção foi desinstalado do PC (PC-TESTE)"
+    admin = await login(client, t.admin_email)
+    agent = (await client.get(f"/api/v1/agents/{a.agent_id}", headers=auth(admin))).json()
+    assert agent["uninstalled_at"] is not None
+    assert agent["state"] == "offline"
+
+    # Sem sinal depois de desinstalado: não abre o "Coletor sem sinal" em cima do alerta próprio.
+    now = datetime.now(UTC)
+    await set_agent(sessionmaker, a.agent_id, last_seen_at=now - timedelta(hours=1))
+    await evaluate(sessionmaker, now)
+    assert f"agent_offline:{a.agent_id}" not in await open_alerts(sessionmaker)
+
+    # Voltou a falar (reinstalado): a marca some.
+    await a.heartbeat()
+    agent = (await client.get(f"/api/v1/agents/{a.agent_id}", headers=auth(admin))).json()
+    assert agent["uninstalled_at"] is None
+
+    # Desinstalação pedida pelo portal: não alerta.
+    b = await enrolled_agent(client, t, name="PC B")
+    await b.heartbeat()
+    await b.watchdog_heartbeat()  # a desinstalação pelo portal é feita pelo vigia
+    cmd = await client.post(
+        f"/api/v1/agents/{b.agent_id}/commands",
+        json={"type": "uninstall", "params": {"confirm_name": "PC B"}},
+        headers=auth(admin),
+    )
+    assert cmd.status_code in (200, 201), cmd.text
+    resp = await client.post("/api/agent/uninstalling", json={"v": 1, "reason": "package"}, headers=b.headers)
+    assert resp.status_code == 200
+    assert f"agent_uninstalled:{b.agent_id}" not in await open_alerts(sessionmaker)

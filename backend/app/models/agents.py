@@ -87,6 +87,8 @@ class Agent(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     monitor_local_networks: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
     public_ip: Mapped[str | None] = mapped_column(String(64))  # visto pelo servidor
     install_path: Mapped[str | None] = mapped_column(Text)
+    # Aviso do desinstalador (Windows/Linux) antes de remover o coletor do PC; limpo se ele voltar a falar.
+    uninstalled_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class AgentPresence(Base):

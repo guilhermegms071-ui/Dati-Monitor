@@ -178,6 +178,12 @@ type AgentConfig struct {
 	IgnoredSerials []string `json:"ignored_serials"`
 }
 
+// UninstallNotice is sent by the uninstaller right before the collector leaves the PC.
+type UninstallNotice struct {
+	V      int    `json:"v"`
+	Reason string `json:"reason"` // installer (Windows) | package (Linux)
+}
+
 // SuggestRangesRequest sends the /24 of the agent's private interfaces when the site has no range.
 type SuggestRangesRequest struct {
 	V      int      `json:"v"`

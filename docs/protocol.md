@@ -98,6 +98,7 @@ por `POST /api/agent/commands/{id}/update`.
 | POST | `/api/agent/heartbeat` | [HeartbeatRequest](protocol-schemas/HeartbeatRequest.json) | [HeartbeatResponse](protocol-schemas/HeartbeatResponse.json) | Bearer (token do agente) |
 | GET | `/api/agent/config` | — | [AgentConfig](protocol-schemas/AgentConfig.json) | Bearer |
 | POST | `/api/agent/ranges/suggest` | [SuggestRangesRequest](protocol-schemas/SuggestRangesRequest.json) | — | Bearer |
+| POST | `/api/agent/uninstalling` | [UninstallNotice](protocol-schemas/UninstallNotice.json) | — | Bearer; enviado pelo desinstalador |
 | POST | `/api/agent/readings` | [ReadingsRequest](protocol-schemas/ReadingsRequest.json) | [ReadingsResponse](protocol-schemas/ReadingsResponse.json) | Bearer; corpo gzip |
 | GET | `/api/agent/commands/pending` | — | [PendingCommandsResponse](protocol-schemas/PendingCommandsResponse.json) | Bearer (contingência) |
 | POST | `/api/agent/commands/{id}/update` | [CommandUpdate](protocol-schemas/CommandUpdate.json) | [CommandUpdateResponse](protocol-schemas/CommandUpdateResponse.json) | Bearer |

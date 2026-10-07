@@ -32,6 +32,7 @@ ENDPOINTS = [
     ("POST", "/api/agent/heartbeat", "HeartbeatRequest", "HeartbeatResponse", "Bearer (token do agente)"),
     ("GET", "/api/agent/config", "-", "AgentConfig", "Bearer"),
     ("POST", "/api/agent/ranges/suggest", "SuggestRangesRequest", "-", "Bearer"),
+    ("POST", "/api/agent/uninstalling", "UninstallNotice", "-", "Bearer; enviado pelo desinstalador"),
     ("POST", "/api/agent/readings", "ReadingsRequest", "ReadingsResponse", "Bearer; corpo gzip"),
     ("GET", "/api/agent/commands/pending", "-", "PendingCommandsResponse", "Bearer (contingência)"),
     ("POST", "/api/agent/commands/{id}/update", "CommandUpdate", "CommandUpdateResponse", "Bearer"),

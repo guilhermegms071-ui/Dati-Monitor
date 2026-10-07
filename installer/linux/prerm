@@ -2,6 +2,8 @@
 # Antes de remover (não em atualização): para e remove os serviços.
 set -e
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    # Avisa o servidor (alerta "Coletor desinstalado" no portal); falha não impede a remoção.
+    /usr/bin/dm-agent notify-uninstall --reason package || echo "@PRODUCT@: não foi possível avisar o servidor da desinstalação" >&2
     /usr/bin/dm-watchdog uninstall || echo "@PRODUCT@: serviço do watchdog já não existia" >&2
     /usr/bin/dm-agent uninstall || echo "@PRODUCT@: serviço do coletor já não existia" >&2
     systemctl daemon-reload || echo "@PRODUCT@: não foi possível recarregar o systemd" >&2

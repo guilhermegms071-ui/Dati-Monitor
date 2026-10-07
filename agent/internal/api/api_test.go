@@ -98,6 +98,7 @@ type fakeServer struct {
 	tokens     atomic.Int32
 	reject401  atomic.Int32
 	gotGzip    atomic.Bool
+	uninstall  atomic.Value
 }
 
 func (f *fakeServer) handler() http.Handler {
@@ -160,6 +161,15 @@ func (f *fakeServer) handler() http.Handler {
 		}
 		f.gotGzip.Store(true)
 		_ = json.NewEncoder(w).Encode(protocol.ReadingsResponse{})
+	})
+	mux.HandleFunc("POST /api/agent/uninstalling", func(w http.ResponseWriter, r *http.Request) {
+		var req protocol.UninstallNotice
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.V != protocol.Version {
+			writeErr(w, http.StatusBadRequest, "bad_body", nil)
+			return
+		}
+		f.uninstall.Store(req.Reason)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("GET /api/agent/config", func(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusUnprocessableEntity, "invalid", nil)
@@ -287,5 +297,16 @@ func TestCheckEnrollment(t *testing.T) {
 	if _, err := CheckEnrollment(context.Background(), Options{ServerURL: srv.URL}, "ZZZZ9999"); err == nil ||
 		!strings.Contains(err.Error(), "inválido") {
 		t.Fatalf("código inválido deveria trazer a mensagem do servidor: %v", err)
+	}
+}
+
+func TestNotifyUninstall(t *testing.T) {
+	f := &fakeServer{t: t, key: []byte("k"), serverTime: time.Now().UTC()}
+	c := newTestClient(t, f)
+	if err := c.NotifyUninstall(context.Background(), "package"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.uninstall.Load(); got != "package" {
+		t.Fatalf("motivo recebido pelo servidor: %v", got)
 	}
 }

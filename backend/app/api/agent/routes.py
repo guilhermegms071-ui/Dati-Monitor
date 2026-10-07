@@ -109,6 +109,15 @@ async def config(agent: AgentDep, session: SessionDep, settings: SettingsDep) ->
 
 
 @router.post(
+    "/uninstalling", response_model=OkResponse, summary="Aviso do desinstalador: o coletor está saindo do PC"
+)
+async def uninstalling(body: proto.UninstallNotice, agent: AgentDep, session: SessionDep) -> OkResponse:
+    await svc.uninstalling(session, agent, body)
+    await session.commit()
+    return OkResponse()
+
+
+@router.post(
     "/ranges/suggest", response_model=OkResponse, summary="Sugerir sub-redes para aprovação no portal"
 )
 async def suggest(body: proto.SuggestRangesRequest, agent: AgentDep, session: SessionDep) -> OkResponse:

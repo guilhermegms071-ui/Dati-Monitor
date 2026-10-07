@@ -106,6 +106,7 @@ class AgentOut(ORMModel):
     cpu_percent: float | None
     memory_bytes: int | None
     avg_latency_ms: float | None
+    uninstalled_at: datetime | None = Field(default=None, description="O desinstalador avisou que saiu do PC")
     last_error: str | None
     suggested_ranges: list[Any]
     paused: bool

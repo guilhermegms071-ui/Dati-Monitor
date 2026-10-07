@@ -104,6 +104,8 @@ Source: "{#BinDir}\windows-arm64\dm-agent.exe"; DestName: "dm-agent-arm64.exe"; 
 Source: "{#BinDir}\windows-386\dm-agent.exe"; DestName: "dm-agent-386.exe"; Flags: dontcopy
 
 [UninstallRun]
+; Avisa o servidor antes de remover (alerta "Coletor desinstalado" no portal). Falha não impede a desinstalação.
+Filename: "{app}\dm-agent.exe"; Parameters: "notify-uninstall --reason installer"; Flags: runhidden waituntilterminated; RunOnceId: "NotifyUninstall"
 Filename: "{app}\dm-watchdog.exe"; Parameters: "uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveWatchdogService"
 Filename: "{app}\dm-agent.exe"; Parameters: "uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveAgentService"
 

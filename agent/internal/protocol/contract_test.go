@@ -123,6 +123,7 @@ func TestMessagesMatchServerSchemas(t *testing.T) {
 		"TokenRequest":         TokenRequest{},
 		"HeartbeatRequest":     HeartbeatRequest{Ts: now},
 		"SuggestRangesRequest": SuggestRangesRequest{},
+		"UninstallNotice":      UninstallNotice{},
 		"ReadingsRequest": ReadingsRequest{Items: []Item{
 			{Kind: "reading", ReadAt: now, Reading: &ReadingPayload{}},
 			{Kind: "supplies", ReadAt: now, Supplies: []printer.Supply{{}}},

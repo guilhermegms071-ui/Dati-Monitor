@@ -159,6 +159,14 @@ class AgentConfig(Msg):
     )
 
 
+class UninstallNotice(Msg):
+    """Sent by the uninstaller (Windows/Linux) right before removing the collector from the PC."""
+
+    reason: Literal["installer", "package"] = Field(
+        default="installer", description="installer = Windows (Inno Setup); package = Linux (.deb/prerm)"
+    )
+
+
 class SuggestRangesRequest(Msg):
     ranges: list[str] = Field(max_length=32)
 
@@ -546,6 +554,7 @@ PROTOCOL_MESSAGES: dict[str, type[BaseModel]] = {
     "HeartbeatResponse": HeartbeatResponse,
     "AgentConfig": AgentConfig,
     "SuggestRangesRequest": SuggestRangesRequest,
+    "UninstallNotice": UninstallNotice,
     "ReadingsRequest": ReadingsRequest,
     "ReadingsResponse": ReadingsResponse,
     "CommandMessage": CommandMessage,

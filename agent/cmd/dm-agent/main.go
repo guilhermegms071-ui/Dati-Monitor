@@ -54,6 +54,10 @@ func main() {
 		"stop":      {Summary: "para o serviço", Run: serviceControl("stop")},
 		"restart":   {Summary: "reinicia o serviço", Run: serviceControl("restart")},
 		"status":    {Summary: "mostra o estado do serviço e do /health", Run: cmdStatus},
+		"notify-uninstall": {
+			Summary: "uso interno do desinstalador: avisa o servidor que o coletor está saindo do PC",
+			Run:     cmdNotifyUninstall,
+		},
 	}}
 	os.Exit(app.Main(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -263,5 +267,41 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	if rep.Status != "ok" {
 		return 1
 	}
+	return 0
+}
+
+// cmdNotifyUninstall is run by the uninstaller (Inno Setup / prerm) before removing the services. It never
+// blocks the uninstall: a failure is printed and the exit code is 1, which the uninstallers ignore.
+func cmdNotifyUninstall(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("notify-uninstall", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dataDir := fs.String("data-dir", "", "pasta de dados")
+	reason := fs.String("reason", "installer", "installer (Windows) ou package (Linux)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *reason != "installer" && *reason != "package" {
+		return fail(stderr, "--reason deve ser installer ou package")
+	}
+	dir := config.DataDir(*dataDir)
+	local, err := config.Load(dir)
+	if err != nil {
+		return fail(stderr, "coletor não cadastrado neste PC; nada a avisar: %v", err)
+	}
+	sec, err := secret.Load(dir)
+	if err != nil {
+		return fail(stderr, "%v", err)
+	}
+	client, err := api.New(api.Options{ServerURL: local.ServerURL, InsecureDev: local.InsecureDev,
+		InsecureLAN: local.InsecureLAN, ProxyURL: local.ProxyURL}, local.AgentID, secret.DeriveKey(sec))
+	if err != nil {
+		return fail(stderr, "%v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := client.NotifyUninstall(ctx, *reason); err != nil {
+		return fail(stderr, "não foi possível avisar o servidor: %v", err)
+	}
+	_, _ = fmt.Fprintln(stdout, "Servidor avisado: coletor desinstalado deste PC.")
 	return 0
 }

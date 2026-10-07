@@ -1,0 +1,23 @@
+{
+  "description": "Sent by the uninstaller (Windows/Linux) right before removing the collector from the PC.",
+  "properties": {
+    "reason": {
+      "default": "installer",
+      "description": "installer = Windows (Inno Setup); package = Linux (.deb/prerm)",
+      "enum": [
+        "installer",
+        "package"
+      ],
+      "title": "Reason",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "title": "UninstallNotice",
+  "type": "object"
+}

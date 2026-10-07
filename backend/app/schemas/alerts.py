@@ -23,6 +23,7 @@ RuleType = Literal[
     "door_open",
     "jam_recurrent",
     "printer_alert",
+    "agent_uninstalled",
 ]
 PrinterAlertCategory = Literal["parts", "service_call", "jam", "consumable", "other"]
 
@@ -80,6 +81,7 @@ PARAMS_BY_TYPE: dict[str, type[BaseModel]] = {
     "counter_regression": NoParams,
     "suspicious_jump": NoParams,
     "sum_mismatch": NoParams,
+    "agent_uninstalled": NoParams,
 }
 
 RULE_LABELS: dict[str, str] = {
@@ -95,6 +97,7 @@ RULE_LABELS: dict[str, str] = {
     "counter_regression": "Contador regrediu",
     "suspicious_jump": "Salto suspeito de contador",
     "sum_mismatch": "PB + cor diferente do total",
+    "agent_uninstalled": "Coletor desinstalado do PC",
 }
 
 

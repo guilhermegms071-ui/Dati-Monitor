@@ -18,6 +18,7 @@ from app.services import audit
 # Regras padrão de toda revenda (canais vazios = todos os canais ativos da revenda).
 DEFAULT_RULES: tuple[tuple[str, str, dict[str, Any]], ...] = (
     ("agent_offline", "critical", {"minutes": 5}),
+    ("agent_uninstalled", "critical", {}),
     ("device_no_reading", "warning", {"hours": 6}),
     ("toner_low", "warning", {}),
     ("toner_days_left", "info", {"days": 7, "min_confidence": 0.5}),
