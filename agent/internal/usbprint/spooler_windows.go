@@ -68,16 +68,13 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 		uintptr(unsafe.Pointer(&written))); r == 0 {
 		return nil, fmt.Errorf("enviar o PJL pela fila: %w", e)
 	}
-	// Alguns monitores de porta devolvem a resposta durante o trabalho, outros só depois de fechá-lo.
+	// A resposta volta pelo monitor de porta enquanto o trabalho está aberto; depois de fechar o trabalho,
+	// o identificador não serve mais para ler.
 	var buf bytes.Buffer
 	deadline := time.Now().Add(wait)
-	half := time.Now().Add(wait / 2)
 	var lastErr error
 	chunk := make([]byte, 4096)
 	for time.Now().Before(deadline) {
-		if time.Now().After(half) {
-			end()
-		}
 		var got uint32
 		r, _, e := procReadPrinter.Call(uintptr(h), uintptr(unsafe.Pointer(&chunk[0])), uintptr(len(chunk)),
 			uintptr(unsafe.Pointer(&got)))
@@ -88,11 +85,12 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 			}
 			continue
 		}
-		if r == 0 {
-			lastErr = e
+		if r == 0 && lastErr == nil {
+			lastErr = e // o primeiro erro diz o motivo; os seguintes repetem
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+	end()
 	if buf.Len() == 0 && lastErr != nil {
 		return nil, fmt.Errorf("ler a resposta pela fila: %w", lastErr)
 	}

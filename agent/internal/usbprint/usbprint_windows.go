@@ -165,13 +165,15 @@ func (r handleRW) Write(p []byte) (int, error) {
 // PageCount asks the page counter by PJL: straight through the USB printer interface when Windows publishes
 // it, else (or when that fails) through the printer queue, if the driver says the printer understands PJL.
 func PageCount(ctx context.Context, p Printer) (int64, string, error) {
+	if !SpoolerSafe(p.Driver) {
+		// Jato de tinta e impressoras "host-based" não falam PJL: mandar o pedido não traz contador e,
+		// com a impressora imprimindo, poderia atrapalhar o trabalho.
+		return 0, "", fmt.Errorf("%w: o driver %q não indica suporte a PJL (comum em jato de tinta); "+
+			"ligue a impressora na rede para ler por SNMP ou registre a leitura manual", ErrNoAnswer, p.Driver)
+	}
 	count, model, direct := directPageCount(ctx, p)
 	if direct == nil {
 		return count, model, nil
-	}
-	if !SpoolerSafe(p.Driver) {
-		return 0, "", fmt.Errorf("%w (%w); pela fila de impressão não foi tentado: o driver %q não indica suporte a PJL "+
-			"(evita imprimir uma folha à toa)", ErrNoAnswer, direct, p.Driver)
 	}
 	count, model, spool := spoolerPageCount(ctx, p)
 	if spool == nil {

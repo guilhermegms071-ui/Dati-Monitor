@@ -208,3 +208,15 @@ func TestSpoolerSafe(t *testing.T) {
 		}
 	}
 }
+
+// A fila do fax da multifuncional (outra porta USB) é a mesma impressora: não vira um equipamento a mais.
+func TestConnectedSkipsFaxQueue(t *testing.T) {
+	list := []Printer{
+		{Name: "Canon GX7000 series (Copiar 4)", Driver: "Canon GX7000 series", Port: "USB007", Present: true},
+		{Name: "Canon GX7000 series FAX (Copiar 3)", Driver: "Canon GX7000 series FAX", Port: "USB008", Present: true},
+	}
+	got := Connected(list)
+	if len(got) != 1 || got[0].Port != "USB007" {
+		t.Fatalf("só a impressora, sem o fax: %+v", got)
+	}
+}

@@ -91,7 +91,7 @@ func Connected(list []Printer) []Printer {
 	out := make([]Printer, 0, len(list))
 	at := map[string]int{}
 	for _, p := range list {
-		if !p.Present {
+		if !p.Present || isFax(p) {
 			continue
 		}
 		i, seen := at[strings.ToUpper(p.Port)]
@@ -105,6 +105,11 @@ func Connected(list []Printer) []Printer {
 		}
 	}
 	return out
+}
+
+// isFax: the fax function of a multifunction printer has its own queue and USB port; it is the same printer.
+func isFax(p Printer) bool {
+	return strings.Contains(strings.ToUpper(p.Name+" "+p.Driver), "FAX")
 }
 
 func isCopy(name string) bool {
