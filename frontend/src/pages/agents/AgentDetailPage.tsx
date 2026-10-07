@@ -70,9 +70,9 @@ export function AgentDetailPage() {
             <RoleBadge role={a.cluster_role} />
             {a.revoked_at ? <Badge tone="red">Revogado</Badge> : null}
             {a.uninstalled_at ? (
-              <Badge tone="red" title={`Desinstalado em ${fmtDateTime(a.uninstalled_at)}`}>
-                Desinstalado do PC
-              </Badge>
+              <span title={`Desinstalado em ${fmtDateTime(a.uninstalled_at)}`}>
+                <Badge tone="red">Desinstalado do PC</Badge>
+              </span>
             ) : null}
           </span>
         }

@@ -38,6 +38,7 @@ function agent(over: Partial<Schemas['AgentOut']> = {}): Schemas['AgentOut'] {
     memory_bytes: 1,
     avg_latency_ms: 2,
     last_error: null,
+    uninstalled_at: null,
     suggested_ranges: [],
     paused: false,
     ws_connected: true,
