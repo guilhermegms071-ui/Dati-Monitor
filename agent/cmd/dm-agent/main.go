@@ -28,6 +28,7 @@ import (
 	"github.com/daticopy/dati-monitor/agent/internal/protocol"
 	"github.com/daticopy/dati-monitor/agent/internal/secret"
 	"github.com/daticopy/dati-monitor/agent/internal/svc"
+	"github.com/daticopy/dati-monitor/agent/internal/usbprint"
 )
 
 func definition(dataDir string) svc.Definition {
@@ -54,6 +55,14 @@ func main() {
 		"stop":      {Summary: "para o serviço", Run: serviceControl("stop")},
 		"restart":   {Summary: "reinicia o serviço", Run: serviceControl("restart")},
 		"status":    {Summary: "mostra o estado do serviço e do /health", Run: cmdStatus},
+		"usb-diagnostico": {
+			Summary: "mostra as impressoras USB deste PC e o que cada uma responde (--fila também tenta pela fila de impressão)",
+			Run:     cmdUSBDiagnose,
+		},
+		"usb-pjl": {
+			Summary: "uso interno: pede o contador a uma impressora USB pela fila de impressão",
+			Run:     cmdUSBPJL,
+		},
 		"notify-uninstall": {
 			Summary: "uso interno do desinstalador: avisa o servidor que o coletor está saindo do PC",
 			Run:     cmdNotifyUninstall,
@@ -303,5 +312,42 @@ func cmdNotifyUninstall(args []string, stdout, stderr io.Writer) int {
 		return fail(stderr, "não foi possível avisar o servidor: %v", err)
 	}
 	_, _ = fmt.Fprintln(stdout, "Servidor avisado: coletor desinstalado deste PC.")
+	return 0
+}
+
+// cmdUSBDiagnose is for the technician on the customer's PC: what the collector sees of each USB printer.
+func cmdUSBDiagnose(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("usb-diagnostico", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	spooler := fs.Bool("fila", false, "também pede o contador pela fila de impressão (impressora sem PJL pode imprimir uma folha)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := usbprint.Diagnose(ctx, stdout, *spooler); err != nil {
+		return fail(stderr, "%v", err)
+	}
+	return 0
+}
+
+// cmdUSBPJL runs the spooler query in its own process (the collector kills it if the spooler hangs) and
+// writes the printer's raw answer to stdout.
+func cmdUSBPJL(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("usb-pjl", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	name := fs.String("printer", "", "nome da impressora (fila do Windows)")
+	wait := fs.Duration("wait", usbprint.PJLTimeout, "quanto esperar a resposta")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *name == "" {
+		return fail(stderr, "informe --printer")
+	}
+	resp, err := usbprint.SpoolerQuery(*name, *wait)
+	if err != nil {
+		return fail(stderr, "%v", err)
+	}
+	_, _ = stdout.Write(resp)
 	return 0
 }

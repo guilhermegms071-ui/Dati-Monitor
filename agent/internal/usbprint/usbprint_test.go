@@ -173,3 +173,38 @@ func (p *slowPort) Read(b []byte) (int, error) {
 	p.answer = p.answer[n:]
 	return n, nil
 }
+
+// Impressora cujo driver não publica a interface USB padrão (algumas Canon): conta como ligada pelo aparelho
+// USB presente, sem caminho direto.
+func TestApplyPresentKeepsPrinterWithoutStandardInterface(t *testing.T) {
+	list := []Printer{
+		{Name: "Canon MF", Port: "USB001", Offline: true, DevicePresent: true, Parent: `USB\VID_04A9&PID_18A8&MI_01\6&1EA3F843&0&0001`},
+		{Name: "Canon antiga", Port: "USB002", Parent: `USB\VID_04A9&PID_10E3\184CAC`},
+	}
+	got := Connected(ApplyPresent(list, map[string]string{}))
+	if len(got) != 1 || got[0].Name != "Canon MF" || got[0].Offline || got[0].Path != "" {
+		t.Fatalf("só a Canon ligada, sem caminho direto: %+v", got)
+	}
+}
+
+// Só os drivers que indicam PJL recebem o pedido pela fila (os outros poderiam imprimir o pedido como texto).
+func TestSpoolerSafe(t *testing.T) {
+	for driver, want := range map[string]bool{
+		"Canon Generic Plus UFR II":      true,
+		"Canon MF3010 UFRII LT":          false,
+		"Canon LBP2900 CAPT":             false,
+		"HP Universal Printing PCL 6":    true,
+		"KONICA MINOLTA C4000iSeriesPCL": true,
+		"Kyocera ECOSYS M3550idn KX":     true,
+		"Generic / Text Only":            false,
+		"EPSON L3150 Series":             false,
+		"Brother HL-L2350DW series":      false,
+		"Brother HL-L5100DN BR-Script3":  true,
+		"Xerox Global Print Driver PS":   true,
+		"Microsoft Print To PDF":         false,
+	} {
+		if got := SpoolerSafe(driver); got != want {
+			t.Errorf("%s: %v, esperava %v", driver, got, want)
+		}
+	}
+}

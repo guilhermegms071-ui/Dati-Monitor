@@ -47,19 +47,26 @@ type Printer struct {
 	Present bool `json:"present"`
 	// Path is the USBPRINT device interface of the port as Windows reports it now (empty = not plugged in).
 	Path string `json:"path,omitempty"`
+	// DevicePresent: the USB device of the port is plugged in now (Device Manager), even when its driver does
+	// not publish the standard USB printer interface (some Canon/Epson drivers); the counter then comes
+	// through the spooler.
+	DevicePresent bool `json:"device_present"`
 }
 
-// ApplyPresent marks each queue by the USB printer interfaces Windows reports as plugged in now (port →
-// interface path, e.g. "USB003" → \\?\USB#VID_132B&PID_236C#000DE90C#{...}). The spooler and the registry keep
-// ports and paths of printers plugged in long ago; only this list says what is connected and how to open it.
+// ApplyPresent marks which queues are connected now: the port has a live USB printer interface (port →
+// interface path, e.g. "USB003" → \\?\USB#VID_132B&PID_236C#000DE90C#{...}) or the port's USB device is
+// plugged in (DevicePresent: drivers that do not publish the standard interface). The spooler and the
+// registry keep ports and paths of printers plugged in long ago, so neither alone says what is connected.
 func ApplyPresent(list []Printer, present map[string]string) []Printer {
 	out := make([]Printer, len(list))
 	for i, p := range list {
 		path, ok := present[strings.ToUpper(p.Port)]
-		p.Present = ok
+		p.Present = ok || p.DevicePresent
 		p.Path = path
 		if ok {
 			p.Parent = parentFromPath(path)
+		}
+		if p.Present {
 			p.Offline = false // ligada na USB agora: o "offline" do spooler pode ser de antes
 		}
 		out[i] = p
@@ -241,4 +248,22 @@ func Query(ctx context.Context, rw io.ReadWriter) (pageCount int64, model string
 		}
 		return count, ParseID(r.data), nil
 	}
+}
+
+// pjlDrivers are driver name markers of printers that understand PJL: only these get the query through the
+// spooler automatically. A host-based printer (GDI, CAPT, UFR II LT...) could print the request as text.
+var pjlDrivers = []string{"pcl", "postscript", " ps", "ps3", "kx", "ufr ii", "ufrii", "pjl", "br-script", "upd"}
+
+// SpoolerSafe reports whether the driver says the printer understands PJL.
+func SpoolerSafe(driver string) bool {
+	d := " " + strings.ToLower(driver)
+	if strings.Contains(d, "ufr ii lt") || strings.Contains(d, "ufrii lt") || strings.Contains(d, "capt") {
+		return false
+	}
+	for _, m := range pjlDrivers {
+		if strings.Contains(d, m) {
+			return true
+		}
+	}
+	return false
 }
