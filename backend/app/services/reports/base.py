@@ -243,12 +243,48 @@ def sql_scope(p: Principal, f: Filters, alias: str = "d") -> tuple[str, dict[str
         parts.append(f"{alias}.reseller_id = :scope_reseller")
         params["scope_reseller"] = p.reseller_id
     if p.customer_id is not None:
-        parts.append(f"{alias}.customer_id = :scope_customer")
         params["scope_customer"] = p.customer_id
     if f.customer_id is not None:
-        parts.append(f"{alias}.customer_id = :f_customer")
         params["f_customer"] = f.customer_id
     if f.site_id is not None:
-        parts.append(f"{alias}.site_id = :f_site")
         params["f_site"] = f.site_id
+    if history := assignment_conditions(params, "da"):
+        # Equipamento que esteve com o cliente/local em algum momento (histórico de transferências);
+        # sem histórico gravado, vale o cliente/local atual.
+        was = " AND ".join(history)
+        now = " AND ".join(f"{alias}.{col} = :{key}" for key, col in HISTORY_KEYS.items() if key in params)
+        parts.append(
+            f"(EXISTS (SELECT 1 FROM device_assignments da WHERE da.device_id = {alias}.id AND {was})"  # noqa: S608 - fragmentos fixos; valores por parâmetro
+            f" OR (NOT EXISTS (SELECT 1 FROM device_assignments dz WHERE dz.device_id = {alias}.id)"
+            f" AND {now}))"
+        )
     return " AND ".join(parts), params
+
+
+# Parâmetro do filtro → coluna do vínculo (device_assignments) e do equipamento.
+HISTORY_KEYS = {
+    "scope_customer": "customer_id",
+    "f_customer": "customer_id",
+    "erp_customer": "customer_id",
+    "f_site": "site_id",
+}
+
+
+def assignment_conditions(params: dict[str, Any], alias: str = "dw") -> list[str]:
+    """Conditions on the assignment `alias` for the customer/site filters present in `params`."""
+    return [f"{alias}.{col} = :{key}" for key, col in HISTORY_KEYS.items() if key in params]
+
+
+def reading_window(params: dict[str, Any], alias: str = "r") -> str:
+    """With a customer/site filter, only readings taken while the device was with that customer/site count
+    (`alias` is the readings alias). Devices without recorded history keep all their readings."""
+    conds = assignment_conditions(params)
+    if not conds:
+        return ""
+    was = " AND ".join(conds)
+    return (
+        f" AND (EXISTS (SELECT 1 FROM device_assignments dw WHERE dw.device_id = {alias}.device_id"  # noqa: S608 - fragmentos fixos; valores por parâmetro
+        f" AND {was} AND {alias}.read_at >= dw.start_at"
+        f" AND (dw.end_at IS NULL OR {alias}.read_at < dw.end_at))"
+        f" OR NOT EXISTS (SELECT 1 FROM device_assignments dy WHERE dy.device_id = {alias}.device_id))"
+    )

@@ -25,6 +25,7 @@ import { fmtInt } from '../../lib/format';
 import { printerName } from '../../lib/printers';
 import { showError, showSuccess } from '../../lib/notify';
 import { PAGE_SIZE, useCursorList } from '../../lib/paging';
+import { TransfersPanel } from './TransfersPanel';
 
 type Row = Schemas['ParkRow'];
 type State = 'pending' | 'discarded';
@@ -36,11 +37,38 @@ const DONE: Record<Action, string> = {
   restore: 'de volta às pendências',
 };
 
-/** Equipamentos > Descobertas (seção 16.1): impressoras novas esperam aqui até alguém ativar ou descartar. */
+type Tab = State | 'transfers';
+
+/** Equipamentos > Descobertas (seção 16.1): impressoras novas esperam aqui até alguém ativar ou descartar;
+ * em Transferências, as que apareceram num local de outro cliente esperam a aprovação. */
 export function DiscoveriesPage() {
+  const [tab, setTab] = useState<Tab>('pending');
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="Descobertas"
+        subtitle="Impressoras encontradas pelos coletores. Só entram no parque, nos relatórios e nos alertas depois de ativadas."
+      />
+      <Tabs
+        value={tab}
+        onValueChange={(v) => {
+          setTab(v as Tab);
+        }}
+      >
+        <TabsList>
+          <TabsTrigger value="pending">Pendentes</TabsTrigger>
+          <TabsTrigger value="discarded">Descartados</TabsTrigger>
+          <TabsTrigger value="transfers">Transferências</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {tab === 'transfers' ? <TransfersPanel /> : <DiscoveryList key={tab} state={tab} />}
+    </div>
+  );
+}
+
+function DiscoveryList({ state }: { state: State }) {
   const { can } = useAuth();
   const qc = useQueryClient();
-  const [state, setState] = useState<State>('pending');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -75,23 +103,7 @@ export function DiscoveriesPage() {
 
   return (
     <div className="space-y-3">
-      <PageHeader
-        title="Descobertas"
-        subtitle="Impressoras encontradas pelos coletores. Só entram no parque, nos relatórios e nos alertas depois de ativadas."
-      />
       <Card className="flex flex-wrap items-center gap-3 p-3">
-        <Tabs
-          value={state}
-          onValueChange={(v) => {
-            setState(v as State);
-            setSelected(new Set());
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="pending">Pendentes</TabsTrigger>
-            <TabsTrigger value="discarded">Descartados</TabsTrigger>
-          </TabsList>
-        </Tabs>
         <div className="relative min-w-60 flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"

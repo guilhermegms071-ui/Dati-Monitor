@@ -8,12 +8,20 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.deps import PrincipalDep, SessionDep
 from app.schemas.common import ERROR_RESPONSES
 from app.schemas.custom_fields import CustomFieldIn, CustomFieldOut, CustomFieldUpdate
-from app.schemas.discoveries import DecisionIn, DecisionOut, DiscoveryCounts, DiscoveryPage
+from app.schemas.discoveries import (
+    DecisionIn,
+    DecisionOut,
+    DiscoveryCounts,
+    DiscoveryPage,
+    TransferDecisionIn,
+    TransferPage,
+)
 from app.schemas.permissions import PermissionMatrix, RoleMatrixIn
 from app.services import custom_fields as custom_fields_svc
 from app.services import discoveries as svc
 from app.services import park as park_svc
 from app.services import permissions as permissions_svc
+from app.services import transfers as transfers_svc
 from app.services.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Direction
 
 router = APIRouter(responses=ERROR_RESPONSES)
@@ -70,6 +78,36 @@ async def decide(body: DecisionIn, p: PrincipalDep, session: SessionDep) -> Deci
     out = await svc.decide(session, p, body)
     await session.commit()
     return out
+
+
+@router.get(
+    "/transfers",
+    response_model=TransferPage,
+    tags=["equipamentos"],
+    summary="Equipamentos que apareceram num local de outro cliente (aguardando decisão)",
+)
+async def list_transfers(
+    p: PrincipalDep,
+    session: SessionDep,
+    direction: Direction = "desc",
+    limit: Limit = DEFAULT_PAGE_SIZE,
+    cursor: str | None = None,
+) -> TransferPage:
+    return await transfers_svc.list_pending(session, p, direction=direction, limit=limit, cursor=cursor)
+
+
+@router.post(
+    "/devices/{device_id}/transfer",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["equipamentos"],
+    summary="Aprovar (passa para o novo cliente) ou recusar (mantém no atual) a transferência",
+)
+async def decide_transfer(
+    device_id: uuid.UUID, body: TransferDecisionIn, p: PrincipalDep, session: SessionDep
+) -> Response:
+    await transfers_svc.decide(session, p, device_id, body)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ----------------------------------------------------------------------------- campos personalizados

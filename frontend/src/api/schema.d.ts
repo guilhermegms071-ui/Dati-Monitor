@@ -1355,6 +1355,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices/{device_id}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aprovar (passa para o novo cliente) ou recusar (mantém no atual) a transferência */
+        post: operations["decide_transfer_api_v1_devices__device_id__transfer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/devices/{device_id}/web-session": {
         parameters: {
             query?: never;
@@ -2359,6 +2376,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Equipamentos que apareceram num local de outro cliente (aguardando decisão) */
+        get: operations["list_transfers_api_v1_transfers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -3019,7 +3053,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "toner_low" | "toner_days_left" | "device_no_reading" | "agent_offline" | "counter_regression" | "suspicious_jump" | "sum_mismatch" | "hardware_error" | "paper_jam" | "door_open" | "jam_recurrent" | "printer_alert" | "agent_uninstalled";
+            type: "toner_low" | "toner_days_left" | "device_no_reading" | "agent_offline" | "counter_regression" | "suspicious_jump" | "sum_mismatch" | "hardware_error" | "paper_jam" | "door_open" | "jam_recurrent" | "printer_alert" | "agent_uninstalled" | "device_transfer";
         };
         /** AlertRuleOut */
         AlertRuleOut: {
@@ -7477,6 +7511,52 @@ export interface components {
             otpauth_uri: string;
             /** Secret */
             secret: string;
+        };
+        /** TransferDecisionIn */
+        TransferDecisionIn: {
+            /**
+             * Action
+             * @description approve = vai para o novo cliente desde que apareceu lá; reject = fica no cliente atual
+             * @enum {string}
+             */
+            action: "approve" | "reject";
+        };
+        /**
+         * TransferOut
+         * @description Equipamento que apareceu num local de outro cliente e espera a decisão.
+         */
+        TransferOut: {
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** From Customer */
+            from_customer: string;
+            /** From Site */
+            from_site: string;
+            /** Model */
+            model: string | null;
+            /** Serial */
+            serial: string;
+            /** To Customer */
+            to_customer: string;
+            /** To Site */
+            to_site: string;
+        };
+        /** TransferPage */
+        TransferPage: {
+            /** Items */
+            items: components["schemas"]["TransferOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
         };
         /** TransportParams */
         "TransportParams-Input": {
@@ -15107,6 +15187,84 @@ export interface operations {
             };
         };
     };
+    decide_transfer_api_v1_devices__device_id__transfer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     open_device_api_v1_devices__device_id__web_session_post: {
         parameters: {
             query?: never;
@@ -20875,6 +21033,84 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["SupplyReplacementPage"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_transfers_api_v1_transfers_get: {
+        parameters: {
+            query?: {
+                direction?: "asc" | "desc";
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["TransferPage"];
                 };
             };
             /** @description Requisição inválida */

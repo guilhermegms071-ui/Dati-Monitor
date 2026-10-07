@@ -22,6 +22,7 @@ from app.core.notify import CH_DEVICES, notify_event
 from app.models import (
     Agent,
     Brand,
+    Customer,
     Device,
     DeviceAttributeSnapshot,
     DeviceEvent,
@@ -36,6 +37,7 @@ from app.models import (
 )
 from app.models.readings import COUNTER_FIELDS
 from app.schemas import agent as proto
+from app.services import assignments
 from app.services.agents import collection_settings
 from app.services.alerts import open_alert
 from app.services.catalog import brand_name
@@ -223,6 +225,52 @@ async def _event_row(
     )
 
 
+async def _site_changed(session: AsyncSession, ctx: IngestContext, device: Device, at: datetime) -> None:
+    """The device answered in another site. Same customer: moves now. Another customer: the transfer waits
+    for approval in the portal (Descobertas), with an alert; until then it stays with the current customer.
+    A site the operator told to ignore ("manter no cliente atual") changes nothing."""
+    if ctx.site.customer_id == device.customer_id:
+        await _event_row(
+            session,
+            device,
+            "moved_site",
+            {
+                "from_site_id": str(device.site_id),
+                "to_site_id": str(ctx.site.id),
+                "agent_id": str(ctx.agent.id),
+            },
+        )
+        await assignments.move(session, device, ctx.site, at)
+        return
+    if ctx.site.id in {device.transfer_ignored_site_id, device.transfer_site_id}:
+        return
+    device.transfer_site_id, device.transfer_detected_at = ctx.site.id, at
+    customer = await session.get(Customer, ctx.site.customer_id)
+    detail = {
+        "from_site_id": str(device.site_id),
+        "to_site_id": str(ctx.site.id),
+        "to_customer": customer.name if customer else None,
+        "agent_id": str(ctx.agent.id),
+    }
+    await _event_row(session, device, "transfer_detected", detail)
+    await open_alert(
+        session,
+        reseller_id=device.reseller_id,
+        customer_id=device.customer_id,
+        site_id=device.site_id,
+        type_="device_transfer",
+        severity="warning",
+        target_type="device",
+        target_id=device.id,
+        message=(
+            f"Equipamento {device.serial} apareceu no cliente {detail['to_customer']} ({ctx.site.name}): "
+            "aprove ou recuse a transferência em Descobertas"
+        ),
+        dedup_key=f"device_transfer:{device.id}",
+        data=detail,
+    )
+
+
 async def _brand_id(session: AsyncSession, name: str | None) -> uuid.UUID | None:
     if not name:
         return None
@@ -300,6 +348,7 @@ async def resolve_device(
         _set_location(device, ref.sys_location)
         session.add(device)
         await session.flush()
+        session.add(assignments.first(device))
         await _event_row(
             session, device, "discovered", {"ip": ref.ip, "port": ref.port, "agent_id": str(ctx.agent.id)}
         )
@@ -311,17 +360,7 @@ async def resolve_device(
             session, device, "reactivated", {"reason": "voltou a responder", "agent_id": str(ctx.agent.id)}
         )
     if device.site_id != ctx.site.id:
-        await _event_row(
-            session,
-            device,
-            "moved_site",
-            {
-                "from_site_id": str(device.site_id),
-                "to_site_id": str(ctx.site.id),
-                "agent_id": str(ctx.agent.id),
-            },
-        )
-        device.site_id, device.customer_id = ctx.site.id, ctx.site.customer_id
+        await _site_changed(session, ctx, device, min(read_at, ctx.now))
     if ref.ip and (ref.ip != device.ip or ref.port != device.snmp_port):
         await _event_row(
             session,

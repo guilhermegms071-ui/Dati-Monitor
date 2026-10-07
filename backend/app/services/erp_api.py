@@ -144,7 +144,14 @@ async def _customer_scope(
         ).scalar_one_or_none()
         if customer_id is None:
             raise not_found("Cliente com este código ERP")
-        parts.append("d.customer_id = :erp_customer")
+        # Equipamentos que estiveram com o cliente (transferências); as leituras ficam limitadas ao período
+        # em que estavam com ele (valid_readings_cte).
+        parts.append(
+            "(EXISTS (SELECT 1 FROM device_assignments da WHERE da.device_id = d.id"
+            " AND da.customer_id = :erp_customer)"
+            " OR (NOT EXISTS (SELECT 1 FROM device_assignments dz WHERE dz.device_id = d.id)"
+            " AND d.customer_id = :erp_customer))"
+        )
         params["erp_customer"] = customer_id
     return " AND ".join(parts), params
 
@@ -191,12 +198,18 @@ async def readings(
         params |= {"after_at": after_at, "after_id": after_id}
     sql = text(
         f"""
-        WITH {valid_readings_cte(scope)}
+        WITH {valid_readings_cte(scope, params)}
         SELECT e.reading_id, e.read_at, e.device_id, d.serial, c.erp_code,
                e.total, e.mono, e.color, e.adjusted
         FROM eff e
         JOIN devices d ON d.id = e.device_id
-        JOIN customers c ON c.id = d.customer_id
+        LEFT JOIN LATERAL (
+            SELECT a.customer_id FROM device_assignments a
+            WHERE a.device_id = e.device_id AND e.read_at >= a.start_at
+              AND (a.end_at IS NULL OR e.read_at < a.end_at)
+            ORDER BY a.start_at DESC LIMIT 1
+        ) owner ON true
+        JOIN customers c ON c.id = coalesce(owner.customer_id, d.customer_id)
         WHERE e.read_at >= :lo {after}
         ORDER BY e.read_at, e.reading_id
         LIMIT :limit
@@ -236,7 +249,7 @@ async def cutoff_readings(
             .where(Device.id.in_(list(got)))
         )
     ).all() if got else []  # fmt: skip
-    info = {d[0]: (d[1], d[2]) for d in devices}
+    info = {d[0]: (d[1], customer_erp_code or d[2]) for d in devices}
     items = [
         ErpCutoffItem(
             device_id=c.device_id,

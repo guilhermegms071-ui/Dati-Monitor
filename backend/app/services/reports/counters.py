@@ -17,16 +17,20 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.reports.base import reading_window
+
 DISPLAY_TZ_NAME = "America/Sao_Paulo"
 # Quanto olhar para trás atrás da leitura-base do período (equipamento que ficou parado).
 BASELINE_LOOKBACK = timedelta(days=62)
 
 
-def valid_readings_cte(scope_sql: str, *, detail: bool = False) -> str:
+def valid_readings_cte(scope_sql: str, params: dict[str, Any] | None = None, *, detail: bool = False) -> str:
     """CTE `eff` with the valid readings of the devices in scope between :lo_base and :hi. With `detail`,
     also the A3 (mono_large/color_large) and scan counters, as read (manual adjustments cover only
-    total/mono/color)."""
+    total/mono/color). With a customer/site filter in `params`, only the readings taken while the device
+    was with that customer/site (transfers between customers)."""
     extra = ", r.mono_large, r.color_large, r.scan" if detail else ""
+    window = reading_window(params or {})
     return f"""
         adj AS (
             SELECT DISTINCT ON (a.reading_id) a.reading_id, a.total, a.mono, a.color
@@ -44,7 +48,7 @@ def valid_readings_cte(scope_sql: str, *, detail: bool = False) -> str:
             JOIN devices d ON d.id = r.device_id
             LEFT JOIN adj ON adj.reading_id = r.id
             LEFT JOIN reading_reviews rv ON rv.reading_id = r.id AND rv.read_at = r.read_at
-            WHERE r.read_at >= :lo_base AND r.read_at < :hi AND {scope_sql}
+            WHERE r.read_at >= :lo_base AND r.read_at < :hi AND {scope_sql}{window}
               AND coalesce(rv.classification, '') <> 'read_error'
               AND (NOT (r.flags ? 'counter_regression')
                    OR rv.classification IN ('valid', 'board_replacement'))
@@ -78,7 +82,7 @@ async def production_by_device(
 ) -> dict[uuid.UUID, Production]:
     sql = text(
         f"""
-        WITH {valid_readings_cte(scope_sql)}, {pairs_cte()}
+        WITH {valid_readings_cte(scope_sql, params)}, {pairs_cte()}
         SELECT device_id,
                coalesce(sum(d_total), 0)::bigint, coalesce(sum(d_mono), 0)::bigint,
                coalesce(sum(d_color), 0)::bigint, count(*)
@@ -104,7 +108,7 @@ async def production_by_day(
 ) -> dict[date, DayProduction]:
     sql = text(
         f"""
-        WITH {valid_readings_cte(scope_sql)}, {pairs_cte()}
+        WITH {valid_readings_cte(scope_sql, params)}, {pairs_cte()}
         SELECT (read_at AT TIME ZONE :tz)::date AS day,
                coalesce(sum(d_total), 0)::bigint, coalesce(sum(d_mono), 0)::bigint,
                coalesce(sum(d_color), 0)::bigint, count(DISTINCT device_id)
@@ -142,7 +146,7 @@ async def cutoff(
             SELECT r.id, r.read_at, r.total, r.mono, r.color
             FROM readings r
             LEFT JOIN reading_reviews rv ON rv.reading_id = r.id AND rv.read_at = r.read_at
-            WHERE r.device_id = d.id AND r.read_at < :before
+            WHERE r.device_id = d.id AND r.read_at < :before{reading_window(params)}
               AND coalesce(rv.classification, '') <> 'read_error'
               AND (NOT (r.flags ? 'counter_regression')
                    OR rv.classification IN ('valid', 'board_replacement'))
@@ -187,7 +191,7 @@ async def daily_by_device(
     day (same pairs rule as `production_by_device`; the first pair uses the reading before the day)."""
     sql = text(
         f"""
-        WITH {valid_readings_cte(scope_sql)},
+        WITH {valid_readings_cte(scope_sql, params)},
         p AS (
             SELECT device_id, read_at, total, mono, color,
                    greatest(total - lag(total) OVER w, 0) AS d_total,
@@ -260,7 +264,7 @@ async def period_by_device(
     cols = "device_id, read_at, total, mono, color, mono_large, color_large, scan"
     sql = text(
         f"""
-        WITH {valid_readings_cte(scope_sql, detail=True)}
+        WITH {valid_readings_cte(scope_sql, params, detail=True)}
         SELECT 'before', * FROM (
             SELECT DISTINCT ON (device_id) {cols} FROM eff WHERE read_at < :lo
             ORDER BY device_id, read_at DESC) b

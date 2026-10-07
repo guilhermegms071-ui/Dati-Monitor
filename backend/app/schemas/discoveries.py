@@ -1,6 +1,7 @@
 """Schemas of Equipamentos > Descobertas (PROMPT 16.1)."""
 
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,3 +32,28 @@ class DecisionOut(BaseModel):
 
     changed: int
     skipped: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TransferOut(BaseModel):
+    """Equipamento que apareceu num local de outro cliente e espera a decisão."""
+
+    device_id: uuid.UUID
+    serial: str
+    model: str | None
+    from_customer: str
+    from_site: str
+    to_customer: str
+    to_site: str
+    detected_at: datetime
+
+
+class TransferPage(BaseModel):
+    items: list[TransferOut]
+    next_cursor: str | None
+    total: int
+
+
+class TransferDecisionIn(BaseModel):
+    action: Literal["approve", "reject"] = Field(
+        description="approve = vai para o novo cliente desde que apareceu lá; reject = fica no cliente atual"
+    )

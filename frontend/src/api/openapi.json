@@ -1323,7 +1323,8 @@
               "door_open",
               "jam_recurrent",
               "printer_alert",
-              "agent_uninstalled"
+              "agent_uninstalled",
+              "device_transfer"
             ],
             "title": "Type",
             "type": "string"
@@ -13943,6 +13944,115 @@
         "title": "TotpSetupResponse",
         "type": "object"
       },
+      "TransferDecisionIn": {
+        "properties": {
+          "action": {
+            "description": "approve = vai para o novo cliente desde que apareceu lá; reject = fica no cliente atual",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "TransferDecisionIn",
+        "type": "object"
+      },
+      "TransferOut": {
+        "description": "Equipamento que apareceu num local de outro cliente e espera a decisão.",
+        "properties": {
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "from_customer": {
+            "title": "From Customer",
+            "type": "string"
+          },
+          "from_site": {
+            "title": "From Site",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "to_customer": {
+            "title": "To Customer",
+            "type": "string"
+          },
+          "to_site": {
+            "title": "To Site",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "serial",
+          "model",
+          "from_customer",
+          "from_site",
+          "to_customer",
+          "to_site",
+          "detected_at"
+        ],
+        "title": "TransferOut",
+        "type": "object"
+      },
+      "TransferPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TransferOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "title": "TransferPage",
+        "type": "object"
+      },
       "TransportParams-Input": {
         "properties": {
           "auth_header": {
@@ -24862,6 +24972,102 @@
         ]
       }
     },
+    "/api/v1/devices/{device_id}/transfer": {
+      "post": {
+        "operationId": "decide_transfer_api_v1_devices__device_id__transfer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Aprovar (passa para o novo cliente) ou recusar (mantém no atual) a transferência",
+        "tags": [
+          "equipamentos"
+        ]
+      }
+    },
     "/api/v1/devices/{device_id}/web-session": {
       "post": {
         "operationId": "open_device_api_v1_devices__device_id__web_session_post",
@@ -33432,6 +33638,131 @@
         "summary": "Trocas de suprimento",
         "tags": [
           "alertas"
+        ]
+      }
+    },
+    "/api/v1/transfers": {
+      "get": {
+        "operationId": "list_transfers_api_v1_transfers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Direction",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Equipamentos que apareceram num local de outro cliente (aguardando decisão)",
+        "tags": [
+          "equipamentos"
         ]
       }
     },

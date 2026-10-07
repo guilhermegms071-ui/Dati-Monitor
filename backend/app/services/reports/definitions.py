@@ -18,6 +18,7 @@ from app.models import (
     Alert,
     Customer,
     Device,
+    DeviceAssignment,
     DeviceEvent,
     ReadingReview,
     Site,
@@ -105,10 +106,47 @@ def _sum(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Any]:
     return out
 
 
-async def _devices(session: AsyncSession, p: Principal, f: Filters, *where: ColumnElement[bool]) -> Any:
+async def _devices(
+    session: AsyncSession, p: Principal, f: Filters, *where: ColumnElement[bool], history: bool = False
+) -> Any:
+    """Devices of the report, ordered by customer/site/serial. With `history` (counter reports) and a
+    customer/site filter, also the devices that were with that customer/site at some point, shown with the
+    customer/site of that time (transfers between customers)."""
     await check_customer(session, p, f)
     order = (Customer.name, Site.name, Device.serial)
-    return (await session.execute(_device_select(p, f).where(*where).order_by(*order))).tuples().all()
+    if not history or not (f.customer_id or f.site_id or p.customer_id):
+        return (await session.execute(_device_select(p, f).where(*where).order_by(*order))).tuples().all()
+    filters = [
+        (DeviceAssignment.customer_id, Device.customer_id, p.customer_id),
+        (DeviceAssignment.customer_id, Device.customer_id, f.customer_id),
+        (DeviceAssignment.site_id, Device.site_id, f.site_id),
+    ]
+    was = [col == value for col, _cur, value in filters if value is not None]
+    now = [cur == value for _col, cur, value in filters if value is not None]
+    latest = (
+        select(DeviceAssignment.device_id, DeviceAssignment.customer_id, DeviceAssignment.site_id)
+        .where(*was)
+        .distinct(DeviceAssignment.device_id)
+        .order_by(DeviceAssignment.device_id, DeviceAssignment.start_at.desc())
+        .subquery()
+    )
+    no_history = ~select(DeviceAssignment.id).where(DeviceAssignment.device_id == Device.id).exists()
+    stmt = (
+        select(Device, Customer.name, Customer.erp_code, Site.name, LastAgent.name)
+        .outerjoin(latest, latest.c.device_id == Device.id)
+        .join(Customer, Customer.id == func.coalesce(latest.c.customer_id, Device.customer_id))
+        .join(Site, Site.id == func.coalesce(latest.c.site_id, Device.site_id))
+        .outerjoin(LastAgent, LastAgent.id == Device.last_agent_id)
+        .where(
+            Device.deleted_at.is_(None),
+            Device.discovery_state == "approved",
+            reseller_scope(p, Device.reseller_id),
+            or_(latest.c.device_id.is_not(None), and_(no_history, *now)),
+            *where,
+        )
+        .order_by(*order)
+    )
+    return (await session.execute(stmt)).tuples().all()
 
 
 # ----------------------------------------------------------------------------- produção e cobrança
@@ -119,7 +157,7 @@ async def production(session: AsyncSession, p: Principal, f: Filters) -> ReportD
     scope, params = sql_scope(p, f)
     prod = await counters.production_by_device(session, scope, params, f.lo, f.hi)
     rows_by_device = []
-    for d, cname, _erp, sname, _agent in await _devices(session, p, f):
+    for d, cname, _erp, sname, _agent in await _devices(session, p, f, history=True):
         pr = prod.get(d.id)
         rows_by_device.append(
             {
@@ -160,7 +198,7 @@ async def daily_counter(session: AsyncSession, p: Principal, f: Filters) -> Repo
     """Contador diário: uma linha por equipamento, uma coluna por dia com as páginas impressas no dia e o
     total do período; a última linha soma todos os equipamentos de cada dia."""
     scope, params = sql_scope(p, f)
-    devices = await _devices(session, p, f)
+    devices = await _devices(session, p, f, history=True)
     daily = await counters.daily_by_device(session, scope, params, f.lo, f.hi)
     days = []
     day = need(f.date_from, "date_from")
@@ -244,7 +282,7 @@ async def device_counters(session: AsyncSession, p: Principal, f: Filters) -> Re
     a final e a diferença de cada contador, ou o contador e as páginas de cada dia."""
     await check_customer(session, p, f)
     scope, params = sql_scope(p, f)
-    devices = await _devices(session, p, f)
+    devices = await _devices(session, p, f, history=True)
     period = await counters.period_by_device(session, scope, params, f.lo, f.hi)
     daily_view = f.group_by in {"daily", "daily_read"}
     daily = await counters.daily_by_device(session, scope, params, f.lo, f.hi) if daily_view else {}
@@ -529,7 +567,7 @@ async def cutoff(session: AsyncSession, p: Principal, f: Filters) -> ReportData:
     scope, params = sql_scope(p, f)
     got = await counters.cutoff(session, scope, params, f.hi)
     rows = []
-    for d, cname, erp, sname, _agent in await _devices(session, p, f):
+    for d, cname, erp, sname, _agent in await _devices(session, p, f, history=True):
         c = got.get(d.id)
         rows.append(
             {
@@ -571,7 +609,7 @@ async def billing(session: AsyncSession, p: Principal, f: Filters) -> ReportData
     end = await counters.cutoff(session, scope, params, hi)
     prod = await counters.production_by_device(session, scope, params, lo, hi)
     rows = []
-    for d, cname, erp, sname, _agent in await _devices(session, p, f):
+    for d, cname, erp, sname, _agent in await _devices(session, p, f, history=True):
         s, e, pr = start.get(d.id), end.get(d.id), prod.get(d.id)
         pages_mono = pr.mono if pr else 0
         pages_color = pr.color if pr else 0
