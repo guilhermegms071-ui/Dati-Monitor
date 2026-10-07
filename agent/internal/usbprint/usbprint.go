@@ -272,3 +272,40 @@ func SpoolerSafe(driver string) bool {
 	}
 	return false
 }
+
+// ParseDeviceID splits an IEEE 1284 device id ("MFG:KONICA MINOLTA;MDL:bizhub C3320i;CMD:PJL,PCL,PS;")
+// into its fields (keys in upper case; "COMMAND SET" is stored as CMD, "MANUFACTURER" as MFG, "MODEL" as MDL).
+func ParseDeviceID(id string) map[string]string {
+	alias := map[string]string{"COMMAND SET": "CMD", "MANUFACTURER": "MFG", "MODEL": "MDL", "SERIALNUMBER": "SN", "SERN": "SN"}
+	out := map[string]string{}
+	for _, part := range strings.Split(id, ";") {
+		k, v, ok := strings.Cut(part, ":")
+		if !ok {
+			continue
+		}
+		k = strings.ToUpper(strings.TrimSpace(k))
+		if a, ok := alias[k]; ok {
+			k = a
+		}
+		out[k] = strings.TrimSpace(v)
+	}
+	return out
+}
+
+// DescribeDeviceID is the short text shown to the technician: model and the languages the printer speaks.
+func DescribeDeviceID(id string) string {
+	f := ParseDeviceID(id)
+	if len(f) == 0 {
+		return ""
+	}
+	model := strings.TrimSpace(f["MFG"] + " " + f["MDL"])
+	cmd := f["CMD"]
+	switch {
+	case cmd == "":
+		return model + "; não informa as linguagens"
+	case strings.Contains(strings.ToUpper(cmd), "PJL"):
+		return model + "; fala PJL (" + cmd + ")"
+	default:
+		return model + "; NÃO fala PJL (" + cmd + ")"
+	}
+}

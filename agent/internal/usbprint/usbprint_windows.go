@@ -197,6 +197,7 @@ func directPageCount(ctx context.Context, p Printer) (int64, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("abrir %s: %w", path, err)
 	}
+	id := deviceID(h)
 	ctx, cancel := context.WithTimeout(ctx, PJLTimeout)
 	stopped := make(chan struct{})
 	go func() {
@@ -209,5 +210,26 @@ func directPageCount(ctx context.Context, p Printer) (int64, string, error) {
 		<-stopped // só fecha o handle depois do CancelIoEx
 		_ = windows.CloseHandle(h)
 	}()
-	return Query(ctx, handleRW{h})
+	count, model, err := Query(ctx, handleRW{h})
+	if err != nil && id != "" {
+		return 0, "", fmt.Errorf("%w (a impressora se identifica como %s)", err, DescribeDeviceID(id))
+	}
+	return count, model, err
+}
+
+// ioctlUSBPrintGet1284ID is IOCTL_USBPRINT_GET_1284_ID.
+const ioctlUSBPrintGet1284ID = 0x220034
+
+// deviceID reads the IEEE 1284 device id over the USB control channel ("" when the driver does not answer).
+func deviceID(h windows.Handle) string {
+	buf := make([]byte, 1024)
+	var n uint32
+	if err := windows.DeviceIoControl(h, ioctlUSBPrintGet1284ID, nil, 0, &buf[0], uint32(len(buf)), &n, nil); err != nil || n < 2 {
+		return ""
+	}
+	size := int(buf[0])<<8 | int(buf[1]) // tamanho em big-endian, incluindo os 2 bytes
+	if size < 2 || size > int(n) {
+		size = int(n)
+	}
+	return strings.TrimSpace(string(buf[2:size]))
 }

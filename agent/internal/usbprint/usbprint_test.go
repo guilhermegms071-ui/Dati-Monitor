@@ -220,3 +220,21 @@ func TestConnectedSkipsFaxQueue(t *testing.T) {
 		t.Fatalf("só a impressora, sem o fax: %+v", got)
 	}
 }
+
+func TestDeviceID(t *testing.T) {
+	id := "MFG:KONICA MINOLTA;CMD:PJL,PCL5c,PCLXL,POSTSCRIPT;MDL:bizhub C3320i;CLS:PRINTER;SN:00A52E67;"
+	f := ParseDeviceID(id)
+	if f["MFG"] != "KONICA MINOLTA" || f["MDL"] != "bizhub C3320i" || f["SN"] != "00A52E67" {
+		t.Fatalf("campos: %v", f)
+	}
+	if got := DescribeDeviceID(id); got != "KONICA MINOLTA bizhub C3320i; fala PJL (PJL,PCL5c,PCLXL,POSTSCRIPT)" {
+		t.Fatal(got)
+	}
+	inkjet := "MANUFACTURER:Canon;MODEL:GX7000 series;COMMAND SET:BJL,BJRaster3,IVEC;"
+	if got := DescribeDeviceID(inkjet); got != "Canon GX7000 series; NÃO fala PJL (BJL,BJRaster3,IVEC)" {
+		t.Fatal(got)
+	}
+	if DescribeDeviceID("") != "" {
+		t.Fatal("vazio")
+	}
+}

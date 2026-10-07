@@ -51,7 +51,8 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 	doc, _ := windows.UTF16PtrFromString("Dati Monitor - leitura do contador")
 	raw, _ := windows.UTF16PtrFromString("RAW")
 	di := docInfo1{docName: doc, datatype: raw}
-	if r, _, e := procStartDocPrinterW.Call(uintptr(h), 1, uintptr(unsafe.Pointer(&di))); r == 0 {
+	jobID, _, e := procStartDocPrinterW.Call(uintptr(h), 1, uintptr(unsafe.Pointer(&di)))
+	if jobID == 0 {
 		return nil, fmt.Errorf("iniciar o trabalho RAW: %w", e)
 	}
 	ended := false
@@ -68,15 +69,23 @@ func SpoolerQuery(name string, wait time.Duration) ([]byte, error) {
 		uintptr(unsafe.Pointer(&written))); r == 0 {
 		return nil, fmt.Errorf("enviar o PJL pela fila: %w", e)
 	}
-	// A resposta volta pelo monitor de porta enquanto o trabalho está aberto; depois de fechar o trabalho,
-	// o identificador não serve mais para ler.
+	// A resposta da impressora é entregue ao trabalho: lê-se por um identificador aberto como
+	// "Impressora,Job N" (o da impressora devolve "identificador inválido"). Sem ele, tenta o da impressora.
+	reader := h
+	if j16, err := windows.UTF16PtrFromString(fmt.Sprintf("%s,Job %d", name, jobID)); err == nil {
+		var jh windows.Handle
+		if r, _, _ := procOpenPrinterW.Call(uintptr(unsafe.Pointer(j16)), uintptr(unsafe.Pointer(&jh)), 0); r != 0 {
+			reader = jh
+			defer func() { _, _, _ = procClosePrinter.Call(uintptr(jh)) }()
+		}
+	}
 	var buf bytes.Buffer
 	deadline := time.Now().Add(wait)
 	var lastErr error
 	chunk := make([]byte, 4096)
 	for time.Now().Before(deadline) {
 		var got uint32
-		r, _, e := procReadPrinter.Call(uintptr(h), uintptr(unsafe.Pointer(&chunk[0])), uintptr(len(chunk)),
+		r, _, e := procReadPrinter.Call(uintptr(reader), uintptr(unsafe.Pointer(&chunk[0])), uintptr(len(chunk)),
 			uintptr(unsafe.Pointer(&got)))
 		if got > 0 {
 			buf.Write(chunk[:got])
@@ -158,6 +167,9 @@ func Diagnose(ctx context.Context, w io.Writer, trySpooler bool) error {
 		if !p.Present {
 			continue
 		}
+		if id := pathDeviceID(p.InterfacePath()); id != "" {
+			_, _ = fmt.Fprintf(w, "Identificação USB: %s\n  (%s)\n", DescribeDeviceID(id), id)
+		}
 		if n, model, err := directPageCount(ctx, p); err != nil {
 			_, _ = fmt.Fprintf(w, "USB direta: FALHOU: %v\n", err)
 		} else {
@@ -180,4 +192,22 @@ func Diagnose(ctx context.Context, w io.Writer, trySpooler bool) error {
 		}
 	}
 	return nil
+}
+
+// pathDeviceID opens the USB printer interface only to read the device id ("" when it cannot).
+func pathDeviceID(path string) string {
+	if path == "" {
+		return ""
+	}
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return ""
+	}
+	h, err := windows.CreateFile(name, windows.GENERIC_READ|windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, 0, 0)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = windows.CloseHandle(h) }()
+	return deviceID(h)
 }
