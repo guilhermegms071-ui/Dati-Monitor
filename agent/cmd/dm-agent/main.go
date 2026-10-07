@@ -141,6 +141,10 @@ func runAgent(ctx context.Context, dir string, console bool) error {
 	}
 	lg, closer := logx.New(logx.Options{Dir: dir + "/logs", Name: "agent", Level: os.Getenv("DM_LOG_LEVEL"), Console: console})
 	defer func() { _ = closer.Close() }()
+	// Prioridade baixa: não disputa CPU com o usuário do PC (as leituras só esperam alguns milissegundos).
+	if err := osinfo.LowerPriority(); err != nil {
+		lg.Warn("não foi possível baixar a prioridade do coletor", "erro", err)
+	}
 	a, err := agent.New(dir, lg)
 	if err != nil {
 		lg.Error("coletor não pôde iniciar", "erro", err)

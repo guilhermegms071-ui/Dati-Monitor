@@ -19,6 +19,29 @@ local vira reserva (STANDBY) e assume sozinho se o primeiro cair.
 - Saída HTTPS (porta 443) para o servidor do Dati Monitor. Não precisa abrir nenhuma porta de entrada.
 - Acesso SNMP (UDP 161) às impressoras da rede.
 
+**Checklist para a TI do cliente** (envie antes de instalar; evita bloqueio de antivírus e firewall)
+- **O que é:** dois serviços do Windows, `DatiMonitorAgent` (coletor) e `DatiMonitorWatchdog` (vigia),
+  instalados em `C:\Program Files\DatiMonitor`, com dados e logs em `C:\ProgramData\DatiMonitor`.
+  Editor do instalador: Daticopy (quando assinado; veja "Assinatura do instalador" abaixo).
+- **Rede de saída:** só HTTPS (443) para o servidor do Dati Monitor. Nenhuma porta de entrada.
+- **Rede interna:** consultas SNMP (UDP 161) às impressoras das faixas cadastradas. A varredura procura
+  impressoras novas a cada 6 h, com no máximo 200 pacotes por segundo; contadores e suprimentos a cada
+  60 min, status a cada 10 min. São pacotes de poucos KB, menos tráfego que abrir uma página web.
+  Se o firewall ou o IDS da rede alertar "varredura", libere o PC do coletor para UDP 161 nas faixas
+  das impressoras.
+- **Antivírus:** se o antivírus do cliente for restritivo, peça exceção para
+  `C:\Program Files\DatiMonitor` e `C:\ProgramData\DatiMonitor`.
+- **Uso do PC:** o coletor roda com prioridade "abaixo do normal" (o usuário sempre tem preferência),
+  usa pouca memória, e a fila local e os logs têm tamanho limitado. Não abre janela nem pede login.
+- **Boas práticas no portal:** cadastre só as faixas que têm impressoras (evite redes inteiras /16) e
+  deixe os intervalos no padrão (**Coletores → coletor → Intervalos, SNMP e proxy**).
+
+**Assinatura do instalador**
+Com um certificado de assinatura de código em nome da Daticopy (compra anual, em token USB ou na
+nuvem), gere o instalador com `scripts\build-installer.ps1 ... -Sign`: o Windows mostra "Editor:
+Daticopy" e os antivírus confiam no arquivo. Assina-se **uma vez por versão**; o mesmo `setup.exe`
+serve para todos os clientes (cada um usa o próprio código de cadastro).
+
 **Passo a passo**
 1. No portal, cadastre o cliente e o local em **Clientes**, com as faixas de IP e a comunidade SNMP.
    Para importar vários clientes de uma vez, use **Clientes → Importar CSV**.
