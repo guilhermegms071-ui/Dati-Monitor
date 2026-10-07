@@ -183,6 +183,16 @@ func Diagnose(ctx context.Context, w io.Writer, trySpooler bool) error {
 		if !p.Present {
 			continue
 		}
+		if values, err := BidiValues(ctx, p.Name); err != nil {
+			_, _ = fmt.Fprintf(w, "Driver (Bidi): FALHOU: %v\n", err)
+		} else if len(values) == 0 {
+			_, _ = fmt.Fprintln(w, "Driver (Bidi): o driver não informa nada")
+		} else {
+			_, _ = fmt.Fprintf(w, "Driver (Bidi): %d valor(es):\n", len(values))
+			for _, v := range values {
+				_, _ = fmt.Fprintf(w, "  %s\n", strings.ReplaceAll(v, "\t", " = "))
+			}
+		}
 		if id := pathDeviceID(p.InterfacePath()); id != "" {
 			_, _ = fmt.Fprintf(w, "Identificação USB: %s\n  (%s)\n", DescribeDeviceID(id), id)
 		}
