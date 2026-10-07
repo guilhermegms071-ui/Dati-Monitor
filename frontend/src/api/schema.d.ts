@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent/uninstalling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aviso do desinstalador: o coletor está saindo do PC */
+        post: operations["uninstalling_api_agent_uninstalling_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent/uploads/logs": {
         parameters: {
             query?: never;
@@ -2734,6 +2751,11 @@ export interface components {
             state: string;
             /** Suggested Ranges */
             suggested_ranges: unknown[];
+            /**
+             * Uninstalled At
+             * @description O desinstalador avisou que saiu do PC
+             */
+            uninstalled_at: string | null;
             /** Update Channel */
             update_channel: string;
             /**
@@ -2997,7 +3019,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "toner_low" | "toner_days_left" | "device_no_reading" | "agent_offline" | "counter_regression" | "suspicious_jump" | "sum_mismatch" | "hardware_error" | "paper_jam" | "door_open" | "jam_recurrent" | "printer_alert";
+            type: "toner_low" | "toner_days_left" | "device_no_reading" | "agent_offline" | "counter_regression" | "suspicious_jump" | "sum_mismatch" | "hardware_error" | "paper_jam" | "door_open" | "jam_recurrent" | "printer_alert" | "agent_uninstalled";
         };
         /** AlertRuleOut */
         AlertRuleOut: {
@@ -7506,6 +7528,25 @@ export interface components {
              */
             url: string | null;
         };
+        /**
+         * UninstallNotice
+         * @description Sent by the uninstaller (Windows/Linux) right before removing the collector from the PC.
+         */
+        UninstallNotice: {
+            /**
+             * Reason
+             * @description installer = Windows (Inno Setup); package = Linux (.deb/prerm)
+             * @default installer
+             * @enum {string}
+             */
+            reason?: "installer" | "package";
+            /**
+             * V
+             * @default 1
+             * @constant
+             */
+            v?: 1;
+        };
         /** UploadResponse */
         UploadResponse: {
             /** Id */
@@ -8569,6 +8610,84 @@ export interface operations {
                 };
                 content: {
                     "application/json; charset=utf-8": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Requisição inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não autenticado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sem permissão */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Não encontrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflito */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninstalling_api_agent_uninstalling_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UninstallNotice"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["OkResponse"];
                 };
             };
             /** @description Requisição inválida */

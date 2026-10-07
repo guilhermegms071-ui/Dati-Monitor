@@ -69,6 +69,11 @@ export function AgentDetailPage() {
             <AgentState state={a.state} wsConnected={a.ws_connected} />
             <RoleBadge role={a.cluster_role} />
             {a.revoked_at ? <Badge tone="red">Revogado</Badge> : null}
+            {a.uninstalled_at ? (
+              <Badge tone="red" title={`Desinstalado em ${fmtDateTime(a.uninstalled_at)}`}>
+                Desinstalado do PC
+              </Badge>
+            ) : null}
           </span>
         }
         actions={<AgentActions agent={a} canCommand={can('agents.command')} canWrite={can('agents.update')} />}

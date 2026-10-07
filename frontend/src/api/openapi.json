@@ -657,6 +657,19 @@
             "title": "Suggested Ranges",
             "type": "array"
           },
+          "uninstalled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "O desinstalador avisou que saiu do PC",
+            "title": "Uninstalled At"
+          },
           "update_channel": {
             "title": "Update Channel",
             "type": "string"
@@ -745,6 +758,7 @@
           "cpu_percent",
           "memory_bytes",
           "avg_latency_ms",
+          "uninstalled_at",
           "last_error",
           "suggested_ranges",
           "paused",
@@ -1308,7 +1322,8 @@
               "paper_jam",
               "door_open",
               "jam_recurrent",
-              "printer_alert"
+              "printer_alert",
+              "agent_uninstalled"
             ],
             "title": "Type",
             "type": "string"
@@ -14044,6 +14059,29 @@
         "title": "TransportParams",
         "type": "object"
       },
+      "UninstallNotice": {
+        "description": "Sent by the uninstaller (Windows/Linux) right before removing the collector from the PC.",
+        "properties": {
+          "reason": {
+            "default": "installer",
+            "description": "installer = Windows (Inno Setup); package = Linux (.deb/prerm)",
+            "enum": [
+              "installer",
+              "package"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "title": "UninstallNotice",
+        "type": "object"
+      },
       "UploadResponse": {
         "properties": {
           "id": {
@@ -15721,6 +15759,97 @@
           }
         },
         "summary": "Token de sessão (HMAC do segredo)",
+        "tags": [
+          "coletores (protocolo)"
+        ]
+      }
+    },
+    "/api/agent/uninstalling": {
+      "post": {
+        "operationId": "uninstalling_api_agent_uninstalling_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallNotice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não autenticado"
+          },
+          "403": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sem permissão"
+          },
+          "404": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflito"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Aviso do desinstalador: o coletor está saindo do PC",
         "tags": [
           "coletores (protocolo)"
         ]
