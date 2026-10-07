@@ -161,19 +161,23 @@ def _section(s: svc.Section, keys: list[str]) -> ReportSection:
     )
 
 
+async def _customer_meta(session: SessionDep, f: svc.Filters) -> list[tuple[str, str]]:
+    if not f.customer_id:
+        return [("Cliente", "Todos")]
+    customer = await session.get(Customer, f.customer_id)
+    if customer is None:
+        return []
+    out = [("Código do cliente", customer.erp_code)] if customer.erp_code else []
+    out.append(("Razão social", customer.name))
+    if customer.cnpj and len(customer.cnpj) == CNPJ_DIGITS:
+        c = customer.cnpj
+        out.append(("CNPJ", f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}"))
+    return out
+
+
 async def _meta(session: SessionDep, defn: svc.ReportDef, f: svc.Filters) -> list[tuple[str, str]]:
     """Filters shown in the PDF header (the customer/site were already checked by the report)."""
-    out: list[tuple[str, str]] = []
-    if f.customer_id:
-        customer = await session.get(Customer, f.customer_id)
-        if customer is not None:
-            code = f" (código {customer.erp_code})" if customer.erp_code else ""
-            out.append(("Cliente", customer.name + code))
-            if customer.cnpj and len(customer.cnpj) == CNPJ_DIGITS:
-                c = customer.cnpj
-                out.append(("CNPJ", f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}"))
-    else:
-        out.append(("Cliente", "Todos"))
+    out = await _customer_meta(session, f)
     if f.site_id:
         site = await session.get(Site, f.site_id)
         if site is not None:

@@ -124,9 +124,24 @@ async def test_production_skips_regressions_and_uses_adjustments(
     assert days[park.day(10).isoformat()]["mono"] == 300
     assert days[park.day(20).isoformat()]["color"] == 100
     assert days[park.day(15).isoformat()]["mono"] == 0
-    assert daily["totals"]["total"] == 700
     assert daily["chart"]["stacked"] is True
-    assert daily["total_rows"] == park.last_day.day
+    # Uma linha por equipamento e uma coluna por dia (páginas do dia), com o total no fim.
+    assert daily["total_rows"] == 2
+    day_cols = [c for c in daily["columns"] if c["key"].startswith("d")]
+    assert len(day_cols) == park.last_day.day
+    assert day_cols[9]["label"] == park.day(10).strftime("%d/%m")
+    row = by_serial(daily)[SERIAL]
+    assert row["model"] == "Konica Minolta bizhub C287"
+    assert (row[f"d{park.day(10):%Y%m%d}"], row[f"d{park.day(15):%Y%m%d}"]) == (500, 0)
+    assert row[f"d{park.day(20):%Y%m%d}"] == 200  # 1500 → 1700 (ajustada acima)
+    assert row["total"] == 700
+    assert daily["totals"]["total"] == 700
+    too_long = await client.get(
+        "/api/v1/reports/daily_counter",
+        params={"date_from": "2026-01-01", "date_to": "2026-04-30"},
+        headers=auth(park.admin),
+    )
+    assert too_long.json()["detail"]["code"] == "period_too_long"
 
     regressions = await report(client, park.admin, "regressions", **period)
     received = await report(client, park.admin, "regressions", date_type="received", **period)
@@ -313,3 +328,34 @@ async def test_device_counters_period_and_daily(client: httpx.AsyncClient, facto
             assert resp.status_code == 200, resp.text
     csv_text = resp.content.decode("utf-8-sig")
     assert csv_text.splitlines()[0].startswith("Cliente;Local;Nº de série;Modelo;Setor;Dia")
+
+
+async def test_device_counters_excel_one_line_per_device(client: httpx.AsyncClient, factory: Factory) -> None:
+    park = await build_park(client, factory)
+    period = {
+        "date_from": park.month.isoformat(),
+        "date_to": park.last_day.isoformat(),
+        "customer_id": str(park.tenant.customer_id),
+    }
+    # Excel do resumo no formato do Datacount: uma linha por equipamento, primeira/última leitura e tiragem.
+    xlsx = await client.get(
+        "/api/v1/reports/device_counters/export",
+        params={**period, "group_by": "period", "format": "xlsx"},
+        headers=auth(park.admin),
+    )
+    ws = load_workbook(io.BytesIO(xlsx.content)).active
+    assert ws is not None
+    band = [c.value for c in ws[1]]
+    assert band[0] == "Equipamento"
+    assert {"Primeira leitura", "Última leitura", "Tiragem (páginas no período)"} <= set(band)
+    header = [c.value for c in ws[2]]
+    assert header[:3] == ["Nº de série", "Modelo", "Setor"]
+    line = dict(zip(header[:6], [c.value for c in ws[3]][:6], strict=True))
+    assert line["Nº de série"] == SERIAL
+    values = [c.value for c in ws[3]]
+    tiragem_start = band.index("Tiragem (páginas no período)")
+    tiragem = dict(zip(header[tiragem_start:], values[tiragem_start:], strict=True))
+    assert (tiragem["Total PB"], tiragem["Total cor"], tiragem["Total geral"]) == (350, 250, 600)
+    last = [c.value for c in ws[ws.max_row]]
+    assert last[0] == "Totais"
+    assert last[tiragem_start + header[tiragem_start:].index("Total geral")] == 600

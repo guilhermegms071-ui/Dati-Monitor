@@ -153,34 +153,63 @@ async def production(session: AsyncSession, p: Principal, f: Filters) -> ReportD
     return ReportData(cols, rows, _sum(rows, ["devices", "mono", "color", "total"]), notes=notes)
 
 
+DAILY_MAX_DAYS = 62  # uma coluna por dia: até dois meses cabem na tela e no PDF
+
+
 async def daily_counter(session: AsyncSession, p: Principal, f: Filters) -> ReportData:
-    await check_customer(session, p, f)
+    """Contador diário: uma linha por equipamento, uma coluna por dia com as páginas impressas no dia e o
+    total do período; a última linha soma todos os equipamentos de cada dia."""
     scope, params = sql_scope(p, f)
-    by_day = await counters.production_by_day(session, scope, params, f.lo, f.hi)
-    last = need(f.date_to, "date_to")
-    rows = []
+    devices = await _devices(session, p, f)
+    daily = await counters.daily_by_device(session, scope, params, f.lo, f.hi)
+    days = []
     day = need(f.date_from, "date_from")
-    while day <= last:
-        dp = by_day.get(day)
-        rows.append(
-            {
-                "day": day,
-                "mono": dp.mono if dp else 0,
-                "color": dp.color if dp else 0,
-                "total": dp.total if dp else 0,
-                "devices": dp.devices if dp else 0,
-            }
-        )
+    while day <= need(f.date_to, "date_to"):
+        days.append(day)
         day += timedelta(days=1)
+    day_cols = [Col(f"d{d:%Y%m%d}", f"{d:%d/%m}", "int") for d in days]
+    rows = []
+    for d, cname, _erp, sname, _agent in devices:
+        per = daily.get(d.id, {})
+        row: dict[str, Any] = {**_dev(d, cname, sname), "model": _model(d)}
+        for dd, col in zip(days, day_cols, strict=True):
+            row[col.key] = per[dd].pages_total if dd in per else 0
+        row["total"] = sum(row[c.key] for c in day_cols)
+        rows.append(row)
+    chart_rows = []
+    for dd in days:
+        mono = sum(v.pages_mono for per in daily.values() if (v := per.get(dd)) is not None)
+        color = sum(v.pages_color for per in daily.values() if (v := per.get(dd)) is not None)
+        chart_rows.append({"day": dd, "mono": mono, "color": color})
     cols = [
-        Col("day", "Dia", "date"),
-        Col("mono", "PB", "int"),
-        Col("color", "Cor", "int"),
+        C_CUSTOMER,
+        C_SITE,
+        Col("serial", "Nº de série"),
+        C_MODEL,
+        C_SECTOR,
+        *day_cols,
         Col("total", "Total", "int"),
-        Col("devices", "Equipamentos com leitura", "int"),
     ]
     chart = Chart("bar", "day", [("mono", "PB"), ("color", "Cor")], stacked=True)
-    return ReportData(cols, rows, _sum(rows, ["mono", "color", "total"]), chart)
+    notes = [
+        "Cada coluna é um dia: páginas impressas naquele dia (PB + cor). Dia sem leitura conta 0; as páginas "
+        "aparecem no dia da leitura seguinte.",
+    ]
+    return ReportData(
+        cols,
+        rows,
+        _sum(rows, [*(c.key for c in day_cols), "total"]),
+        chart,
+        notes,
+        chart_rows=chart_rows,
+    )
+
+
+def _model(d: Device) -> str | None:
+    """Brand + model without repeating the brand ("Konica Minolta bizhub C287")."""
+    if d.brand and d.model and d.model.lower().startswith(d.brand.lower()):
+        return d.model
+    return " ".join(x for x in (d.brand, d.model) if x) or None
 
 
 DEVICE_COUNTER_VIEWS = (
@@ -207,10 +236,7 @@ def _fmt_dt(v: datetime | None) -> str:
 
 
 def _device_title(d: Device) -> str:
-    model = " ".join(x for x in (d.brand, d.model) if x) or "Equipamento"
-    if d.brand and d.model and d.model.lower().startswith(d.brand.lower()):
-        model = d.model
-    return f"{model} · Nº de série {d.serial}"
+    return f"{_model(d) or 'Equipamento'} · Nº de série {d.serial}"
 
 
 async def device_counters(session: AsyncSession, p: Principal, f: Filters) -> ReportData:
@@ -243,10 +269,15 @@ async def device_counters(session: AsyncSession, p: Principal, f: Filters) -> Re
             "customer": cname,
             "site": sname,
             "serial": d.serial,
-            "model": " ".join(x for x in (d.brand, d.model) if x) or None,
+            "model": _model(d),
             "sector": d.sector,
         }
-        details = [("Cliente", cname), ("Local", sname), ("Setor", d.sector or "—")]
+        details = [
+            ("Cliente", cname),
+            ("Local", sname),
+            ("Setor", d.sector or "—"),
+            ("Franquia", _franchise(d)),
+        ]
         if daily_view:
             details += [
                 ("Contador no início", _fmt_int(start.total if start else None)),
@@ -293,9 +324,99 @@ async def device_counters(session: AsyncSession, p: Principal, f: Filters) -> Re
         "Leitura inicial = última leitura antes do período (base da produção) ou, sem ela, a primeira do "
         "período."
     )
-    return ReportData(
+    data = ReportData(
         [*SECTION_COLS, *PERIOD_COLS], rows, None, None, notes, sections=sections, summary=summary
     )
+    _period_export(data, devices, period)
+    return data
+
+
+def _franchise(d: Device) -> str:
+    parts = []
+    if d.franchise_pages_mono is not None:
+        parts.append(f"PB {_fmt_int(d.franchise_pages_mono)} pág.")
+    if d.franchise_pages_color is not None:
+        parts.append(f"cor {_fmt_int(d.franchise_pages_color)} pág.")
+    if d.franchise_value is not None:
+        parts.append(
+            "R$ " + f"{d.franchise_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        )
+    return " · ".join(parts) or "—"
+
+
+# Excel/CSV do resumo do período no formato do Datacount: uma linha por equipamento, com a primeira
+# leitura, a última e a tiragem lado a lado (o PDF e a tela continuam em blocos).
+_SNAP_FIELDS: list[tuple[str, str, str | tuple[str, str]]] = [
+    ("pb_a4", "PB A4", ("mono", "mono_large")),
+    ("pb_a3", "PB A3", "mono_large"),
+    ("pb", "Total PB", "mono"),
+    ("cor_a4", "Cor A4", ("color", "color_large")),
+    ("cor_a3", "Cor A3", "color_large"),
+    ("cor", "Total cor", "color"),
+    ("total", "Total geral", "total"),
+    ("scan", "Digitalizações", "scan"),
+]
+
+
+def _snap_value(s: counters.Snapshot | None, field: str | tuple[str, str]) -> int | None:
+    if isinstance(field, tuple):
+        return _a4(s, *field)
+    return _snap(s, field)
+
+
+def _period_export(data: ReportData, devices: Any, period: dict[uuid.UUID, counters.PeriodCounters]) -> None:
+    ident = [
+        Col("serial", "Nº de série"),
+        Col("model", "Modelo"),
+        Col("sector", "Setor"),
+        Col("customer", "Cliente"),
+        Col("site", "Local"),
+        Col("franchise", "Franquia"),
+    ]
+    groups: list[tuple[str, list[Col]]] = [("Equipamento", ident)]
+    for prefix, label in (("first", "Primeira leitura"), ("last", "Última leitura")):
+        groups.append(
+            (
+                label,
+                [
+                    Col(f"{prefix}_at", "Data da coleta", "datetime"),
+                    *(Col(f"{prefix}_{k}", lb, "int") for k, lb, _ in _SNAP_FIELDS),
+                ],
+            )
+        )
+    groups.append(
+        ("Tiragem (páginas no período)", [Col(f"diff_{k}", lb, "int") for k, lb, _ in _SNAP_FIELDS])
+    )
+    rows = []
+    for d, cname, _erp, sname, _agent in devices:
+        pc = period.get(d.id)
+        color = d.is_color is not False
+        start, end = (pc.start, pc.end) if pc else (None, None)
+        row: dict[str, Any] = {
+            "serial": d.serial,
+            "model": _model(d),
+            "sector": d.sector,
+            "customer": cname,
+            "site": sname,
+            "franchise": _franchise(d),
+            "first_at": start.read_at if start else None,
+            "last_at": end.read_at if end else None,
+        }
+        for key, _label, field in _SNAP_FIELDS:
+            a, b = _snap_value(start, field), _snap_value(end, field)
+            if key.startswith("cor") and not color:
+                a = b = None
+            row[f"first_{key}"], row[f"last_{key}"] = a, b
+            produced = {"pb": "pages_mono", "cor": "pages_color", "total": "pages_total"}.get(key)
+            if pc is not None and produced is not None and not (key == "cor" and not color):
+                row[f"diff_{key}"] = getattr(pc, produced)
+            else:
+                row[f"diff_{key}"] = None if a is None or b is None else max(b - a, 0)
+        rows.append(row)
+    data.export_groups = [(label, len(cols)) for label, cols in groups]
+    data.export_columns = [c for _label, cols in groups for c in cols]
+    data.export_rows = rows
+    data.export_totals = {f"diff_{k}": sum(r[f"diff_{k}"] or 0 for r in rows) for k, _lb, _f in _SNAP_FIELDS}
 
 
 DAILY_COLS = [
@@ -1219,10 +1340,11 @@ for _defn in (
     ),
     ReportDef(
         "daily_counter",
-        "Contador diário (total)",
+        "Contador diário",
         PRODUCTION,
-        "Páginas de todos os equipamentos somadas por dia, com gráfico.",
+        "Páginas impressas por dia em cada equipamento (uma coluna por dia) e o total.",
         daily_counter,
+        max_days=DAILY_MAX_DAYS,
     ),
     ReportDef(
         "cutoff",

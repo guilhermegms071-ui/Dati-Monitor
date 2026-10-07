@@ -75,6 +75,12 @@ class ReportData:
     sections: dict[str, Section] | None = None
     summary: list[Stat] = field(default_factory=list)
     chart_rows: list[dict[str, Any]] | None = None  # quando o gráfico não usa as próprias linhas
+    # CSV/XLSX num formato próprio (ex.: uma linha por equipamento); `export_groups` = faixas de títulos
+    # sobre as colunas (rótulo, quantidade de colunas), em ordem.
+    export_columns: list[Col] | None = None
+    export_rows: list[dict[str, Any]] | None = None
+    export_totals: dict[str, Any] | None = None
+    export_groups: list[tuple[str, int]] | None = None
 
 
 def need[T](value: T | None, what: str) -> T:
@@ -132,6 +138,7 @@ class ReportDef:
     hours: bool = False
     default_days: int = 30
     group_label: str = "Agrupar"
+    max_days: int = MAX_PERIOD_DAYS
 
 
 REGISTRY: dict[str, ReportDef] = {}
@@ -163,8 +170,8 @@ def normalize(defn: ReportDef, f: Filters) -> Filters:
         date_from = date_from or date_to - timedelta(days=defn.default_days - 1)
         if date_from > date_to:
             raise bad_request("invalid_period", "A data inicial é depois da final")
-        if (date_to - date_from).days + 1 > MAX_PERIOD_DAYS:
-            raise bad_request("period_too_long", f"Período máximo: {MAX_PERIOD_DAYS} dias")
+        if (date_to - date_from).days + 1 > defn.max_days:
+            raise bad_request("period_too_long", f"Período máximo deste relatório: {defn.max_days} dias")
     elif defn.cutoff_date:
         date_from, date_to = None, date_to or today_sp()
     else:

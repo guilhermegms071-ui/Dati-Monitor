@@ -459,7 +459,7 @@ function ReportTable({
                   className={cn(
                     'px-3 py-1.5',
                     NUMERIC.has(c.kind) && 'text-right font-mono tabular-nums',
-                    r[c.key] === null && 'text-slate-400',
+                    (r[c.key] === null || (NUMERIC.has(c.kind) && r[c.key] === 0)) && 'text-slate-400',
                   )}
                 >
                   {cellText(c, r[c.key])}

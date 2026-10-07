@@ -22,7 +22,7 @@ class ExportColumn[T]:
     value: Callable[[T], Any]
 
 
-def _cell(value: Any) -> Any:
+def export_value(value: Any) -> Any:
     if isinstance(value, datetime):
         # Exibição em America/Sao_Paulo (armazenamento sempre UTC).
         return value.astimezone(DISPLAY_TZ).replace(tzinfo=None)
@@ -45,7 +45,7 @@ def to_csv[T](rows: Iterable[T], columns: Sequence[ExportColumn[T]]) -> bytes:
     for row in rows:
         values = []
         for c in columns:
-            v = _cell(c.value(row))
+            v = export_value(c.value(row))
             if isinstance(v, datetime):
                 v = v.strftime("%d/%m/%Y %H:%M:%S")
             elif isinstance(v, date):
@@ -60,7 +60,7 @@ def to_xlsx[T](rows: Iterable[T], columns: Sequence[ExportColumn[T]], sheet_titl
     ws = wb.create_sheet(title=sheet_title[:31])
     ws.append([c.header for c in columns])
     for row in rows:
-        ws.append([_cell(c.value(row)) for c in columns])
+        ws.append([export_value(c.value(row)) for c in columns])
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
