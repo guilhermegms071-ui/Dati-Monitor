@@ -40,7 +40,7 @@ from app.schemas.park import (
     SupplyLevel,
     SupplyPoint,
 )
-from app.services import audit
+from app.services import assignments, audit
 from app.services import commands as commands_svc
 from app.services import custom_fields as custom_fields_svc
 from app.services import devices as devices_svc
@@ -423,7 +423,7 @@ async def _apply_state(
                 user_id=p.user_id,
             )
         )
-        device.site_id, device.customer_id = site.id, site.customer_id
+        await assignments.move(session, device, site, datetime.now(UTC))
 
 
 async def bulk(

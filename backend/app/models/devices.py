@@ -55,6 +55,9 @@ DEVICE_EVENT_TYPES = (
     "discarded",
     "restored",
     "supply_replaced",
+    "transfer_detected",  # apareceu num local de outro cliente: espera aprovação
+    "transfer_approved",
+    "transfer_rejected",
 )
 
 
@@ -166,6 +169,29 @@ class Device(Base, IdMixin, TimestampMixin, SoftDeleteMixin):
     # Atributos da leitura diária (seção 16.8); o histórico fica em device_attribute_snapshots.
     attributes: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT, default=dict)
     attributes_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Transferência entre clientes (aprovada no portal): onde e quando o equipamento apareceu, e o local
+    # de outro cliente que o operador mandou ignorar ("manter no cliente atual").
+    transfer_site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sites.id"))
+    transfer_detected_at: Mapped[datetime | None] = mapped_column(default=None)
+    transfer_ignored_site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sites.id"))
+
+
+class DeviceAssignment(Base, IdMixin, CreatedMixin):
+    """Em qual cliente/local o equipamento esteve, de quando até quando (end_at nulo = atual). Relatórios de
+    um cliente só contam as leituras dentro dos períodos em que o equipamento esteve com ele."""
+
+    __tablename__ = "device_assignments"
+    __table_args__ = (
+        Index("ix_device_assignments_device_id_start_at", "device_id", "start_at"),
+        Index("ix_device_assignments_customer_id", "customer_id"),
+    )
+
+    reseller_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resellers.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"))
+    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id"))
+    start_at: Mapped[datetime]
+    end_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class DeviceEvent(Base, IdMixin, ClockCreatedMixin):

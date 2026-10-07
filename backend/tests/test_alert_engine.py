@@ -33,6 +33,7 @@ async def test_default_rules_and_customer_override(client: httpx.AsyncClient, fa
         "suspicious_jump",
         "sum_mismatch",
         "agent_uninstalled",
+        "device_transfer",
     }
     assert by_type["agent_offline"]["params"] == {"minutes": 5}
     assert by_type["jam_recurrent"]["params"] == {"count": 5, "days": 3}
